@@ -1,0 +1,161 @@
+# Pixelay
+
+Pixel-perfect text, buttons and cursors on flat in-world canvases for Paper servers.
+
+Pixelay maps a 2D pixel grid onto a plane in the world and draws components on it with
+`TextDisplay` entities. You place things in pixels (`x` right, `y` down, origin top-left),
+Pixelay handles world transforms, rotation, font measurement, alignment and click hitboxes.
+
+## Features
+
+- **Canvas** — a rotatable (yaw/pitch) pixel plane with padding and anchor helpers.
+- **Components** — `CanvasText`, `CanvasButton`, `CanvasCursor`, `CanvasClickCatcher`.
+- **Three render modes**
+  - *server* — real entities visible to everyone;
+  - *packet* — real entities shown to a single viewer (per-player visibility);
+  - *fake* — packet-only entities, nothing exists on the server.
+- **Accurate text measurement** — vanilla font width table (bold-aware, MiniMessage-aware) plus
+  overrides for resource-pack glyphs, used for CSS-like `HAlign`/`VAlign` anchoring and hitboxes.
+- **Dynamic content** — constant text, suppliers or PlaceholderAPI templates, refreshed on a timer.
+- **Self-healing** — registered surfaces are respawned automatically if an entity dies.
+- **Spectator screens** — click routing via packets, sneak-dismount blocking, chat suppression.
+- **Fully configurable** — timings, text style, cursor, chat suppression and even entity
+  metadata indexes live in `config.yml`.
+
+## Requirements
+
+- Paper 1.21.11 (Java 21)
+- [PacketEvents](https://github.com/retrooper/packetevents) 2.12+
+- [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI) — optional
+
+## Installation
+
+1. Download the latest jar from [Releases](https://github.com/Horuse/Pixelay/releases) (or build with `./gradlew build`).
+2. Put `build/libs/pixelay-<version>.jar` and PacketEvents into `plugins/`.
+3. Start the server, adjust `plugins/Pixelay/config.yml`, run `/pixelay reload`.
+
+## Usage (API)
+
+Pixelay is published through [JitPack](https://jitpack.io/#Horuse/Pixelay).
+
+Gradle:
+
+```gradle
+repositories {
+    maven { url = 'https://jitpack.io' }
+}
+
+dependencies {
+    compileOnly 'com.github.Horuse:Pixelay:<tag>'
+}
+```
+
+Maven:
+
+```xml
+<repository>
+    <id>jitpack.io</id>
+    <url>https://jitpack.io</url>
+</repository>
+
+<dependency>
+    <groupId>com.github.Horuse</groupId>
+    <artifactId>Pixelay</artifactId>
+    <version>TAG</version>
+    <scope>provided</scope>
+</dependency>
+```
+
+Then declare the runtime dependency in your `plugin.yml`:
+
+```yaml
+depend: [ Pixelay ]
+```
+
+Server owners install the plugin jar from [Releases](https://github.com/Horuse/Pixelay/releases).
+
+```java
+// 256x144 px canvas, 4x2.25 blocks, facing south
+Canvas canvas = new Canvas(location, 0f, new CanvasResolution(256, 144, 4, 2.25));
+
+CanvasText title = new CanvasText(128, 12, 16, TextContent.of("<gold><b>Welcome"))
+        .align(HAlign.CENTER, VAlign.TOP);
+title.spawn(canvas);
+
+CanvasButton play = new CanvasButton(128, 100, 12, TextContent.of("<green>[ Play ]"),
+        player -> player.sendMessage("Click!"));
+play.spawn(canvas);
+
+// Live text through PlaceholderAPI
+CanvasText online = new CanvasText(8, 136, 8, TextContent.placeholder("Online: %server_online%"))
+        .align(HAlign.LEFT, VAlign.BOTTOM);
+online.spawn(canvas);
+```
+
+Per-player and packet-only variants:
+
+```java
+CanvasText.packet(viewer, x, y, heightPx, content);   // visible to one player
+CanvasButton.fake(viewer, x, y, heightPx, content, onClick); // packet-only
+```
+
+Fake components have no server-side hitbox: resolve clicks yourself with
+`canvas.pixelFromRay(eye, direction)` and `CanvasLayout.contains(...)`, and use a
+`CanvasClickCatcher` to receive the raw click from a spectator player.
+
+To get automatic refresh and self-healing, implement `CanvasSurface` and register it:
+
+```java
+Pixelay.manager().register(surface);
+Pixelay.manager().unregister(surface);
+```
+
+Chat suppression while a full-screen canvas is shown:
+
+```java
+ChatSuppression.suppress(player);
+ChatSuppression.restore(player); // delivers queued messages
+```
+
+## Configuration
+
+| File | Purpose |
+|------|---------|
+| `config.yml` | Timings, text style, click debounce, cursor, chat suppression, packet metadata indexes. |
+| `font-widths.yml` | Width overrides (in font pixels) for custom resource-pack glyphs. |
+
+All options are documented inline in the generated files.
+
+## Commands & permissions
+
+| Command | Permission | Description |
+|---------|------------|-------------|
+| `/pixelay reload` | `pixelay.admin` (op) | Reloads `config.yml` and `font-widths.yml`. |
+
+## Regenerating the font width table
+
+`tools/fontgen/generate.py` rebuilds `FontWidths.java` from the vanilla font assets
+(and optionally your resource pack) using only the Python standard library:
+
+```sh
+python3 tools/fontgen/generate.py \
+  --assets path/to/vanilla-font-assets \
+  --pack path/to/your-resource-pack \
+  --output src/main/java/dev/horuse/pixelay/content/FontWidths.java
+```
+
+Paths can also be set in a `.env` file at the repository root
+(`VANILLA_ASSETS_PATH`, `RESOURCE_PACK_PATH`). See the script header for details.
+
+## Building
+
+```sh
+./gradlew build
+```
+
+Produces the shaded plugin jar (Configurate relocated to `dev.horuse.pixelay.libs`) and a plain
+API jar for compiling against.
+
+## License
+
+[MIT](LICENSE) © Horuse

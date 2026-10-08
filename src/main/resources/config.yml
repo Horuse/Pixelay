@@ -1,0 +1,73 @@
+# Pixelay configuration. Apply changes with /pixelay reload.
+
+# Log spawn/click diagnostics to the console.
+debug: false
+
+# Remove leftover Pixelay entities (e.g. after a crash) when the plugin enables.
+cleanup-on-enable: true
+
+scheduler:
+  # How often registered CanvasSurfaces re-evaluate their dynamic text (ticks).
+  refresh-period-ticks: 20
+  # How often registered CanvasSurfaces are checked for dead entities and respawned (ticks).
+  heal-period-ticks: 40
+
+text:
+  # Distance (blocks) components are pushed out of the canvas plane to avoid Z-fighting.
+  normal-offset: 0.01
+  # Gap between the TextDisplay position and the bottom edge of the text, in font pixels.
+  bottom-gap-font-px: 2
+  # TextDisplay view range multiplier (higher = visible from farther away).
+  view-range: 500
+  # Render text at full brightness regardless of surrounding light.
+  full-brightness: true
+  # Maximum line width in font pixels before the client wraps text.
+  line-width: 200
+  shadow: false
+  see-through: false
+  # Background color as #AARRGGBB (#00000000 = transparent).
+  background: "#00000000"
+
+clicks:
+  # Minimum delay between two routed clicks of the same player (milliseconds).
+  debounce-ms: 150
+  # Cancel Shift (dismount) input for players viewing a full-screen canvas.
+  block-sneak-dismount: true
+
+cursor:
+  # Default CanvasCursor glyph (MiniMessage). Use a resource-pack glyph for a custom cursor.
+  glyph: "+"
+  # Default cursor height in canvas pixels.
+  height-px: 17
+
+chat-suppression:
+  # Allow ChatSuppression.suppress(player) to hide chat while a full-screen canvas is shown.
+  enabled: true
+  # Maximum queued messages per player; the oldest are dropped on overflow.
+  queue-limit: 100
+  # Queues longer than this are discarded instead of delivered on restore.
+  deliver-limit: 20
+
+packets:
+  # First entity id used for packet-only (fake) entities. Must stay far above real entity ids.
+  # Read once on first use; changing it requires a server restart.
+  fake-entity-id-base: 1000000000
+  # Display / TextDisplay entity metadata indexes. Defaults match Minecraft 1.21.11
+  # (see https://minecraft.wiki/w/Java_Edition_protocol/Entity_metadata); adjust only when
+  # running a Minecraft version whose metadata layout differs.
+  metadata:
+    transformation-start-delta: 8
+    transformation-duration: 9
+    position-interpolation-duration: 10
+    translation: 11
+    scale: 12
+    left-rotation: 13
+    right-rotation: 14
+    billboard: 15
+    brightness-override: 16
+    view-range: 17
+    text: 23
+    line-width: 24
+    background-color: 25
+    text-opacity: 26
+    style-flags: 27

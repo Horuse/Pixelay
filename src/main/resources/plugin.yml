@@ -1,0 +1,17 @@
+name: Pixelay
+version: "${version}"
+main: dev.horuse.pixelay.PixelayPlugin
+api-version: "1.21"
+author: Horuse
+description: Pixel-perfect text, buttons and cursors on flat in-world canvases made of Display entities.
+depend: [packetevents]
+softdepend: [PlaceholderAPI]
+commands:
+  pixelay:
+    description: Pixelay administration.
+    usage: /pixelay reload
+    permission: pixelay.admin
+permissions:
+  pixelay.admin:
+    description: Allows /pixelay reload.
+    default: op
