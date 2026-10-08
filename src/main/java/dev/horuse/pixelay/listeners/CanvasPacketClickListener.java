@@ -132,14 +132,17 @@ public class CanvasPacketClickListener implements PacketListener {
     }
 
     private void handleClick(PacketReceiveEvent event, int entityId) {
-        Consumer<Player> callback = CanvasButton.getCallbackById(entityId);
+        if (!(event.getPlayer() instanceof Player player)) {
+            return;
+        }
+
+        Consumer<Player> callback = CanvasButton.getCallbackById(entityId, player);
 
         if (callback == null) {
             return;
         }
 
         Pixelay.debug("click " + event.getPacketType() + " id=" + entityId);
-        Player player = event.getPlayer();
         callback.accept(player);
         event.setCancelled(true);
     }

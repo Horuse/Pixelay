@@ -92,6 +92,10 @@ CanvasText online = new CanvasText(8, 136, 8, TextContent.placeholder("Online: %
 online.spawn(canvas);
 ```
 
+> **Security:** all canvas text is parsed as MiniMessage, and `TextContent.placeholder(...)`
+> expands every `%placeholder%`. Never pass player-supplied text (chat, names, signs) directly —
+> escape it with `MiniMessage.miniMessage().escapeTags(input)` and strip `%` first.
+
 Per-player and packet-only variants:
 
 ```java

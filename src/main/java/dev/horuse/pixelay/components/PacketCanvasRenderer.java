@@ -74,7 +74,7 @@ public class PacketCanvasRenderer implements CanvasRenderer {
         viewer.showEntity(Pixelay.plugin(), interaction);
         AbstractCanvasComponent.tag(interaction);
 
-        CanvasButton.registerClickById(interaction.getEntityId(), drawable.onClick());
+        CanvasButton.registerClickById(interaction.getEntityId(), viewer.getUniqueId(), drawable.onClick());
     }
 
     @Override

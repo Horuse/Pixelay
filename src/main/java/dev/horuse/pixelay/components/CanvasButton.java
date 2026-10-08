@@ -16,7 +16,7 @@ import org.bukkit.entity.Player;
 public class CanvasButton extends CanvasText {
 
     private static final Map<UUID, Consumer<Player>> CLICK_REGISTRY = new ConcurrentHashMap<>();
-    private static final Map<Integer, Consumer<Player>> CLICK_REGISTRY_BY_ID = new ConcurrentHashMap<>();
+    private static final Map<Integer, ViewerClick> CLICK_REGISTRY_BY_ID = new ConcurrentHashMap<>();
 
     private final Consumer<Player> onClick;
 
@@ -73,12 +73,23 @@ public class CanvasButton extends CanvasText {
         CLICK_REGISTRY.remove(uuid);
     }
 
-    public static Consumer<Player> getCallbackById(int entityId) {
-        return CLICK_REGISTRY_BY_ID.get(entityId);
+    /**
+     * @return the callback of a per-player hitbox, or null when the entity is unknown or the clicking
+     *     player is not its viewer — a modified client can send any entity id, so clicks on another
+     *     player's private button must be ignored
+     */
+    public static Consumer<Player> getCallbackById(int entityId, Player clicker) {
+        ViewerClick click = CLICK_REGISTRY_BY_ID.get(entityId);
+
+        if (click == null || !click.viewer().equals(clicker.getUniqueId())) {
+            return null;
+        }
+
+        return click.callback();
     }
 
-    public static void registerClickById(int entityId, Consumer<Player> callback) {
-        CLICK_REGISTRY_BY_ID.put(entityId, callback);
+    public static void registerClickById(int entityId, UUID viewer, Consumer<Player> callback) {
+        CLICK_REGISTRY_BY_ID.put(entityId, new ViewerClick(viewer, callback));
     }
 
     public static void unregisterClickById(int entityId) {
@@ -89,4 +100,7 @@ public class CanvasButton extends CanvasText {
         CLICK_REGISTRY.clear();
         CLICK_REGISTRY_BY_ID.clear();
     }
+
+    /** A per-player hitbox callback bound to the only player allowed to trigger it. */
+    private record ViewerClick(UUID viewer, Consumer<Player> callback) {}
 }

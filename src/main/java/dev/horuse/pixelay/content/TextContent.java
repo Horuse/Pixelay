@@ -21,7 +21,14 @@ public interface TextContent {
         return supplier::get;
     }
 
-    /** Template resolved through global (player-agnostic) placeholders on every refresh. */
+    /**
+     * Template resolved through global (player-agnostic) placeholders on every refresh.
+     *
+     * <p><b>Never pass player-supplied text here</b> (chat, names, signs, …): PlaceholderAPI
+     * expands any {@code %placeholder%} in it and the result is parsed as MiniMessage, so a player
+     * could leak server data or inject formatting. Escape such input first, e.g. with {@code
+     * MiniMessage.miniMessage().escapeTags(input)} and by stripping {@code %}.
+     */
     static TextContent placeholder(String template) {
         return () -> PlaceholderResolver.resolve(template);
     }

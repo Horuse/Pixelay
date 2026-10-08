@@ -10,6 +10,9 @@ import org.bukkit.OfflinePlayer;
  * <p>Server-side display entities are shared across all viewers, so only global placeholders
  * (server stats, global variables, …) make sense here. Player-bound placeholders resolve to empty.
  * When PlaceholderAPI is absent the template is returned unchanged.
+ *
+ * <p>Templates must come from trusted sources (code or config), never from players: every
+ * {@code %placeholder%} in them is expanded.
  */
 public final class PlaceholderResolver {
 
