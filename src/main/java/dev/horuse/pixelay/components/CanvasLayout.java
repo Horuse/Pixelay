@@ -21,8 +21,13 @@ public final class CanvasLayout {
      * @return text block height in canvas px (font line height * number of lines)
      */
     public static double textHeightPx(CanvasDrawable drawable, String text) {
+        return textHeightPx(drawable, text, drawable.lineWidth());
+    }
+
+    /** Text block height when wrapped at {@code lineWidth} font px (instead of the drawable's own). */
+    public static double textHeightPx(CanvasDrawable drawable, String text, int lineWidth) {
         // The client stacks lines with a 1 px gap, so every extra line adds a pitch, not a glyph height.
-        int lines = Math.max(1, FontMetrics.lineCount(text, lineWidth()));
+        int lines = Math.max(1, FontMetrics.lineCount(text, lineWidth));
         double fontPx = FontMetrics.LINE_HEIGHT_PX + (lines - 1) * FontMetrics.LINE_PITCH_PX;
         return (fontPx * drawable.heightPx()) / FontMetrics.LINE_HEIGHT_PX;
     }
@@ -41,6 +46,11 @@ public final class CanvasLayout {
      *     specified, otherwise the measured text block
      */
     public static double[] hitboxSizePx(CanvasDrawable drawable, String text) {
+        return hitboxSizePx(drawable, text, drawable.lineWidth());
+    }
+
+    /** Hitbox size when the text is wrapped at {@code lineWidth} font px (used by layouts to measure). */
+    public static double[] hitboxSizePx(CanvasDrawable drawable, String text, int lineWidth) {
         double width = drawable.hitboxWidthPx();
         double height = drawable.hitboxHeightPx();
 
@@ -49,8 +59,8 @@ public final class CanvasLayout {
         }
 
         return new double[] {
-            FontMetrics.widthPx(text, drawable.heightPx(), lineWidth()),
-            textHeightPx(drawable, text),
+            FontMetrics.widthPx(text, drawable.heightPx(), lineWidth),
+            textHeightPx(drawable, text, lineWidth),
         };
     }
 
@@ -73,7 +83,7 @@ public final class CanvasLayout {
      *     vertical — by the gap {@link #bottomGapPx} between the entity and the ink.
      */
     public static double[] displayPosition(CanvasDrawable drawable, String text) {
-        double width = FontMetrics.widthPx(text, drawable.heightPx(), lineWidth());
+        double width = FontMetrics.widthPx(text, drawable.heightPx(), drawable.lineWidth());
         double height = textHeightPx(drawable, text);
         double fontPx = drawable.heightPx() / FontMetrics.LINE_HEIGHT_PX;
         double bottomOffset = drawable.vAlign().bottomOffset(height);
@@ -94,10 +104,5 @@ public final class CanvasLayout {
         double centerX = drawable.pixelX() + drawable.hAlign().horizontalOffset(hitboxSizePx[0]);
         double bottom = drawable.pixelY() + drawable.vAlign().bottomOffset(hitboxSizePx[1]);
         return Math.abs(px - centerX) <= hitboxSizePx[0] / 2 && py <= bottom && py >= bottom - hitboxSizePx[1];
-    }
-
-    /** TextDisplay line width from config: the client wraps longer lines, so measurement must too. */
-    private static int lineWidth() {
-        return Pixelay.settings().text().lineWidth();
     }
 }

@@ -8,6 +8,8 @@ import dev.horuse.pixelay.components.CanvasButton;
 import dev.horuse.pixelay.components.CanvasClickCatcher;
 import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.content.FontMetrics;
+import dev.horuse.pixelay.debug.LayoutDebug;
+import dev.horuse.pixelay.debug.LayoutDebugListener;
 import dev.horuse.pixelay.listeners.CanvasClickListener;
 import dev.horuse.pixelay.listeners.CanvasPacketClickListener;
 import dev.horuse.pixelay.listeners.ChatSuppression;
@@ -52,6 +54,7 @@ public final class PixelayPlugin extends JavaPlugin {
         CanvasClickCatcher.clearRegistry();
 
         Bukkit.getPluginManager().registerEvents(new CanvasClickListener(), this);
+        Bukkit.getPluginManager().registerEvents(new LayoutDebugListener(), this);
         packetClickListener = PacketEvents.getAPI()
             .getEventManager()
             .registerListener(new CanvasPacketClickListener(), PacketListenerPriority.NORMAL);
@@ -81,6 +84,7 @@ public final class PixelayPlugin extends JavaPlugin {
 
         CanvasButton.clearRegistry();
         CanvasClickCatcher.clearRegistry();
+        LayoutDebug.clear();
         if (entityKey != null) {
             cleanupCanvasEntities();
         }

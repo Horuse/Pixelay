@@ -1,7 +1,9 @@
 package dev.horuse.pixelay.components;
 
+import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.VAlign;
+import dev.horuse.pixelay.debug.Overflow;
 import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
@@ -25,9 +27,18 @@ public interface CanvasDrawable {
     String renderText();
 
     /**
-     * @return horizontal anchor: which edge of the element's box {@link #pixelX()} pins (defaults
-     *     to CENTER — the historical behavior)
+     * @return TextDisplay line width in font px: the client wraps longer lines. Defaults to the
+     *     configured {@code text.line-width}; layouts lower it to the width they give the element.
      */
+    default int lineWidth() {
+        return Pixelay.settings().text().lineWidth();
+    }
+
+    /** @return whether the last layout pass found this element (or its box) bigger than its space */
+    default Overflow overflow() {
+        return Overflow.NONE;
+    }
+
     /**
      * @return a counter bumped whenever position, alignment or hitbox change, so renderers reposition
      *     the element even when its text did not change (e.g. after a layout pass)
@@ -36,6 +47,10 @@ public interface CanvasDrawable {
         return 0;
     }
 
+    /**
+     * @return horizontal anchor: which edge of the element's box {@link #pixelX()} pins (defaults
+     *     to CENTER — the historical behavior)
+     */
     default HAlign hAlign() {
         return HAlign.CENTER;
     }

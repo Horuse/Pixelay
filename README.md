@@ -131,12 +131,12 @@ import static dev.horuse.pixelay.layout.Layout.*;
 
 MountedLayout ui = mount(
     column(
-        row(node(title, HAlign.LEFT, VAlign.TOP), spacer(), balance),
+        row(title, spacer(), balance),
         spacer(),
         row(
-            grid(cards).rows(3).cell(220, 136).fromBottom().align(Align.CENTER),
+            grid(cards).columns(repeat(3, px(220))).rows(repeat(3, px(136))).autoFlow(Grid.Flow.COLUMN),
             spacer(),
-            node(continueButton, HAlign.RIGHT, VAlign.BOTTOM)
+            continueButton
         ).align(Align.END)
     ).padding(32)
 );
@@ -148,13 +148,37 @@ ui.click(px, py, player);
 | Building block | Meaning |
 |----------------|---------|
 | `row(...)`, `column(...)` | flexbox; `gap`, `align` (cross axis, default `STRETCH`), `justify` (`START`, `CENTER`, `END`, `SPACE_BETWEEN`) |
-| `grid(...)` | fixed cells filled column by column; tall items span rows; `align` / `justifyItems` place items in their area |
-| `stack(...)` | layers sharing one rectangle |
-| `spacer()`, `space(px)` | flexible or fixed empty space |
-| `node(component[, h, v])` | a component as a leaf, pinned inside its rectangle |
+| `grid(...)` | CSS Grid: `columns`/`rows` tracks (`px`, `fr`, `auto`, `repeat`), `autoColumns`/`autoRows`, `autoFlow(ROW\|COLUMN)`, `gap`, `align`/`justifyItems`; items take `rowSpan`/`columnSpan` and `gridRow`/`gridColumn` |
+| `stack(...)` | layers sharing one area, placed by `justifySelf` / `alignSelf` |
+| `spacer()`, `space(px)` | flexible or fixed empty space along the main axis |
+| `node(component)` | a component as a leaf, to set box properties on it |
 
-Every box supports `padding`, `margin` (negative values allowed), `width`/`height`, `grow`,
-`alignSelf`, `id` (hit testing via `idAt`) and `onClick`.
+Every box supports `padding`, `margin` (negative values allowed), `width`/`height`, `grow`, `shrink`,
+`alignSelf` / `justifySelf`, `id` (hit testing via `idAt`) and `onClick`.
+
+Alignment is one system, like CSS: `align` / `alignSelf` (vertical; the cross axis in a row or a column)
+and `justifyItems` / `justifySelf` (horizontal). A component inside a layout is pinned by them within
+its rectangle (top-left by default), so `component.align(...)` is not used there. In a row or a column
+`justifySelf` does not move the box (as in CSS flexbox); a leaf still uses it to pin its text.
+
+In a row children start at their natural width; when they do not fit, `shrink` (default 1) takes
+the missing space from them, never below their min-content width (texts wrap, words stay whole).
+
+### Text wrapping
+
+Layouts pass the available width down like CSS: a column, a stack or a grid area gives its children
+its own width, a row gives growing children what is left. Texts wrap to that width (the TextDisplay
+`line_width` is set per element), so height accounts for the extra lines. Like CSS, a word is never
+broken: a word wider than its space overflows instead (visible with `/pixelay debug layout`).
+`text.line-width` in `config.yml` stays the upper limit.
+
+### Debugging layouts
+
+`/pixelay debug layout` (permission `pixelay.admin`) toggles a per-player debug mode: every component
+gets a translucent background showing its text block — blue when it fits, red where an overflow starts
+(the box itself is bigger than its space), orange when it sits inside an overflowing box. The
+highlight follows the next canvas refresh. Fake and per-player components show it only to the debugging player; server-wide
+components show it to everyone while anyone debugs.
 
 ## Configuration
 
@@ -170,6 +194,7 @@ All options are documented inline in the generated files.
 | Command | Permission | Description |
 |---------|------------|-------------|
 | `/pixelay reload` | `pixelay.admin` (op) | Reloads `config.yml` and `font-widths.yml`. |
+| `/pixelay debug layout` | `pixelay.admin` (op) | Highlights components that overflow their layout space. |
 
 ## Regenerating the font width table
 

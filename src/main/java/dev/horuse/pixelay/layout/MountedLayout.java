@@ -16,18 +16,18 @@ import org.bukkit.entity.Player;
  */
 public final class MountedLayout implements CanvasComponent {
 
-    private final Box root;
+    private final Box<?> root;
     private final List<AbstractCanvasComponent> components = new ArrayList<>();
-    private final List<Box> boxes = new ArrayList<>();
+    private final List<Box<?>> boxes = new ArrayList<>();
     private Canvas canvas;
 
-    MountedLayout(Box root) {
+    MountedLayout(Box<?> root) {
         this.root = root;
         root.collectComponents(components);
         root.collectBoxes(boxes);
     }
 
-    public Box root() {
+    public Box<?> root() {
         return root;
     }
 
@@ -38,6 +38,8 @@ public final class MountedLayout implements CanvasComponent {
     /** Runs measure + arrange over the whole canvas. */
     public void layout(Canvas canvas) {
         this.canvas = canvas;
+        // Texts may have changed since the last pass: measure everything once more, then reuse.
+        root.invalidate();
         root.arrange(new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight()));
     }
 
@@ -72,8 +74,10 @@ public final class MountedLayout implements CanvasComponent {
      * @return whether anything handled the click
      */
     public boolean click(double px, double py, Player player) {
+        px = clampToCanvas(px, true);
+        py = clampToCanvas(py, false);
         for (int i = boxes.size() - 1; i >= 0; i--) {
-            Box box = boxes.get(i);
+            Box<?> box = boxes.get(i);
             if (box.onClick() != null && box.rect().contains(px, py)) {
                 box.onClick().accept(player);
                 return true;
@@ -94,12 +98,26 @@ public final class MountedLayout implements CanvasComponent {
 
     /** @return the id of the deepest box with an id under the point, or {@code null} */
     public String idAt(double px, double py) {
+        px = clampToCanvas(px, true);
+        py = clampToCanvas(py, false);
         for (int i = boxes.size() - 1; i >= 0; i--) {
-            Box box = boxes.get(i);
+            Box<?> box = boxes.get(i);
             if (box.id() != null && box.rect().contains(px, py)) {
                 return box.id();
             }
         }
         return null;
+    }
+
+    /**
+     * Rectangles are half-open (right/bottom edges belong to the next box), so a point exactly on the
+     * canvas' right or bottom edge is moved just inside it to still hit the boxes along that edge.
+     */
+    private double clampToCanvas(double value, boolean horizontal) {
+        if (canvas == null) {
+            return value;
+        }
+        double limit = horizontal ? canvas.resolution().pixelWidth() : canvas.resolution().pixelHeight();
+        return value >= limit ? Math.nextDown(limit) : value;
     }
 }

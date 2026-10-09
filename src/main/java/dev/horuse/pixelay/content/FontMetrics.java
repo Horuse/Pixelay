@@ -95,6 +95,41 @@ public final class FontMetrics {
         return measure(miniMessageText, maxLineWidth).lines();
     }
 
+    /**
+     * @return width in font px of the widest word (text between spaces/line breaks), styles included:
+     *     the narrowest line width at which no word has to be broken
+     */
+    public static int longestWordWidth(String miniMessageText) {
+        if (miniMessageText == null || miniMessageText.isEmpty()) {
+            return 0;
+        }
+        double[] state = new double[2]; // {current word, widest word}
+        walkWords(MiniMessage.miniMessage().deserialize(miniMessageText), false, state);
+        return (int) Math.ceil(Math.max(state[0], state[1]));
+    }
+
+    private static void walkWords(Component component, boolean parentBold, double[] state) {
+        TextDecoration.State boldState = component.style().decoration(TextDecoration.BOLD);
+        boolean bold =
+            boldState == TextDecoration.State.TRUE || (boldState != TextDecoration.State.FALSE && parentBold);
+        if (component instanceof TextComponent text) {
+            String content = text.content();
+            for (int i = 0; i < content.length(); ) {
+                int codePoint = content.codePointAt(i);
+                if (codePoint == ' ' || codePoint == '\n') {
+                    state[1] = Math.max(state[1], state[0]);
+                    state[0] = 0;
+                } else {
+                    state[0] += advance(codePoint, bold);
+                }
+                i += Character.charCount(codePoint);
+            }
+        }
+        for (Component child : component.children()) {
+            walkWords(child, bold, state);
+        }
+    }
+
     /** Manual glyph width override in font px (takes priority over the table). */
     public static void setOverride(int codePoint, int advancePx) {
         OVERRIDES.put(codePoint, advancePx);

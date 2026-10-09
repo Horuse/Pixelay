@@ -1,10 +1,12 @@
 package dev.horuse.pixelay.commands;
 
 import dev.horuse.pixelay.PixelayPlugin;
+import dev.horuse.pixelay.debug.LayoutDebug;
 import java.util.List;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
+import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.configurate.ConfigurateException;
 
@@ -36,7 +38,23 @@ public class PixelayCommand implements TabExecutor {
             return true;
         }
 
-        sender.sendMessage("Pixelay " + plugin.getPluginMeta().getVersion() + " — usage: /" + label + " reload");
+        if (args.length == 2 && args[0].equalsIgnoreCase("debug") && args[1].equalsIgnoreCase("layout")) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("Only players can debug layouts.");
+                return true;
+            }
+            boolean enabled = LayoutDebug.toggle(player);
+            sender.sendMessage(
+                enabled
+                    ? "Layout debug on: every element shows its block (blue), elements that do not fit their space are red."
+                    : "Layout debug off."
+            );
+            return true;
+        }
+
+        sender.sendMessage(
+            "Pixelay " + plugin.getPluginMeta().getVersion() + " — usage: /" + label + " <reload|debug layout>"
+        );
         return true;
     }
 
@@ -47,6 +65,15 @@ public class PixelayCommand implements TabExecutor {
         @NotNull String alias,
         String[] args
     ) {
-        return args.length == 1 && "reload".startsWith(args[0].toLowerCase()) ? List.of("reload") : List.of();
+        if (args.length == 1) {
+            return List.of("reload", "debug")
+                .stream()
+                .filter(option -> option.startsWith(args[0].toLowerCase()))
+                .toList();
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("debug")) {
+            return "layout".startsWith(args[1].toLowerCase()) ? List.of("layout") : List.of();
+        }
+        return List.of();
     }
 }

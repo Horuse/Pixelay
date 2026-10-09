@@ -5,6 +5,7 @@ import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.VAlign;
+import dev.horuse.pixelay.debug.Overflow;
 import dev.horuse.pixelay.layout.LayoutItem;
 import java.util.function.Consumer;
 import org.bukkit.Color;
@@ -34,6 +35,11 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
     protected Canvas canvas;
     protected CanvasRenderer renderer;
     private int layoutVersion;
+    // Layout state, written by layouts and read by renderers; both run on the main server thread,
+    // volatile keeps them consistent if a renderer reads off-thread.
+    private volatile Overflow overflow = Overflow.NONE;
+    /** Line width set by a layout, in font px; {@code <= 0} means the configured default. */
+    private volatile int layoutLineWidth;
 
     protected AbstractCanvasComponent(double pixelX, double pixelY, double heightPx) {
         this.pixelX = pixelX;
@@ -109,6 +115,31 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
         this.hAlign = hAlign;
         this.vAlign = vAlign;
         layoutVersion++;
+    }
+
+    /**
+     * Set by layouts: wrap the text at this many font px (the width the layout gives the element),
+     * capped by the configured line width; {@code <= 0} restores the default.
+     */
+    public void setLineWidth(int fontPx) {
+        int width = fontPx > 0 ? Math.min(fontPx, Pixelay.settings().text().lineWidth()) : 0;
+        // No layoutVersion bump: a pass may measure several times; renderers compare the final value.
+        layoutLineWidth = width;
+    }
+
+    @Override
+    public int lineWidth() {
+        return layoutLineWidth > 0 ? layoutLineWidth : CanvasDrawable.super.lineWidth();
+    }
+
+    /** Set by layouts: the element is bigger than the space it was given (see LayoutDebug). */
+    public void setOverflow(Overflow overflow) {
+        this.overflow = overflow;
+    }
+
+    @Override
+    public Overflow overflow() {
+        return overflow;
     }
 
     @Override

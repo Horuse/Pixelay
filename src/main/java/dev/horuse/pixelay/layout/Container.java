@@ -5,9 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** A box with children. */
-public abstract class Container extends Box {
+public abstract class Container<S extends Container<S>> extends Box<S> {
 
-    protected final List<Box> children = new ArrayList<>();
+    protected final List<Box<?>> children = new ArrayList<>();
     protected double gap;
 
     Container(LayoutItem... items) {
@@ -17,15 +17,19 @@ public abstract class Container extends Box {
     }
 
     /** Space between neighbouring children (CSS {@code gap}). */
-    public <T extends Container> T gap(double gap) {
+    public S gap(double gap) {
         this.gap = gap;
-        @SuppressWarnings("unchecked")
-        T self = (T) this;
-        return self;
+        return self();
     }
 
-    public List<Box> children() {
+    public List<Box<?>> children() {
         return List.copyOf(children);
+    }
+
+    @Override
+    protected void invalidate() {
+        super.invalidate();
+        children.forEach(Box::invalidate);
     }
 
     @Override
@@ -34,14 +38,17 @@ public abstract class Container extends Box {
     }
 
     @Override
-    protected void collectBoxes(List<Box> out) {
+    protected void collectBoxes(List<Box<?>> out) {
         super.collectBoxes(out);
         children.forEach(child -> child.collectBoxes(out));
     }
 
-    /** Outer size of a child plus its margin. */
-    static double[] outer(Box child) {
-        double[] size = child.measure();
-        return new double[] { size[0] + child.margin.horizontal(), size[1] + child.margin.vertical() };
+    /** Widest child min-content width (for containers that stack children on top of each other). */
+    protected double widestChildMinWidth() {
+        double width = 0;
+        for (Box<?> child : children) {
+            width = Math.max(width, child.minOuterWidth());
+        }
+        return width;
     }
 }

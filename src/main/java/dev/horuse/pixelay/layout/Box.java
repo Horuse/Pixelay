@@ -1,29 +1,56 @@
 package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
+import dev.horuse.pixelay.debug.Overflow;
 import java.util.List;
 import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 
 /**
  * A layout node with a CSS-like box model: optional fixed size, padding (inside the box), margin
- * (outside), grow factor and self alignment. Layout runs in two passes: {@link #measure()} computes
- * the natural size bottom-up, {@link #arrange(Rect)} assigns rectangles top-down.
+ * (outside, may be negative), grow/shrink factors and self alignment. Layout runs in two passes:
+ * {@link #measure(double)} computes the size that fits a width limit bottom-up (cached for one pass),
+ * {@link #arrange(Rect)} assigns rectangles top-down. Layout runs on the main server thread.
+ *
+ * @param <S> the concrete box type, so chained setters keep it: {@code column(a, b).padding(32).gap(8)}
  */
-public abstract class Box implements LayoutItem {
+public abstract class Box<S extends Box<S>> implements LayoutItem {
+
+    /** Width limit meaning "no limit" (measure the natural, unwrapped size). */
+    static final double UNBOUNDED = -1;
+
+    private static final double OVERFLOW_EPSILON = 0.5;
 
     protected Insets padding = Insets.NONE;
     protected Insets margin = Insets.NONE;
     protected double fixedWidth = -1;
     protected double fixedHeight = -1;
     protected double grow;
+    protected double shrink = 1;
     protected Align alignSelf;
+    protected Align justifySelf;
+    /** Grid placement (CSS {@code grid-row}/{@code grid-column}): 1-based start line or 0 = auto, and span. */
+    int gridRow;
+    int gridColumn;
+    int rowSpan = 1;
+    int columnSpan = 1;
+    /** Result of the last arrange: does this box (or an ancestor) not fit its space. */
+    protected Overflow overflow = Overflow.NONE;
     private String id;
     private Consumer<Player> onClick;
     private Rect rect = new Rect(0, 0, 0, 0);
 
-    /** Natural content size {@code {width, height}} without padding. */
-    protected abstract double[] measureContent();
+    // Two cached sizes per pass: the natural one and the last constrained one (parents ask both).
+    private Size unbounded;
+    private Size constrained;
+    private double constrainedFor = Double.NaN;
+
+    /**
+     * Content size without padding that fits {@code maxWidth} when it is not {@link #UNBOUNDED}:
+     * texts wrap to it, containers pass it on to their children (like CSS width constraints).
+     * Must not change any state: arranging happens in {@link #arrangeContent}.
+     */
+    protected abstract Size measureContent(double maxWidth);
 
     /** Places the children inside the content rectangle (the box rectangle minus padding). */
     protected abstract void arrangeContent(Rect content);
@@ -31,22 +58,88 @@ public abstract class Box implements LayoutItem {
     /** Adds every canvas component of this subtree to {@code out}. */
     protected abstract void collectComponents(List<AbstractCanvasComponent> out);
 
+    /**
+     * Narrowest content width (without padding) this box can take without breaking words or
+     * squeezing fixed sizes — the floor for {@code shrink} (CSS {@code min-content}).
+     */
+    protected abstract double minContentWidth();
+
     /** Adds every box of this subtree (self included, depth-first, parents before children). */
-    protected void collectBoxes(List<Box> out) {
+    protected void collectBoxes(List<Box<?>> out) {
         out.add(this);
     }
 
-    /** Outer size {@code {width, height}}: fixed size or content + padding. Margin is not included. */
-    public final double[] measure() {
-        double[] content = measureContent();
-        double width = fixedWidth >= 0 ? fixedWidth : content[0] + padding.horizontal();
-        double height = fixedHeight >= 0 ? fixedHeight : content[1] + padding.vertical();
-        return new double[] { width, height };
+    /** Drops the cached sizes of this subtree, so the next pass measures changed texts again. */
+    protected void invalidate() {
+        unbounded = null;
+        constrained = null;
+        constrainedFor = Double.NaN;
+    }
+
+    /** Natural outer size (fixed size or content + padding), margin not included. */
+    public final Size measure() {
+        return measure(UNBOUNDED);
+    }
+
+    /** Outer size when at most {@code maxWidth} px wide is available; a fixed width overrides it. */
+    public final Size measure(double maxWidth) {
+        double limit = fixedWidth >= 0 ? fixedWidth : maxWidth;
+        if (limit < 0) {
+            if (unbounded == null) {
+                unbounded = compute(UNBOUNDED);
+            }
+            return unbounded;
+        }
+        if (constrained == null || constrainedFor != limit) {
+            constrained = compute(limit);
+            constrainedFor = limit;
+        }
+        return constrained;
+    }
+
+    private Size compute(double limit) {
+        double contentLimit = limit < 0 ? UNBOUNDED : Math.max(0, limit - padding.horizontal());
+        Size content = measureContent(contentLimit);
+        return new Size(
+            fixedWidth >= 0 ? fixedWidth : content.width() + padding.horizontal(),
+            fixedHeight >= 0 ? fixedHeight : content.height() + padding.vertical()
+        );
+    }
+
+    /** Size plus margin when at most {@code maxWidth} px (margin included) is available. */
+    Size outer(double maxWidth) {
+        Size size = measure(maxWidth < 0 ? UNBOUNDED : Math.max(0, maxWidth - margin.horizontal()));
+        return new Size(size.width() + margin.horizontal(), size.height() + margin.vertical());
+    }
+
+    /** {@link #minContentWidth()} as the parent sees it: with padding and margin, or the fixed width. */
+    double minOuterWidth() {
+        double width = fixedWidth >= 0 ? fixedWidth : minContentWidth() + padding.horizontal();
+        return width + margin.horizontal();
     }
 
     public final void arrange(Rect rect) {
+        arrange(rect, false);
+    }
+
+    /** @param insideOverflow an ancestor already does not fit its space */
+    final void arrange(Rect rect, boolean insideOverflow) {
         this.rect = rect;
+        Size natural = measure(rect.width());
+        boolean selfOverflow =
+            natural.width() > rect.width() + OVERFLOW_EPSILON || natural.height() > rect.height() + OVERFLOW_EPSILON;
+        overflow = selfOverflow ? Overflow.SELF : insideOverflow ? Overflow.INSIDE : Overflow.NONE;
         arrangeContent(rect.inset(padding));
+    }
+
+    /** Whether the last layout pass found this box bigger than its space, or inside one that is. */
+    public Overflow overflow() {
+        return overflow;
+    }
+
+    /** For children: does anything at or above this box overflow. */
+    boolean overflowsHere() {
+        return overflow != Overflow.NONE;
     }
 
     /** The rectangle assigned by the last layout pass. */
@@ -62,59 +155,112 @@ public abstract class Box implements LayoutItem {
         return onClick;
     }
 
-    @SuppressWarnings("unchecked")
-    private <T extends Box> T self() {
-        return (T) this;
+    boolean hasFixedWidth() {
+        return fixedWidth >= 0;
     }
 
-    public <T extends Box> T padding(double all) {
+    boolean hasFixedHeight() {
+        return fixedHeight >= 0;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected final S self() {
+        return (S) this;
+    }
+
+    public S padding(double all) {
         return padding(Insets.all(all));
     }
 
-    public <T extends Box> T padding(Insets padding) {
+    public S padding(Insets padding) {
         this.padding = padding;
         return self();
     }
 
-    public <T extends Box> T margin(Insets margin) {
+    public S margin(Insets margin) {
         this.margin = margin;
         return self();
     }
 
-    public <T extends Box> T width(double width) {
+    public S width(double width) {
         this.fixedWidth = width;
         return self();
     }
 
-    public <T extends Box> T height(double height) {
+    public S height(double height) {
         this.fixedHeight = height;
         return self();
     }
 
-    public <T extends Box> T size(double width, double height) {
+    public S size(double width, double height) {
         return width(width).height(height);
     }
 
     /** Share of the free space along the parent's main axis (CSS {@code flex-grow}). */
-    public <T extends Box> T grow(double grow) {
+    public S grow(double grow) {
         this.grow = grow;
         return self();
     }
 
-    /** Overrides the parent's cross-axis alignment for this box (CSS {@code align-self}). */
-    public <T extends Box> T alignSelf(Align align) {
+    /**
+     * Share of the missing space a row takes from this box when its children do not fit (CSS
+     * {@code flex-shrink}, default 1). Never below {@link #minContentWidth()}: texts wrap, words stay whole.
+     */
+    public S shrink(double shrink) {
+        this.shrink = Math.max(0, shrink);
+        return self();
+    }
+
+    /**
+     * Vertical placement in the area given by the parent (CSS {@code align-self}); in a row or a
+     * column it applies to the cross axis. A leaf also pins its text by it inside its rectangle.
+     */
+    public S alignSelf(Align align) {
         this.alignSelf = align;
         return self();
     }
 
+    /**
+     * Horizontal placement in a grid or stack area (CSS {@code justify-self}). In a row or a column it
+     * does not move the box (as in CSS flexbox); a leaf still uses it to pin its text inside its rectangle.
+     */
+    public S justifySelf(Align align) {
+        this.justifySelf = align;
+        return self();
+    }
+
+    /** Rows this item covers in a grid (CSS {@code grid-row: span n}). */
+    public S rowSpan(int span) {
+        this.rowSpan = Math.max(1, span);
+        return self();
+    }
+
+    /** Columns this item covers in a grid (CSS {@code grid-column: span n}). */
+    public S columnSpan(int span) {
+        this.columnSpan = Math.max(1, span);
+        return self();
+    }
+
+    /** Explicit start row line in a grid, 1-based like CSS {@code grid-row-start}; auto-placed otherwise. */
+    public S gridRow(int line) {
+        this.gridRow = Math.max(0, line);
+        return self();
+    }
+
+    /** Explicit start column line in a grid, 1-based like CSS {@code grid-column-start}; auto-placed otherwise. */
+    public S gridColumn(int line) {
+        this.gridColumn = Math.max(0, line);
+        return self();
+    }
+
     /** Tag for hit testing ({@link MountedLayout#idAt}), e.g. to highlight a hovered card. */
-    public <T extends Box> T id(String id) {
+    public S id(String id) {
         this.id = id;
         return self();
     }
 
     /** Makes the whole box clickable via {@link MountedLayout#click}. */
-    public <T extends Box> T onClick(Consumer<Player> onClick) {
+    public S onClick(Consumer<Player> onClick) {
         this.onClick = onClick;
         return self();
     }

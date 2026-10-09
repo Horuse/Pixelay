@@ -1,7 +1,10 @@
 package dev.horuse.pixelay.components;
 
+import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.data.Canvas;
+import dev.horuse.pixelay.debug.LayoutDebug;
 import dev.horuse.pixelay.utils.DisplayUtils;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.TextDisplay;
@@ -21,6 +24,8 @@ public class ServerCanvasRenderer implements CanvasRenderer {
     private Interaction interaction;
     private String lastRendered;
     private int lastLayoutVersion;
+    private int lastLineWidth;
+    private int lastBackground;
     private double[] measuredHitbox;
 
     public ServerCanvasRenderer(CanvasDrawable drawable) {
@@ -41,6 +46,7 @@ public class ServerCanvasRenderer implements CanvasRenderer {
         Location loc = canvas.pixelToWorld(pos[0], pos[1]);
         lastRendered = text;
         lastLayoutVersion = drawable.layoutVersion();
+        lastLineWidth = drawable.lineWidth();
         display = DisplayUtils.spawnText(
             loc,
             CanvasText.parse(text),
@@ -49,6 +55,9 @@ public class ServerCanvasRenderer implements CanvasRenderer {
             drawable.hAlign().textAlignment()
         );
         AbstractCanvasComponent.applyTextStyle(display);
+        display.setLineWidth(drawable.lineWidth());
+        lastBackground = Integer.MIN_VALUE;
+        syncBackground();
         AbstractCanvasComponent.tag(display);
 
         if (drawable.onClick() != null) {
@@ -98,19 +107,26 @@ public class ServerCanvasRenderer implements CanvasRenderer {
             return;
         }
 
+        syncBackground();
         String rendered = drawable.renderText();
 
-        if (rendered.equals(lastRendered) && drawable.layoutVersion() == lastLayoutVersion) {
+        if (
+            rendered.equals(lastRendered) &&
+            drawable.layoutVersion() == lastLayoutVersion &&
+            drawable.lineWidth() == lastLineWidth
+        ) {
             return;
         }
 
         lastRendered = rendered;
         lastLayoutVersion = drawable.layoutVersion();
+        lastLineWidth = drawable.lineWidth();
         // First the position, then the text: so that the block doesn't blink
         // with the old position under the new text.
         measuredHitbox = CanvasLayout.hitboxSizePx(drawable, rendered);
         double[] pos = CanvasLayout.displayPosition(drawable, rendered);
         display.teleport(canvas.pixelToWorld(pos[0], pos[1]));
+        display.setLineWidth(drawable.lineWidth());
         display.text(CanvasText.parse(rendered));
         if (interaction != null) {
             double[] size = measuredHitbox;
@@ -124,5 +140,19 @@ public class ServerCanvasRenderer implements CanvasRenderer {
     @Override
     public double[] measuredHitboxPx() {
         return measuredHitbox;
+    }
+
+    /** Debug background (blue / red / orange) while anyone debugs layouts, the configured one otherwise. */
+    private void syncBackground() {
+        int background = LayoutDebug.background(
+            drawable.overflow(),
+            LayoutDebug.anyEnabled(),
+            Pixelay.settings().text().backgroundArgb()
+        );
+        if (background == lastBackground) {
+            return;
+        }
+        lastBackground = background;
+        display.setBackgroundColor(Color.fromARGB(background));
     }
 }

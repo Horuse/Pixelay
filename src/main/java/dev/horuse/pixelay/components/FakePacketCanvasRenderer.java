@@ -13,6 +13,7 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSp
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.data.Canvas;
+import dev.horuse.pixelay.debug.LayoutDebug;
 import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +65,8 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
     private int textEntityId;
     private String lastRendered;
     private int lastLayoutVersion;
+    private int lastLineWidth;
+    private int lastBackground;
     /** Where the fake entity actually stands; repositioning on refresh is done via translation. */
     private Vector entityPos;
     /** Current display translation (world axes: the entity is spawned with zero yaw/pitch). */
@@ -89,6 +92,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         Vector worldPos = canvas.pixelToWorld(pos[0], pos[1]).toVector();
         lastRendered = text;
         lastLayoutVersion = drawable.layoutVersion();
+        lastLineWidth = drawable.lineWidth();
         entityPos = worldPos;
         translation = new Vector();
         textEntityId = spawnText(worldPos, text);
@@ -156,8 +160,13 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         data.add(new EntityData<>(idx.billboard(), EntityDataTypes.BYTE, BILLBOARD_FIXED));
         data.add(new EntityData<>(idx.viewRange(), EntityDataTypes.FLOAT, style.viewRange()));
         data.add(new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, CanvasText.parse(text)));
-        data.add(new EntityData<>(idx.lineWidth(), EntityDataTypes.INT, style.lineWidth()));
-        data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, style.backgroundArgb()));
+        data.add(new EntityData<>(idx.lineWidth(), EntityDataTypes.INT, drawable.lineWidth()));
+        lastBackground = LayoutDebug.background(
+            drawable.overflow(),
+            LayoutDebug.isEnabled(viewer),
+            style.backgroundArgb()
+        );
+        data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, lastBackground));
         data.add(new EntityData<>(idx.textOpacity(), EntityDataTypes.BYTE, (byte) -1));
         data.add(
             new EntityData<>(
@@ -233,14 +242,20 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
             return;
         }
 
+        syncBackground();
         String rendered = drawable.renderText();
 
-        if (rendered.equals(lastRendered) && drawable.layoutVersion() == lastLayoutVersion) {
+        if (
+            rendered.equals(lastRendered) &&
+            drawable.layoutVersion() == lastLayoutVersion &&
+            drawable.lineWidth() == lastLineWidth
+        ) {
             return;
         }
 
         lastRendered = rendered;
         lastLayoutVersion = drawable.layoutVersion();
+        lastLineWidth = drawable.lineWidth();
         measuredHitbox = CanvasLayout.hitboxSizePx(drawable, rendered);
         double[] pos = CanvasLayout.displayPosition(drawable, rendered);
         translation = canvas.pixelToWorld(pos[0], pos[1]).toVector().subtract(entityPos);
@@ -261,6 +276,12 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
                         Pixelay.settings().packets().metadata().translation(),
                         EntityDataTypes.VECTOR3F,
                         new Vector3f((float) translation.getX(), (float) translation.getY(), (float) translation.getZ())
+                    ),
+                    // The layout may have changed the element's width: the client must wrap at the same place.
+                    new EntityData<>(
+                        Pixelay.settings().packets().metadata().lineWidth(),
+                        EntityDataTypes.INT,
+                        drawable.lineWidth()
                     )
                 )
             )
@@ -292,5 +313,31 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         }
 
         return ENTITY_ID.getAndIncrement();
+    }
+
+    /** Debug background (blue / red / orange) while its viewer debugs layouts, the configured one otherwise. */
+    private void syncBackground() {
+        int background = LayoutDebug.background(
+            drawable.overflow(),
+            LayoutDebug.isEnabled(viewer),
+            Pixelay.settings().text().backgroundArgb()
+        );
+        if (background == lastBackground) {
+            return;
+        }
+        lastBackground = background;
+        PacketUtils.send(
+            viewer,
+            new WrapperPlayServerEntityMetadata(
+                textEntityId,
+                List.of(
+                    new EntityData<>(
+                        Pixelay.settings().packets().metadata().backgroundColor(),
+                        EntityDataTypes.INT,
+                        background
+                    )
+                )
+            )
+        );
     }
 }

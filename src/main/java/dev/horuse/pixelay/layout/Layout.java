@@ -1,8 +1,7 @@
 package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
-import dev.horuse.pixelay.data.HAlign;
-import dev.horuse.pixelay.data.VAlign;
+import java.util.Arrays;
 
 /**
  * Entry point of the layout DSL. Import statically and nest:
@@ -13,7 +12,8 @@ import dev.horuse.pixelay.data.VAlign;
  *     column(
  *         row(title, spacer(), balance),
  *         spacer(),
- *         row(grid(cards).rows(3).cell(220, 124), spacer(), continueButton).align(Align.END)
+ *         row(grid(cards).columns(repeat(3, px(220))).rows(repeat(3, px(136))), spacer(), continueButton)
+ *             .align(Align.END)
  *     ).padding(32)
  * );
  * ui.spawn(canvas);
@@ -40,6 +40,28 @@ public final class Layout {
         return new Grid(children);
     }
 
+    /** Grid track of a fixed size in canvas px. */
+    public static Track px(double size) {
+        return new Track(Track.Kind.PX, size);
+    }
+
+    /** Grid track taking a share of the free space (CSS {@code fr}). */
+    public static Track fr(double fraction) {
+        return new Track(Track.Kind.FR, fraction);
+    }
+
+    /** Grid track sized by its content (CSS {@code auto}). */
+    public static Track auto() {
+        return Track.AUTO;
+    }
+
+    /** {@code count} copies of a track (CSS {@code repeat(count, track)}). */
+    public static Track[] repeat(int count, Track track) {
+        Track[] tracks = new Track[Math.max(0, count)];
+        Arrays.fill(tracks, track);
+        return tracks;
+    }
+
     /** Takes all free space along the parent's main axis. */
     public static Spacer spacer() {
         return new Spacer(-1);
@@ -55,18 +77,13 @@ public final class Layout {
         return new Leaf(component);
     }
 
-    /** A component pinned by the given edges inside its rectangle. */
-    public static Leaf node(AbstractCanvasComponent component, HAlign hAlign, VAlign vAlign) {
-        return new Leaf(component).align(hAlign, vAlign);
-    }
-
     /** Wraps a layout tree for spawning on a canvas; it fills the whole canvas. */
     public static MountedLayout mount(LayoutItem root) {
         return new MountedLayout(box(root));
     }
 
-    static Box box(LayoutItem item) {
-        if (item instanceof Box box) {
+    static Box<?> box(LayoutItem item) {
+        if (item instanceof Box<?> box) {
             return box;
         }
 

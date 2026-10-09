@@ -1,28 +1,45 @@
 package dev.horuse.pixelay.layout;
 
-/** Layers: every child gets the whole content rectangle (minus its margin), e.g. corner marks over a panel. */
-public final class Stack extends Container {
+/**
+ * Layers sharing one area (like a single CSS grid cell): each child is placed by its own
+ * {@code justifySelf}/{@code alignSelf} and fills the area by default (unless it has a fixed size).
+ */
+public final class Stack extends Container<Stack> {
 
     Stack(LayoutItem... items) {
         super(items);
     }
 
     @Override
-    protected double[] measureContent() {
+    protected Size measureContent(double maxWidth) {
         double width = 0;
         double height = 0;
-        for (Box child : children) {
-            double[] size = outer(child);
-            width = Math.max(width, size[0]);
-            height = Math.max(height, size[1]);
+        for (Box<?> child : children) {
+            Size size = child.outer(maxWidth);
+            width = Math.max(width, size.width());
+            height = Math.max(height, size.height());
         }
-        return new double[] { width, height };
+        return new Size(width, height);
+    }
+
+    @Override
+    protected double minContentWidth() {
+        return widestChildMinWidth();
     }
 
     @Override
     protected void arrangeContent(Rect content) {
-        for (Box child : children) {
-            child.arrange(content.inset(child.margin));
+        for (Box<?> child : children) {
+            Align horizontal = child.justifySelf != null ? child.justifySelf : Align.STRETCH;
+            Align vertical = child.alignSelf != null ? child.alignSelf : Align.STRETCH;
+            Rect area = content.place(
+                child.outer(content.width()),
+                horizontal,
+                vertical,
+                horizontal == Align.STRETCH && !child.hasFixedWidth(),
+                vertical == Align.STRETCH && !child.hasFixedHeight()
+            );
+            child.arrange(area.inset(child.margin), overflowsHere());
         }
     }
 }
