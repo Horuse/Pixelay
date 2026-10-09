@@ -12,6 +12,9 @@ import dev.horuse.pixelay.content.FontMetrics;
  */
 public final class CanvasLayout {
 
+    /** Horizontal shift of TextDisplay text in the client renderer, in font px. */
+    private static final double CLIENT_TEXT_OFFSET_FONT_PX = 1;
+
     private CanvasLayout() {}
 
     /**
@@ -72,9 +75,15 @@ public final class CanvasLayout {
     public static double[] displayPosition(CanvasDrawable drawable, String text) {
         double width = FontMetrics.widthPx(text, drawable.heightPx(), lineWidth());
         double height = textHeightPx(drawable, text);
+        double fontPx = drawable.heightPx() / FontMetrics.LINE_HEIGHT_PX;
+        double bottomOffset = drawable.vAlign().bottomOffset(height);
+        // The bottom gap compensates the empty space under the glyphs, so it applies fully to a
+        // bottom-anchored block, half to a middle one and not at all to a top-anchored one.
+        double gapShare = height > 0 ? 1 - bottomOffset / height : 1;
         return new double[] {
-            drawable.pixelX() + drawable.hAlign().horizontalOffset(width),
-            drawable.pixelY() + drawable.vAlign().bottomOffset(height) + bottomGapPx(drawable),
+            // The client draws a TextDisplay starting at (1 - width / 2), i.e. 1 font px right of centre.
+            drawable.pixelX() + drawable.hAlign().horizontalOffset(width) - CLIENT_TEXT_OFFSET_FONT_PX * fontPx,
+            drawable.pixelY() + bottomOffset + bottomGapPx(drawable) * gapShare,
         };
     }
 
