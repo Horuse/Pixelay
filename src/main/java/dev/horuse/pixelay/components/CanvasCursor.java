@@ -32,7 +32,9 @@ public class CanvasCursor extends AbstractCanvasComponent {
             spawn(canvas);
         }
 
-        ((FakePacketCanvasRenderer) renderer).move(canvas.pixelToWorld(pixelX, pixelY).toVector());
+        // Lifted towards the viewer: text on the same plane would otherwise overlap the cursor at random.
+        float depth = Pixelay.settings().text().normalOffset() + Pixelay.settings().cursor().depthOffset();
+        ((FakePacketCanvasRenderer) renderer).move(canvas.pixelToWorld(pixelX, pixelY, depth).toVector());
     }
 
     /**

@@ -39,6 +39,8 @@ cursor:
   glyph: "+"
   # Default cursor height in canvas pixels.
   height-px: 17
+  # Extra distance (blocks) towards the viewer, so the cursor is always drawn above other text.
+  depth-offset: 0.02
 
 chat-suppression:
   # Allow ChatSuppression.suppress(player) to hide chat while a full-screen canvas is shown.

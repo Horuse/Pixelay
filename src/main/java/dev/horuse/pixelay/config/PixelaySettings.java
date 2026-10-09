@@ -35,7 +35,8 @@ public record PixelaySettings(
     public record Clicks(long debounceMs, boolean blockSneakDismount) {}
 
     /** Look-at cursor appearance. */
-    public record Cursor(String glyph, double heightPx) {}
+    /** @param depthOffset extra distance (blocks) towards the viewer, so the cursor is drawn above other text */
+    public record Cursor(String glyph, double heightPx, float depthOffset) {}
 
     /** Chat suppression for full-screen canvases. */
     public record ChatSuppression(boolean enabled, int queueLimit, int deliverLimit) {}
@@ -93,7 +94,11 @@ public record PixelaySettings(
                 Math.max(0, clicks.node("debounce-ms").getLong(150)),
                 clicks.node("block-sneak-dismount").getBoolean(true)
             ),
-            new Cursor(cursor.node("glyph").getString("+"), cursor.node("height-px").getDouble(17)),
+            new Cursor(
+                cursor.node("glyph").getString("+"),
+                cursor.node("height-px").getDouble(17),
+                cursor.node("depth-offset").getFloat(0.02f)
+            ),
             new ChatSuppression(
                 chat.node("enabled").getBoolean(true),
                 Math.max(0, chat.node("queue-limit").getInt(100)),
