@@ -121,6 +121,41 @@ ChatSuppression.suppress(player);
 ChatSuppression.restore(player); // delivers queued messages
 ```
 
+## Layout
+
+Instead of computing pixel positions by hand, build a layout tree with a small CSS-like DSL
+(box model + flexbox + grid). Components are placed into it directly:
+
+```java
+import static dev.horuse.pixelay.layout.Layout.*;
+
+MountedLayout ui = mount(
+    column(
+        row(node(title, HAlign.LEFT, VAlign.TOP), spacer(), balance),
+        spacer(),
+        row(
+            grid(cards).rows(3).cell(220, 136).fromBottom().align(Align.CENTER),
+            spacer(),
+            node(continueButton, HAlign.RIGHT, VAlign.BOTTOM)
+        ).align(Align.END)
+    ).padding(32)
+);
+ui.spawn(canvas);   // measure, arrange, spawn
+ui.refresh();       // re-layout when texts change, moves only what shifted
+ui.click(px, py, player);
+```
+
+| Building block | Meaning |
+|----------------|---------|
+| `row(...)`, `column(...)` | flexbox; `gap`, `align` (cross axis, default `STRETCH`), `justify` (`START`, `CENTER`, `END`, `SPACE_BETWEEN`) |
+| `grid(...)` | fixed cells filled column by column; tall items span rows; `align` / `justifyItems` place items in their area |
+| `stack(...)` | layers sharing one rectangle |
+| `spacer()`, `space(px)` | flexible or fixed empty space |
+| `node(component[, h, v])` | a component as a leaf, pinned inside its rectangle |
+
+Every box supports `padding`, `margin` (negative values allowed), `width`/`height`, `grow`,
+`alignSelf`, `id` (hit testing via `idAt`) and `onClick`.
+
 ## Configuration
 
 | File | Purpose |

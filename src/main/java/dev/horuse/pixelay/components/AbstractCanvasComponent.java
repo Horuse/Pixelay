@@ -5,6 +5,7 @@ import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.VAlign;
+import dev.horuse.pixelay.layout.LayoutItem;
 import java.util.function.Consumer;
 import org.bukkit.Color;
 import org.bukkit.entity.Display;
@@ -19,7 +20,7 @@ import org.bukkit.persistence.PersistentDataType;
  * Pixelay#entityKey()}). Geometry ({@link CanvasDrawable}) is owned here, rendering is delegated to
  * the renderer; layout math lives in {@link CanvasLayout}.
  */
-public abstract class AbstractCanvasComponent implements CanvasComponent, CanvasDrawable {
+public abstract class AbstractCanvasComponent implements CanvasComponent, CanvasDrawable, LayoutItem {
 
     protected double pixelX;
     protected double pixelY;
@@ -32,6 +33,7 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
 
     protected Canvas canvas;
     protected CanvasRenderer renderer;
+    private int layoutVersion;
 
     protected AbstractCanvasComponent(double pixelX, double pixelY, double heightPx) {
         this.pixelX = pixelX;
@@ -69,6 +71,7 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
     public <T extends AbstractCanvasComponent> T align(HAlign hAlign, VAlign vAlign) {
         this.hAlign = hAlign;
         this.vAlign = vAlign;
+        layoutVersion++;
         return (T) this;
     }
 
@@ -80,6 +83,7 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
     public <T extends AbstractCanvasComponent> T hitbox(double widthPx, double heightPx) {
         this.hitboxWidthPx = widthPx;
         this.hitboxHeightPx = heightPx;
+        layoutVersion++;
         return (T) this;
     }
 
@@ -89,6 +93,27 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
      */
     public double[] measuredHitboxPx() {
         return renderer != null ? renderer.measuredHitboxPx() : null;
+    }
+
+    /**
+     * Moves the anchor point and alignment; used by layouts. Renderers pick the change up on the next
+     * refresh, even if the text stayed the same.
+     */
+    public void place(double pixelX, double pixelY, HAlign hAlign, VAlign vAlign) {
+        if (this.pixelX == pixelX && this.pixelY == pixelY && this.hAlign == hAlign && this.vAlign == vAlign) {
+            return;
+        }
+
+        this.pixelX = pixelX;
+        this.pixelY = pixelY;
+        this.hAlign = hAlign;
+        this.vAlign = vAlign;
+        layoutVersion++;
+    }
+
+    @Override
+    public int layoutVersion() {
+        return layoutVersion;
     }
 
     @Override

@@ -20,6 +20,7 @@ public class ServerCanvasRenderer implements CanvasRenderer {
     private TextDisplay display;
     private Interaction interaction;
     private String lastRendered;
+    private int lastLayoutVersion;
     private double[] measuredHitbox;
 
     public ServerCanvasRenderer(CanvasDrawable drawable) {
@@ -39,6 +40,7 @@ public class ServerCanvasRenderer implements CanvasRenderer {
         double[] pos = CanvasLayout.displayPosition(drawable, text);
         Location loc = canvas.pixelToWorld(pos[0], pos[1]);
         lastRendered = text;
+        lastLayoutVersion = drawable.layoutVersion();
         display = DisplayUtils.spawnText(
             loc,
             CanvasText.parse(text),
@@ -98,11 +100,12 @@ public class ServerCanvasRenderer implements CanvasRenderer {
 
         String rendered = drawable.renderText();
 
-        if (rendered.equals(lastRendered)) {
+        if (rendered.equals(lastRendered) && drawable.layoutVersion() == lastLayoutVersion) {
             return;
         }
 
         lastRendered = rendered;
+        lastLayoutVersion = drawable.layoutVersion();
         // First the position, then the text: so that the block doesn't blink
         // with the old position under the new text.
         measuredHitbox = CanvasLayout.hitboxSizePx(drawable, rendered);

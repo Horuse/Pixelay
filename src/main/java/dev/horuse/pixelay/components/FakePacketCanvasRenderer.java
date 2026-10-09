@@ -63,6 +63,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
     private Canvas canvas;
     private int textEntityId;
     private String lastRendered;
+    private int lastLayoutVersion;
     /** Where the fake entity actually stands; repositioning on refresh is done via translation. */
     private Vector entityPos;
     /** Current display translation (world axes: the entity is spawned with zero yaw/pitch). */
@@ -87,6 +88,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         double[] pos = CanvasLayout.displayPosition(drawable, text);
         Vector worldPos = canvas.pixelToWorld(pos[0], pos[1]).toVector();
         lastRendered = text;
+        lastLayoutVersion = drawable.layoutVersion();
         entityPos = worldPos;
         translation = new Vector();
         textEntityId = spawnText(worldPos, text);
@@ -233,11 +235,12 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
 
         String rendered = drawable.renderText();
 
-        if (rendered.equals(lastRendered)) {
+        if (rendered.equals(lastRendered) && drawable.layoutVersion() == lastLayoutVersion) {
             return;
         }
 
         lastRendered = rendered;
+        lastLayoutVersion = drawable.layoutVersion();
         measuredHitbox = CanvasLayout.hitboxSizePx(drawable, rendered);
         double[] pos = CanvasLayout.displayPosition(drawable, rendered);
         translation = canvas.pixelToWorld(pos[0], pos[1]).toVector().subtract(entityPos);

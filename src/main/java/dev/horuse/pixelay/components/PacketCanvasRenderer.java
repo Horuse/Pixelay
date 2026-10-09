@@ -25,6 +25,7 @@ public class PacketCanvasRenderer implements CanvasRenderer {
     private TextDisplay display;
     private Interaction interaction;
     private String lastRendered;
+    private int lastLayoutVersion;
     private double[] measuredHitbox;
 
     public PacketCanvasRenderer(Player viewer, CanvasDrawable drawable) {
@@ -45,6 +46,7 @@ public class PacketCanvasRenderer implements CanvasRenderer {
         double[] pos = CanvasLayout.displayPosition(drawable, text);
         Location loc = canvas.pixelToWorld(pos[0], pos[1]);
         lastRendered = text;
+        lastLayoutVersion = drawable.layoutVersion();
         display = DisplayUtils.spawnText(
             loc,
             CanvasText.parse(text),
@@ -108,11 +110,12 @@ public class PacketCanvasRenderer implements CanvasRenderer {
 
         String rendered = drawable.renderText();
 
-        if (rendered.equals(lastRendered)) {
+        if (rendered.equals(lastRendered) && drawable.layoutVersion() == lastLayoutVersion) {
             return;
         }
 
         lastRendered = rendered;
+        lastLayoutVersion = drawable.layoutVersion();
         // Position first, then text: so the block doesn't blink
         // with the old position under the new text.
         measuredHitbox = CanvasLayout.hitboxSizePx(drawable, rendered);

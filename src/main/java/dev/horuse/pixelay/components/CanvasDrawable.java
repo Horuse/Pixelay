@@ -28,6 +28,14 @@ public interface CanvasDrawable {
      * @return horizontal anchor: which edge of the element's box {@link #pixelX()} pins (defaults
      *     to CENTER — the historical behavior)
      */
+    /**
+     * @return a counter bumped whenever position, alignment or hitbox change, so renderers reposition
+     *     the element even when its text did not change (e.g. after a layout pass)
+     */
+    default int layoutVersion() {
+        return 0;
+    }
+
     default HAlign hAlign() {
         return HAlign.CENTER;
     }
