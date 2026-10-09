@@ -18,7 +18,7 @@ public final class CanvasLayout {
      * @return text block height in canvas px (font line height * number of lines)
      */
     public static double textHeightPx(CanvasDrawable drawable, String text) {
-        return Math.max(1, FontMetrics.lineCount(text)) * drawable.heightPx();
+        return Math.max(1, FontMetrics.lineCount(text, lineWidth())) * drawable.heightPx();
     }
 
     /**
@@ -42,7 +42,10 @@ public final class CanvasLayout {
             return new double[] { width, height };
         }
 
-        return new double[] { FontMetrics.widthPx(text, drawable.heightPx()), textHeightPx(drawable, text) };
+        return new double[] {
+            FontMetrics.widthPx(text, drawable.heightPx(), lineWidth()),
+            textHeightPx(drawable, text),
+        };
     }
 
     /**
@@ -64,7 +67,7 @@ public final class CanvasLayout {
      *     vertical — by the gap {@link #bottomGapPx} between the entity and the ink.
      */
     public static double[] displayPosition(CanvasDrawable drawable, String text) {
-        double width = FontMetrics.widthPx(text, drawable.heightPx());
+        double width = FontMetrics.widthPx(text, drawable.heightPx(), lineWidth());
         double height = textHeightPx(drawable, text);
         return new double[] {
             drawable.pixelX() + drawable.hAlign().horizontalOffset(width),
@@ -79,5 +82,10 @@ public final class CanvasLayout {
         double centerX = drawable.pixelX() + drawable.hAlign().horizontalOffset(hitboxSizePx[0]);
         double bottom = drawable.pixelY() + drawable.vAlign().bottomOffset(hitboxSizePx[1]);
         return Math.abs(px - centerX) <= hitboxSizePx[0] / 2 && py <= bottom && py >= bottom - hitboxSizePx[1];
+    }
+
+    /** TextDisplay line width from config: the client wraps longer lines, so measurement must too. */
+    private static int lineWidth() {
+        return Pixelay.settings().text().lineWidth();
     }
 }

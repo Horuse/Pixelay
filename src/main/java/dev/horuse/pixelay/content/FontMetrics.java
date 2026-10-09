@@ -31,28 +31,51 @@ public final class FontMetrics {
      *     1)
      */
     public static Metrics measure(String miniMessageText) {
+        return measure(miniMessageText, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Measures text the way a TextDisplay with the given {@code line_width} renders it: lines wider
+     * than {@code maxLineWidth} font px are word-wrapped like the client does, so the line count and
+     * the widest line match what the player sees.
+     */
+    public static Metrics measure(String miniMessageText, int maxLineWidth) {
         if (miniMessageText == null || miniMessageText.isEmpty()) {
             return new Metrics(0, 1);
         }
 
         Component root = MiniMessage.miniMessage().deserialize(miniMessageText);
-        Walker walker = new Walker();
+        Walker walker = new Walker(maxLineWidth);
         walk(root, false, walker);
-        return new Metrics(walker.max, walker.lines);
+        return new Metrics(walker.finish(), walker.lines);
     }
 
     /**
      * @return text width in font-pixels (widest line)
      */
     public static int widthVanilla(String miniMessageText) {
-        return (int) Math.round(measure(miniMessageText).maxWidthPx());
+        return widthVanilla(miniMessageText, Integer.MAX_VALUE);
+    }
+
+    /**
+     * @return text width in font-pixels (widest line) after wrapping at {@code maxLineWidth}
+     */
+    public static int widthVanilla(String miniMessageText, int maxLineWidth) {
+        return (int) Math.round(measure(miniMessageText, maxLineWidth).maxWidthPx());
     }
 
     /**
      * @return text width in canvas px given font size {@code fontHeightPx}
      */
     public static double widthPx(String miniMessageText, double fontHeightPx) {
-        return (widthVanilla(miniMessageText) * fontHeightPx) / LINE_HEIGHT_PX;
+        return widthPx(miniMessageText, fontHeightPx, Integer.MAX_VALUE);
+    }
+
+    /**
+     * @return text width in canvas px given font size, after wrapping at {@code maxLineWidth} font px
+     */
+    public static double widthPx(String miniMessageText, double fontHeightPx, int maxLineWidth) {
+        return (widthVanilla(miniMessageText, maxLineWidth) * fontHeightPx) / LINE_HEIGHT_PX;
     }
 
     /**
@@ -60,6 +83,13 @@ public final class FontMetrics {
      */
     public static int lineCount(String miniMessageText) {
         return measure(miniMessageText).lines();
+    }
+
+    /**
+     * @return number of text lines (minimum 1) after wrapping at {@code maxLineWidth} font px
+     */
+    public static int lineCount(String miniMessageText, int maxLineWidth) {
+        return measure(miniMessageText, maxLineWidth).lines();
     }
 
     /** Manual glyph width override in font px (takes priority over the table). */
@@ -100,7 +130,7 @@ public final class FontMetrics {
                 if (codePoint == '\n') {
                     walker.newline();
                 } else {
-                    walker.add(advance(codePoint, bold));
+                    walker.add(advance(codePoint, bold), codePoint == ' ');
                 }
 
                 i += Character.charCount(codePoint);
@@ -123,23 +153,69 @@ public final class FontMetrics {
      */
     public record Metrics(double maxWidthPx, int lines) {}
 
-    /** Line width accumulator: current line, maximum, number of lines. */
+    /**
+     * Line width accumulator with client-like word wrapping: when a glyph would overflow the line
+     * width, the current word moves to a new line (or the glyph does, if the line is one long word).
+     */
     private static final class Walker {
 
+        private final int limit;
         private double current;
+        /** Width of the word being typed on the current line (since the last space). */
+        private double word;
+        private boolean lineHasBreak;
+        /** Width of the space before the current word: swallowed at a wrap, not part of either line. */
+        private double breakSpace;
         private double max;
         private int lines = 1;
 
-        void add(double width) {
+        Walker(int limit) {
+            this.limit = limit;
+        }
+
+        void add(double width, boolean space) {
+            if (current + width > limit && current > 0) {
+                wrap(space);
+                if (space) {
+                    return;
+                }
+            }
+
             current += width;
-            if (current > max) {
-                max = current;
+            if (space) {
+                word = 0;
+                breakSpace = width;
+                lineHasBreak = true;
+            } else {
+                word += width;
             }
         }
 
+        /** Breaks the line before the overflowing glyph; a space at the break is swallowed like in the client. */
+        private void wrap(boolean space) {
+            lines++;
+            if (!space && lineHasBreak && word < current) {
+                max = Math.max(max, current - word - breakSpace);
+                current = word;
+            } else {
+                max = Math.max(max, current);
+                current = 0;
+                word = 0;
+            }
+
+            lineHasBreak = false;
+        }
+
         void newline() {
+            max = Math.max(max, current);
             lines++;
             current = 0;
+            word = 0;
+            lineHasBreak = false;
+        }
+
+        double finish() {
+            return Math.max(max, current);
         }
     }
 }
