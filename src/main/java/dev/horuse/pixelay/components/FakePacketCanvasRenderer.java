@@ -63,6 +63,10 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
     private Canvas canvas;
     private int textEntityId;
     private String lastRendered;
+    /** Where the fake entity actually stands; repositioning on refresh is done via translation. */
+    private Vector entityPos;
+    /** Current display translation (world axes: the entity is spawned with zero yaw/pitch). */
+    private Vector translation = new Vector();
     private double[] measuredHitbox;
 
     public FakePacketCanvasRenderer(Player viewer, CanvasDrawable drawable) {
@@ -83,6 +87,8 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         double[] pos = CanvasLayout.displayPosition(drawable, text);
         Vector worldPos = canvas.pixelToWorld(pos[0], pos[1]).toVector();
         lastRendered = text;
+        entityPos = worldPos;
+        translation = new Vector();
         textEntityId = spawnText(worldPos, text);
         Pixelay.debug(
             "fake text spawned id=" +
@@ -199,11 +205,13 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
             return;
         }
 
+        // The translation is kept, so the entity goes where the visible text lands on worldPos.
+        entityPos = worldPos.clone().subtract(translation);
         PacketUtils.send(
             viewer,
             new WrapperPlayServerEntityTeleport(
                 textEntityId,
-                new Vector3d(worldPos.getX(), worldPos.getY(), worldPos.getZ()),
+                new Vector3d(entityPos.getX(), entityPos.getY(), entityPos.getZ()),
                 0f,
                 0f,
                 false
@@ -230,11 +238,12 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         }
 
         lastRendered = rendered;
-        // Position first, then text: if the packets arrive in different ticks, the old text
-        // in the new position is more noticeable than the new text in the old position.
         measuredHitbox = CanvasLayout.hitboxSizePx(drawable, rendered);
         double[] pos = CanvasLayout.displayPosition(drawable, rendered);
-        move(canvas.pixelToWorld(pos[0], pos[1]).toVector());
+        translation = canvas.pixelToWorld(pos[0], pos[1]).toVector().subtract(entityPos);
+
+        // Text and position go in ONE metadata packet: a separate teleport + metadata pair lets the
+        // client render a frame with the new text at the old position (visible as a jerk).
         PacketUtils.send(
             viewer,
             new WrapperPlayServerEntityMetadata(
@@ -244,6 +253,11 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
                         Pixelay.settings().packets().metadata().text(),
                         EntityDataTypes.ADV_COMPONENT,
                         CanvasText.parse(rendered)
+                    ),
+                    new EntityData<>(
+                        Pixelay.settings().packets().metadata().translation(),
+                        EntityDataTypes.VECTOR3F,
+                        new Vector3f((float) translation.getX(), (float) translation.getY(), (float) translation.getZ())
                     )
                 )
             )

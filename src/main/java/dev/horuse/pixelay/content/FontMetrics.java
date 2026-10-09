@@ -22,6 +22,9 @@ public final class FontMetrics {
     /** Vanilla font line height in font-pixels. */
     public static final float LINE_HEIGHT_PX = 9f;
 
+    /** Distance between consecutive lines of a TextDisplay in font-pixels (glyph height + 1 px spacing). */
+    public static final float LINE_PITCH_PX = 10f;
+
     private static final Map<Integer, Integer> OVERRIDES = new ConcurrentHashMap<>();
 
     private FontMetrics() {}

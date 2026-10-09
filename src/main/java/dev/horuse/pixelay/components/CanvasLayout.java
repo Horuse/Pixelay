@@ -18,7 +18,10 @@ public final class CanvasLayout {
      * @return text block height in canvas px (font line height * number of lines)
      */
     public static double textHeightPx(CanvasDrawable drawable, String text) {
-        return Math.max(1, FontMetrics.lineCount(text, lineWidth())) * drawable.heightPx();
+        // The client stacks lines with a 1 px gap, so every extra line adds a pitch, not a glyph height.
+        int lines = Math.max(1, FontMetrics.lineCount(text, lineWidth()));
+        double fontPx = FontMetrics.LINE_HEIGHT_PX + (lines - 1) * FontMetrics.LINE_PITCH_PX;
+        return (fontPx * drawable.heightPx()) / FontMetrics.LINE_HEIGHT_PX;
     }
 
     /**
