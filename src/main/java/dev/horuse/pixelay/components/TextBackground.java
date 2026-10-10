@@ -26,16 +26,12 @@ import org.joml.Vector3f;
  */
 public final class TextBackground {
 
-    /** Between the canvas (and the layout debug panels) and the text. */
-    private static float depth() {
-        return Pixelay.settings().text().normalOffset() * 0.95f;
-    }
-
     private final Player viewer;
     private int fakeId;
     private TextDisplay entity;
     private int color;
     private double[] box;
+    private float lastDepth;
 
     /** @param viewer the only player who sees the panel, or {@code null} for a server entity everyone sees */
     public TextBackground(Player viewer) {
@@ -53,7 +49,7 @@ public final class TextBackground {
     /** Shows the panel over the element's box ({@code hitbox} as measured), in place when it already exists. */
     void sync(Canvas canvas, CanvasDrawable drawable, double[] hitbox, int argb) {
         double[] bounds = hitbox != null ? CanvasLayout.clickBounds(drawable, hitbox) : null;
-        sync(canvas, bounds, argb, depth());
+        sync(canvas, bounds, argb, drawable.textBackgroundDepth());
     }
 
     /**
@@ -68,7 +64,7 @@ public final class TextBackground {
             remove();
             return;
         }
-        if (exists() && argb == color && Arrays.equals(next, box)) {
+        if (exists() && argb == color && Arrays.equals(next, box) && depth == lastDepth) {
             return;
         }
         if (exists() && argb != color) {
@@ -102,6 +98,7 @@ public final class TextBackground {
         }
         color = argb;
         box = next.clone();
+        lastDepth = depth;
     }
 
     public void remove() {

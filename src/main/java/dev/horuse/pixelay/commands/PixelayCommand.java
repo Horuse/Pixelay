@@ -1,6 +1,8 @@
 package dev.horuse.pixelay.commands;
 
 import dev.horuse.pixelay.PixelayPlugin;
+import dev.horuse.pixelay.clicks.CanvasClicks;
+import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.debug.CanvasBoundsDebug;
 import dev.horuse.pixelay.debug.LayoutDebug;
 import java.util.List;
@@ -54,6 +56,20 @@ public class PixelayCommand implements TabExecutor {
             return true;
         }
 
+        if (args.length == 2 && args[0].equalsIgnoreCase("debug") && args[1].equalsIgnoreCase("layers")) {
+            boolean exploded = Layers.toggleExploded();
+            // Click tiles stand on the text layer, which just moved.
+            CanvasClicks.respawnAll();
+            sender.sendMessage(
+                exploded
+                    ? "Layers pulled apart (step " +
+                          Layers.EXPLODED_STEP +
+                          " blocks) for everyone; look at a canvas from the side. Run again to restore."
+                    : "Layers restored."
+            );
+            return true;
+        }
+
         if (args.length == 2 && args[0].equalsIgnoreCase("debug") && args[1].equalsIgnoreCase("bounds")) {
             if (!(sender instanceof Player player)) {
                 sender.sendMessage("Only players can see canvas bounds.");
@@ -69,7 +85,7 @@ public class PixelayCommand implements TabExecutor {
                 plugin.getPluginMeta().getVersion() +
                 " — usage: /" +
                 label +
-                " <reload|debug layout|debug bounds>"
+                " <reload|debug layout|debug bounds|debug layers>"
         );
         return true;
     }
@@ -88,7 +104,7 @@ public class PixelayCommand implements TabExecutor {
                 .toList();
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("debug")) {
-            return List.of("layout", "bounds")
+            return List.of("layout", "bounds", "layers")
                 .stream()
                 .filter(option -> option.startsWith(args[1].toLowerCase()))
                 .toList();

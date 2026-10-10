@@ -4,6 +4,7 @@ import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.content.FontMetrics;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
+import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.VAlign;
 import dev.horuse.pixelay.debug.DebugPanel;
 import dev.horuse.pixelay.debug.LayoutDebug;
@@ -19,9 +20,6 @@ public class CanvasCursor extends AbstractCanvasComponent {
 
     private static final double DEBUG_DOT_PX = 3;
     private static final int DEBUG_DOT_COLOR = 0xD0FF00FF;
-    /** The dot sits just in front of the cursor glyph. */
-    private static final float DEBUG_DOT_LIFT = 0.002f;
-
     private final Player viewer;
     private final String glyph;
     /** Fake entity id of the debug hot-spot dot, 0 when not shown. */
@@ -70,10 +68,10 @@ public class CanvasCursor extends AbstractCanvasComponent {
         }
 
         // Lifted towards the viewer: text on the same plane would otherwise overlap the cursor at random.
-        float depth = Pixelay.settings().text().normalOffset() + Pixelay.settings().cursor().depthOffset();
+        float depth = Layers.cursor(canvas);
         double[] position = CanvasLayout.displayPosition(this, glyph);
         ((FakePacketCanvasRenderer) renderer).move(canvas.pixelToWorld(position[0], position[1], depth).toVector());
-        updateDebugDot(canvas, pixelX, pixelY, depth + DEBUG_DOT_LIFT);
+        updateDebugDot(canvas, pixelX, pixelY, Layers.cursorDot(canvas));
     }
 
     /** In layout debug mode, marks the exact pointed pixel (the hot spot) with a small dot. */

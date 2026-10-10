@@ -1,9 +1,7 @@
 package dev.horuse.pixelay.layout;
 
-import dev.horuse.pixelay.Pixelay;
-import dev.horuse.pixelay.components.AbstractCanvasComponent;
-import dev.horuse.pixelay.components.CanvasLayout;
 import dev.horuse.pixelay.data.Canvas;
+import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.debug.DebugPanel;
 import dev.horuse.pixelay.debug.LayoutDebug;
 import java.util.ArrayList;
@@ -25,21 +23,10 @@ import org.bukkit.entity.Player;
 final class DebugOverlay {
 
     private static final double VIEW_DISTANCE = 64;
-    /** Panels sit between the canvas plane and the text (text.normal-offset), deeper levels closer to the text. */
-    private static final int MAX_LEVEL = 12;
 
-    private static float baseDepth() {
-        return Pixelay.settings().text().normalOffset() * 0.2f;
-    }
-
-    private static float levelDepth(int level) {
-        float text = Pixelay.settings().text().normalOffset();
-        return baseDepth() + (text * 0.6f * Math.min(level, MAX_LEVEL)) / MAX_LEVEL;
-    }
-
-    /** Click zones above all containers, still under the text. */
-    private static float clickDepth() {
-        return Pixelay.settings().text().normalOffset() * 0.9f;
+    /** Half a step under the box: above what is painted before it, under its own background and text. */
+    private static float depthOf(Box<?> box) {
+        return Layers.at(box.paintStep - 0.5);
     }
 
     static final int ROW = 0x403399FF;
@@ -56,7 +43,7 @@ final class DebugOverlay {
     private final Map<UUID, List<Panel>> shown = new HashMap<>();
     private final Map<UUID, String> canvases = new HashMap<>();
 
-    void update(Box<?> root, List<AbstractCanvasComponent> components, Canvas canvas) {
+    void update(Box<?> root, Canvas canvas) {
         List<Player> viewers = viewersOf(canvas);
         List<UUID> ids = viewers.stream().map(Player::getUniqueId).toList();
         for (UUID id : new ArrayList<>(spawned.keySet())) {
@@ -69,13 +56,7 @@ final class DebugOverlay {
         }
 
         List<Panel> panels = new ArrayList<>();
-        collect(root, 0, panels);
-        for (AbstractCanvasComponent component : components) {
-            Rect hitbox = clickRect(component);
-            if (hitbox != null) {
-                panels.add(new Panel(hitbox, CLICK, clickDepth()));
-            }
-        }
+        collect(root, panels);
         String canvasKey = canvas.center() + "|" + canvas.resolution();
 
         for (Player viewer : viewers) {
@@ -104,6 +85,10 @@ final class DebugOverlay {
                                 panel.depth()
                             );
                         }
+                    } else if (r.width() <= 0 || r.height() <= 0) {
+                        // Became empty: remove it (it is spawned again once it has a size).
+                        DebugPanel.destroy(viewer, entityIds[i]);
+                        entityIds[i] = 0;
                     } else {
                         DebugPanel.update(
                             viewer,
@@ -144,17 +129,17 @@ final class DebugOverlay {
         return result;
     }
 
-    private static void collect(Box<?> box, int level, List<Panel> panels) {
+    private static void collect(Box<?> box, List<Panel> panels) {
         int color = colorOf(box);
         if (color != 0) {
-            panels.add(new Panel(box.rect(), color, levelDepth(level)));
+            panels.add(new Panel(box.rect(), color, depthOf(box)));
         }
-        if (box.onClick() != null) {
-            panels.add(new Panel(box.rect(), CLICK, clickDepth()));
+        if (box.clickHandler() != null) {
+            panels.add(new Panel(box.rect(), CLICK, depthOf(box)));
         }
         if (box instanceof Container<?> container) {
             for (Box<?> child : container.children) {
-                collect(child, level + 1, panels);
+                collect(child, panels);
             }
         }
     }
@@ -173,16 +158,6 @@ final class DebugOverlay {
             return SPACER;
         }
         return 0;
-    }
-
-    /** The click hitbox of a clickable component, in canvas px (same formula as click routing). */
-    private static Rect clickRect(AbstractCanvasComponent component) {
-        double[] size = component.measuredHitboxPx();
-        if (component.onClick() == null || size == null) {
-            return null;
-        }
-        double[] box = CanvasLayout.clickBounds(component, size);
-        return new Rect(box[0], box[1], box[2] - box[0], box[3] - box[1]);
     }
 
     /** Same boxes in the same order (rectangles may differ). */

@@ -2,6 +2,7 @@ package dev.horuse.pixelay.components;
 
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.data.HAlign;
+import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.VAlign;
 import dev.horuse.pixelay.debug.Overflow;
 import java.util.function.Consumer;
@@ -32,6 +33,16 @@ public interface CanvasDrawable {
      */
     default int lineWidth() {
         return Pixelay.settings().text().lineWidth();
+    }
+
+    /** @return depth of the text in front of the canvas surface, in blocks (see {@link Layers}) */
+    default float textDepth() {
+        return Layers.at(Layers.DEFAULT_TEXT_BACKGROUND_STEP + 1);
+    }
+
+    /** @return depth of the text background, in blocks: one step under the text */
+    default float textBackgroundDepth() {
+        return Layers.at(Layers.DEFAULT_TEXT_BACKGROUND_STEP);
     }
 
     /** @return whether the layout debug mode may tint this element's text background (the cursor opts out) */

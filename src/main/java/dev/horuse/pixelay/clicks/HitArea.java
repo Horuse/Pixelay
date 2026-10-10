@@ -11,6 +11,7 @@ import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.components.FakePacketCanvasRenderer;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.CanvasResolution;
+import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.List;
@@ -134,7 +135,7 @@ final class HitArea {
         Vector3f right = canvas.right();
         Vector3f up = canvas.up();
         Vector3f normal = canvas.normal();
-        double offset = Pixelay.settings().text().normalOffset();
+        double offset = Layers.text();
         Location c = canvas.pixelToWorld(res.pixelWidth() / 2.0, res.pixelHeight() / 2.0, (float) offset);
         List<Tile> tiles = new ArrayList<>();
 

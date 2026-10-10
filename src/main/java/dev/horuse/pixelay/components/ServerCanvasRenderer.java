@@ -46,7 +46,7 @@ public class ServerCanvasRenderer implements CanvasRenderer {
         String text = drawable.renderText();
         measuredHitbox = CanvasLayout.hitboxSizePx(drawable, text);
         double[] pos = CanvasLayout.displayPosition(drawable, text);
-        Location loc = canvas.pixelToWorld(pos[0], pos[1]);
+        Location loc = canvas.pixelToWorld(pos[0], pos[1], drawable.textDepth());
         lastRendered = text;
         lastLayoutVersion = drawable.layoutVersion();
         lastLineWidth = drawable.lineWidth();
@@ -113,7 +113,7 @@ public class ServerCanvasRenderer implements CanvasRenderer {
         // with the old position under the new text.
         measuredHitbox = CanvasLayout.hitboxSizePx(drawable, rendered);
         double[] pos = CanvasLayout.displayPosition(drawable, rendered);
-        display.teleport(canvas.pixelToWorld(pos[0], pos[1]));
+        display.teleport(canvas.pixelToWorld(pos[0], pos[1], drawable.textDepth()));
         display.setLineWidth(drawable.lineWidth());
         display.text(CanvasText.parse(rendered));
         syncBackground();

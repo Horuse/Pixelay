@@ -4,6 +4,7 @@ import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
+import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.VAlign;
 import dev.horuse.pixelay.debug.CanvasBoundsDebug;
 import dev.horuse.pixelay.debug.Overflow;
@@ -41,6 +42,8 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
     private volatile Overflow overflow = Overflow.NONE;
     /** Line width set by a layout, in font px; {@code <= 0} means the configured default. */
     private volatile int layoutLineWidth;
+    /** Step of the text background (the text is one step above), set by layouts in painting order. */
+    private volatile int layerStep = Layers.DEFAULT_TEXT_BACKGROUND_STEP;
 
     protected AbstractCanvasComponent(double pixelX, double pixelY, double heightPx) {
         this.pixelX = pixelX;
@@ -142,6 +145,24 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
         return layoutLineWidth > 0 ? layoutLineWidth : CanvasDrawable.super.lineWidth();
     }
 
+    /** Set by layouts: the depth step of this element's text background, see {@link Layers}. */
+    public void setLayerStep(int step) {
+        if (step != layerStep) {
+            layerStep = step;
+            layoutVersion++;
+        }
+    }
+
+    @Override
+    public float textDepth() {
+        return Layers.at(layerStep + 1);
+    }
+
+    @Override
+    public float textBackgroundDepth() {
+        return Layers.at(layerStep);
+    }
+
     /** Set by layouts: the element is bigger than the space it was given (see LayoutDebug). */
     public void setOverflow(Overflow overflow) {
         this.overflow = overflow;
@@ -154,7 +175,8 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
 
     @Override
     public int layoutVersion() {
-        return layoutVersion;
+        // Depths of all layers change together (debug layers), and that moves the element too.
+        return layoutVersion + Layers.revision() * 1_000_003;
     }
 
     @Override

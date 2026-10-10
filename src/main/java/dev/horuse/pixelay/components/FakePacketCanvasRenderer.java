@@ -94,7 +94,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         String text = drawable.renderText();
         measuredHitbox = CanvasLayout.hitboxSizePx(drawable, text);
         double[] pos = CanvasLayout.displayPosition(drawable, text);
-        Vector worldPos = canvas.pixelToWorld(pos[0], pos[1]).toVector();
+        Vector worldPos = canvas.pixelToWorld(pos[0], pos[1], drawable.textDepth()).toVector();
         lastRendered = text;
         lastLayoutVersion = drawable.layoutVersion();
         lastLineWidth = drawable.lineWidth();
@@ -269,7 +269,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         lastLineWidth = drawable.lineWidth();
         measuredHitbox = CanvasLayout.hitboxSizePx(drawable, rendered);
         double[] pos = CanvasLayout.displayPosition(drawable, rendered);
-        translation = canvas.pixelToWorld(pos[0], pos[1]).toVector().subtract(entityPos);
+        translation = canvas.pixelToWorld(pos[0], pos[1], drawable.textDepth()).toVector().subtract(entityPos);
 
         // Text and position go in ONE metadata packet: a separate teleport + metadata pair lets the
         // client render a frame with the new text at the old position (visible as a jerk).

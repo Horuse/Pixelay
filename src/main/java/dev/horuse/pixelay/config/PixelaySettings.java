@@ -17,13 +17,13 @@ public record PixelaySettings(
     Text text,
     Clicks clicks,
     Cursor cursor,
+    Layers layers,
     ChatSuppression chatSuppression,
     Packets packets,
     List<String> resourcePackOrder
 ) {
     /** Text rendering options shared by every renderer. */
     public record Text(
-        float normalOffset,
         float bottomGapFontPx,
         float viewRange,
         boolean fullBrightness,
@@ -38,8 +38,10 @@ public record PixelaySettings(
     public record Clicks(long debounceMs, boolean blockSneakDismount, double hitTileSize, double maxDistance) {}
 
     /** Look-at cursor appearance. */
-    /** @param depthOffset extra distance (blocks) towards the viewer, so the cursor is drawn above other text */
-    public record Cursor(String glyph, double heightPx, float depthOffset) {}
+    public record Cursor(String glyph, double heightPx) {}
+
+    /** @param step distance (blocks) between two drawing layers, see {@link dev.horuse.pixelay.data.Layers} */
+    public record Layers(float step) {}
 
     /** Chat suppression for full-screen canvases. */
     public record ChatSuppression(boolean enabled, int queueLimit, int deliverLimit) {}
@@ -78,14 +80,14 @@ public record PixelaySettings(
         ConfigurationNode chat = root.node("chat-suppression");
         ConfigurationNode packets = root.node("packets");
         ConfigurationNode meta = packets.node("metadata");
+        warnOutdated(plugin, root);
         return new PixelaySettings(
             root.node("debug").getBoolean(false),
             root.node("cleanup-on-enable").getBoolean(true),
             Math.max(1, scheduler.node("refresh-period-ticks").getLong(20)),
             Math.max(1, scheduler.node("heal-period-ticks").getLong(40)),
             new Text(
-                text.node("normal-offset").getFloat(0.01f),
-                text.node("bottom-gap-font-px").getFloat(2f),
+                text.node("bottom-gap-font-px").getFloat(0f),
                 text.node("view-range").getFloat(500f),
                 text.node("full-brightness").getBoolean(true),
                 text.node("line-width").getInt(200),
@@ -99,11 +101,8 @@ public record PixelaySettings(
                 clicks.node("hit-tile-size").getDouble(0.25),
                 clicks.node("max-distance").getDouble(6)
             ),
-            new Cursor(
-                cursor.node("glyph").getString("+"),
-                cursor.node("height-px").getDouble(17),
-                cursor.node("depth-offset").getFloat(0.02f)
-            ),
+            new Cursor(cursor.node("glyph").getString("+"), cursor.node("height-px").getDouble(17)),
+            new Layers((float) Math.max(0.0001, root.node("layers", "step").getDouble(0.002))),
             new ChatSuppression(
                 chat.node("enabled").getBoolean(true),
                 Math.max(0, chat.node("queue-limit").getInt(100)),
@@ -131,6 +130,36 @@ public record PixelaySettings(
             ),
             root.node("resource-packs", "order").getList(String.class, List.of())
         );
+    }
+
+    /** Current config.yml layout; older files still load, with a warning for every changed option. */
+    private static final int CONFIG_VERSION = 2;
+
+    /**
+     * Version 2 replaced {@code text.normal-offset} and {@code cursor.depth-offset} with {@code layers.step},
+     * and the meaning of {@code text.bottom-gap-font-px} (now the same for every alignment, default 0).
+     */
+    private static void warnOutdated(JavaPlugin plugin, ConfigurationNode root) {
+        if (root.node("config-version").getInt(1) >= CONFIG_VERSION) {
+            return;
+        }
+        var log = plugin.getLogger();
+        log.warning("config.yml is from an older Pixelay version; compare it with the default one:");
+        if (!root.node("text", "normal-offset").virtual()) {
+            log.warning("  text.normal-offset is no longer used: depths are set by layers.step");
+        }
+        if (!root.node("cursor", "depth-offset").virtual()) {
+            log.warning("  cursor.depth-offset is no longer used: the cursor is always the top layer");
+        }
+        double gap = root.node("text", "bottom-gap-font-px").getDouble(0);
+        if (gap != 0) {
+            log.warning(
+                "  text.bottom-gap-font-px is " +
+                    gap +
+                    ": it now applies to every alignment and 0 matches Minecraft 1.21.11 - set it to 0"
+            );
+        }
+        log.warning("  then add config-version: " + CONFIG_VERSION + " to hide this message");
     }
 
     /** Parses {@code #AARRGGBB} (or {@code #RRGGBB}, treated as opaque) into an ARGB int. */

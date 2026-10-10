@@ -1,6 +1,8 @@
 package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
+import dev.horuse.pixelay.data.HAlign;
+import dev.horuse.pixelay.data.VAlign;
 import java.util.Arrays;
 
 /**
@@ -80,6 +82,16 @@ public final class Layout {
     /** Wraps a layout tree for spawning on a canvas; it fills the whole canvas. */
     public static MountedLayout mount(LayoutItem root) {
         return new MountedLayout(box(root));
+    }
+
+    /**
+     * Wraps a layout tree placed at a canvas point instead of filling the canvas: the tree gets its natural
+     * size and is aligned to {@code (x, y)} like a single component ({@code CENTER}/{@code MIDDLE} centres
+     * it on the point). If a box in the tree is marked {@link Box#anchor()}, that box is aligned to the
+     * point instead and the rest of the tree follows it.
+     */
+    public static MountedLayout mountAt(double x, double y, HAlign h, VAlign v, LayoutItem root) {
+        return new MountedLayout(box(root), new MountedLayout.Placement(x, y, h, v));
     }
 
     static Box<?> box(LayoutItem item) {

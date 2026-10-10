@@ -39,6 +39,10 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     private String id;
     private Consumer<Player> onClick;
     private int background;
+    /** Depth steps from the last layout pass (see {@link dev.horuse.pixelay.data.Layers}): first and last used. */
+    int paintStep = 1;
+    int paintEnd;
+    private boolean anchor;
     private Rect rect = new Rect(0, 0, 0, 0);
 
     // Two cached sizes per pass: the natural one and the last constrained one (parents ask both).
@@ -274,6 +278,25 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
 
     public int background() {
         return background;
+    }
+
+    /**
+     * Pins this box to the point of a layout mounted with {@link Layout#mountAt}: the layout is moved so
+     * that this box (not the whole tree) sits on the point, aligned as the mount says. E.g. an icon centred
+     * on a map position with its label hanging below it. Only the first anchored box counts.
+     */
+    public S anchor() {
+        this.anchor = true;
+        return self();
+    }
+
+    boolean isAnchor() {
+        return anchor;
+    }
+
+    /** What a click on this box runs: its own {@link #onClick}, or {@code null}. */
+    Consumer<Player> clickHandler() {
+        return onClick;
     }
 
     /** Makes the whole box clickable via {@link MountedLayout#click}. */

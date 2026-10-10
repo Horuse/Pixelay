@@ -108,23 +108,23 @@ public class Canvas {
     }
 
     /**
-     * Converts a pixel coordinate into the world spawn {@link Location}, pushed out along the plane
-     * normal by {@code text.normal-offset} so components never Z-fight with the background.
+     * Converts a pixel coordinate into the world spawn {@link Location} on the text layer (see {@link
+     * Layers}), in front of the canvas surface.
      */
     public Location pixelToWorld(double pixelX, double pixelY) {
-        return pixelToWorld(pixelX, pixelY, Pixelay.settings().text().normalOffset());
+        return pixelToWorld(pixelX, pixelY, Layers.text());
     }
 
     /**
      * Converts a pixel coordinate into the world spawn {@link Location} with an explicit outward
      * offset along the plane normal.
      */
-    public Location pixelToWorld(double pixelX, double pixelY, float normalOffset) {
+    public Location pixelToWorld(double pixelX, double pixelY, float layerDepth) {
         double localRight =
             ((pixelX - resolution.pixelWidth() / 2.0) / resolution.pixelWidth()) * resolution.blockWidth();
         double localUp =
             (-(pixelY - resolution.pixelHeight() / 2.0) / resolution.pixelHeight()) * resolution.blockHeight();
-        double outward = depthOffset + normalOffset;
+        double outward = depthOffset + layerDepth;
 
         double x = center.getX() + right.x * localRight + up.x * localUp + normal.x * outward;
         double y = center.getY() + right.y * localRight + up.y * localUp + normal.y * outward;
@@ -265,8 +265,8 @@ public class Canvas {
             return null;
         }
 
-        // The plane the components are drawn on: pushed out by depthOffset and text.normal-offset.
-        float outward = depthOffset + Pixelay.settings().text().normalOffset();
+        // The plane the text is drawn on: the canvas surface (depthOffset) plus the text layer.
+        float outward = depthOffset + Layers.text();
         Vector3f c = new Vector3f((float) center.getX(), (float) center.getY(), (float) center.getZ()).fma(
             outward,
             normal

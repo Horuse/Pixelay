@@ -240,10 +240,10 @@ public final class FontMetrics {
     /**
      * @param maxWidthPx width of the widest line (advance)
      * @param lines number of lines
-     * @param topPx top of the drawn block in font px from the first line's top: 0, or negative when a
-     *     glyph of the first line rises above it
+     * @param topPx top of the drawn block in font px from the first line's top: 0 for normal text,
+     *     negative when a glyph rises above the line, positive when the first line holds only lower icons
      * @param bottomPx bottom of the drawn block in font px from the first line's top: {@code 9 + 10 *
-     *     (lines - 1)}, or more when a glyph hangs below its line
+     *     (lines - 1)} for normal text, more or less when the last line's glyphs hang lower or end higher
      */
     public record Metrics(double maxWidthPx, int lines, double topPx, double bottomPx) {}
 
@@ -262,14 +262,17 @@ public final class FontMetrics {
         private double breakSpace;
         private double max;
         private int lines = 1;
-        /** Vertical extent of the current line without / of the current word (font px from the line top). */
-        private int lineTop;
-        private int lineBottom = (int) LINE_HEIGHT_PX;
-        private int wordTop;
-        private int wordBottom = (int) LINE_HEIGHT_PX;
+        /**
+         * Vertical extent of the current line without / of the current word (font px from the line top),
+         * from the glyphs actually on it: a normal glyph spans 0..9, an icon its own rows. Empty = none yet.
+         */
+        private int lineTop = Integer.MAX_VALUE;
+        private int lineBottom = Integer.MIN_VALUE;
+        private int wordTop = Integer.MAX_VALUE;
+        private int wordBottom = Integer.MIN_VALUE;
         /** Extent of the whole block, from the first line's top. */
-        double top;
-        double bottom = LINE_HEIGHT_PX;
+        double top = Double.MAX_VALUE;
+        double bottom = -Double.MAX_VALUE;
 
         Walker(int limit) {
             this.limit = limit;
@@ -341,17 +344,18 @@ public final class FontMetrics {
         }
 
         private void resetWord() {
-            wordTop = 0;
-            wordBottom = (int) LINE_HEIGHT_PX;
+            wordTop = Integer.MAX_VALUE;
+            wordBottom = Integer.MIN_VALUE;
         }
 
-        /** Adds the current line's extent to the block and starts a normal-height line. */
+        /** Adds the current line's extent to the block (a line without glyphs counts as a normal one). */
         private void endLine() {
             double lineStart = (lines - 1) * LINE_PITCH_PX;
-            top = Math.min(top, lineStart + lineTop);
-            bottom = Math.max(bottom, lineStart + lineBottom);
-            lineTop = 0;
-            lineBottom = (int) LINE_HEIGHT_PX;
+            boolean empty = lineTop > lineBottom;
+            top = Math.min(top, lineStart + (empty ? 0 : lineTop));
+            bottom = Math.max(bottom, lineStart + (empty ? LINE_HEIGHT_PX : lineBottom));
+            lineTop = Integer.MAX_VALUE;
+            lineBottom = Integer.MIN_VALUE;
         }
     }
 }

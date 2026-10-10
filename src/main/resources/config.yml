@@ -1,5 +1,8 @@
 # Pixelay configuration. Apply changes with /pixelay reload.
 
+# Layout of this file; do not change it by hand.
+config-version: 2
+
 # Log spawn/click diagnostics to the console.
 debug: false
 
@@ -13,10 +16,9 @@ scheduler:
   heal-period-ticks: 40
 
 text:
-  # Distance (blocks) components are pushed out of the canvas plane to avoid Z-fighting.
-  normal-offset: 0.01
-  # Gap between the TextDisplay position and the bottom edge of the text, in font pixels.
-  bottom-gap-font-px: 2
+  # Calibration: distance (font pixels) between the end of a TextDisplay's last line and the entity
+  # position. 0 matches Minecraft 1.21.11; change only if texts sit off their boxes on another version.
+  bottom-gap-font-px: 0
   # TextDisplay view range multiplier (higher = visible from farther away).
   view-range: 500
   # Render text at full brightness regardless of surrounding light.
@@ -46,8 +48,12 @@ cursor:
   glyph: "+"
   # Default cursor height in canvas pixels.
   height-px: 17
-  # Extra distance (blocks) towards the viewer, so the cursor is always drawn above other text.
-  depth-offset: 0.02
+
+layers:
+  # Distance (blocks) between two drawing layers in front of a canvas surface: box backgrounds, debug
+  # panels, text backgrounds, text, cursor, in this order. The surface itself is the canvas' depthOffset
+  # (where your background is). Raise it if layers flicker into each other from far away.
+  step: 0.002
 
 resource-packs:
   # Glyph widths of custom characters are measured from the packs in plugins/Pixelay/resourcepacks/

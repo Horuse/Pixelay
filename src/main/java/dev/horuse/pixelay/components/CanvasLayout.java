@@ -86,25 +86,22 @@ public final class CanvasLayout {
     /**
      * @return TextDisplay spawn position in canvas px. The element's box is exactly the drawn text; it
      * is anchored by the element's alignment. The client centres the text's advance (ink plus the
-     * trailing spacing) 1 font px right of the entity, and the bottom gap ({@link #bottomGapPx})
-     * compensates the empty space under the glyphs (fully for a bottom anchor, half for middle, none
-     * for top).
+     * trailing spacing) 1 font px right of the entity; vertically the entity stands at the end of the
+     * last line, plus {@link #bottomGapPx}, for every alignment.
      */
     public static double[] displayPosition(CanvasDrawable drawable, String text) {
         double width = textWidthPx(drawable, text, drawable.lineWidth());
         FontMetrics.Metrics metrics = FontMetrics.measure(text, drawable.lineWidth());
         double fontPx = drawable.heightPx() / FontMetrics.LINE_HEIGHT_PX;
         double height = (metrics.bottomPx() - metrics.topPx()) * fontPx;
-        double bottomOffset = drawable.vAlign().bottomOffset(height);
-        double gapShare = height > 0 ? 1 - bottomOffset / height : 1;
+        double boxTop = drawable.pixelY() + drawable.vAlign().bottomOffset(height) - height;
         double boxCenterX = drawable.pixelX() + drawable.hAlign().horizontalOffset(width);
-        // The client stacks the lines from the entity up; a glyph hanging below the last line does not
-        // move them, so the entity stands where the last normal line ends.
-        double boxBottom = drawable.pixelY() + bottomOffset;
-        double linesBottom = boxBottom - height + (normalBottomPx(metrics) - metrics.topPx()) * fontPx;
+        // The client stacks the lines up from the entity, so it stands at the end of the last normal line
+        // (plus the configured gap), wherever the box is anchored: the drawing always fills the box.
+        double firstLineTop = boxTop - metrics.topPx() * fontPx;
         return new double[] {
             boxCenterX + (TRAILING_SPACING_FONT_PX / 2.0 - CLIENT_TEXT_OFFSET_FONT_PX) * fontPx,
-            linesBottom + bottomGapPx(drawable) * gapShare,
+            firstLineTop + normalBottomPx(metrics) * fontPx + bottomGapPx(drawable),
         };
     }
 

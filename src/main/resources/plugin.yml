@@ -9,7 +9,7 @@ softdepend: [PlaceholderAPI]
 commands:
   pixelay:
     description: Pixelay administration.
-    usage: /pixelay <reload|debug layout|debug bounds>
+    usage: /pixelay <reload|debug layout|debug bounds|debug layers>
     permission: pixelay.admin
 permissions:
   pixelay.admin:

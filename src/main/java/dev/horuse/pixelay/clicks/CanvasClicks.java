@@ -136,6 +136,14 @@ public final class CanvasClicks {
         }
     }
 
+    /** Lays all click tiles again (the text layer they stand on moved). */
+    public static void respawnAll() {
+        for (HitArea area : AREAS.values()) {
+            area.despawn();
+            area.spawn();
+        }
+    }
+
     /** Drops everything (plugin disable). */
     public static void clear() {
         AREAS.values().forEach(HitArea::despawn);

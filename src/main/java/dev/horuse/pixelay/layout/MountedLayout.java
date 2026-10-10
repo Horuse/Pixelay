@@ -5,9 +5,11 @@ import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.clicks.ClickTarget;
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.components.CanvasComponent;
-import dev.horuse.pixelay.components.CanvasLayout;
 import dev.horuse.pixelay.components.TextBackground;
 import dev.horuse.pixelay.data.Canvas;
+import dev.horuse.pixelay.data.HAlign;
+import dev.horuse.pixelay.data.Layers;
+import dev.horuse.pixelay.data.VAlign;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -23,8 +25,6 @@ import org.bukkit.entity.Player;
  */
 public final class MountedLayout implements CanvasComponent {
 
-    private static final int MAX_BACKGROUND_LEVEL = 12;
-
     // spawn/refresh/despawn must run on the main server thread: the debug overlay uses the Bukkit API.
 
     private final Box<?> root;
@@ -36,9 +36,21 @@ public final class MountedLayout implements CanvasComponent {
     private final Map<Box<?>, TextBackground> backgrounds = new IdentityHashMap<>();
     private final ClickTarget clickTarget = this::click;
     private Player clickViewer;
+    private boolean stepsWarned;
+    private boolean anchorsWarned;
+
+    /** Where a layout mounted with {@link Layout#mountAt} is pinned; {@code null} = fill the canvas. */
+    record Placement(double x, double y, HAlign h, VAlign v) {}
+
+    private final Placement placement;
 
     MountedLayout(Box<?> root) {
+        this(root, null);
+    }
+
+    MountedLayout(Box<?> root, Placement placement) {
         this.root = root;
+        this.placement = placement;
         root.collectComponents(components);
         root.collectBoxes(boxes);
     }
@@ -51,12 +63,96 @@ public final class MountedLayout implements CanvasComponent {
         return List.copyOf(components);
     }
 
-    /** Runs measure + arrange over the whole canvas. */
+    /** Runs measure + arrange over the whole canvas, or at the mount point (see {@link Layout#mountAt}). */
     public void layout(Canvas canvas) {
         this.canvas = canvas;
         // Texts may have changed since the last pass: measure everything once more, then reuse.
         root.invalidate();
-        root.arrange(new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight()));
+        if (placement == null) {
+            root.arrange(new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight()));
+        } else {
+            arrangeAtPoint(canvas);
+        }
+        assignSteps();
+        int top = 0;
+        for (Box<?> box : boxes) {
+            top = Math.max(top, box.paintEnd);
+        }
+        Layers.reportTopStep(canvas, top);
+    }
+
+    /**
+     * Gives every painting box its depth steps in CSS painting order (parents first, earlier siblings
+     * first): one step above every earlier box it overlaps. See {@link Layers}.
+     */
+    private void assignSteps() {
+        List<Box<?>> painted = new ArrayList<>();
+        for (Box<?> box : boxes) {
+            // Every box is a layer (like devtools' 3D view): a container its background and debug panel,
+            // a component its text background and text. Nested boxes are always above their parent.
+            int needs = box instanceof Leaf ? 2 : 1;
+            int base = 1;
+            for (Box<?> earlier : painted) {
+                if (overlaps(earlier.rect(), box.rect())) {
+                    base = Math.max(base, earlier.paintEnd + 1);
+                }
+            }
+            int top = base + needs - 1;
+            if (top > Layers.MAX_STEP) {
+                base -= top - Layers.MAX_STEP;
+                if (!stepsWarned) {
+                    stepsWarned = true;
+                    Pixelay.plugin()
+                        .getLogger()
+                        .warning(
+                            "A layout overlaps more than " +
+                                Layers.MAX_STEP +
+                                " painted boxes: the topmost share a depth"
+                        );
+                }
+            }
+            box.paintStep = base;
+            box.paintEnd = base + needs - 1;
+            painted.add(box);
+            if (box instanceof Leaf leaf) {
+                leaf.component().setLayerStep(base);
+            }
+        }
+    }
+
+    private static boolean overlaps(Rect a, Rect b) {
+        return a.x() < b.right() && b.x() < a.right() && a.y() < b.bottom() && b.y() < a.bottom();
+    }
+
+    /** Places a {@link Layout#mountAt} tree: shrink-to-fit within the canvas width, aligned to the point. */
+    private void arrangeAtPoint(Canvas canvas) {
+        // Like CSS absolute positioning: natural width, but never wider than the canvas (texts wrap).
+        Size size = root.measure(canvas.resolution().pixelWidth());
+        root.arrange(new Rect(0, 0, size.width(), size.height()));
+        // Align the anchored box (or the whole tree) to the point, then place the tree there.
+        Rect pinned = anchorBox().rect();
+        // The anchor point of a box: its left/centre/right and top/middle/bottom, as for components.
+        double dx = placement.x() - (pinned.centerX() - placement.h().horizontalOffset(pinned.width()));
+        double dy = placement.y() - (pinned.bottom() - placement.v().bottomOffset(pinned.height()));
+        root.arrange(new Rect(dx, dy, size.width(), size.height()));
+    }
+
+    /** The box marked {@link Box#anchor()} (the first in painting order if several, with a warning), or the root. */
+    private Box<?> anchorBox() {
+        Box<?> found = null;
+        for (Box<?> box : boxes) {
+            if (box.isAnchor()) {
+                if (found == null) {
+                    found = box;
+                } else if (!anchorsWarned) {
+                    anchorsWarned = true;
+                    Pixelay.plugin()
+                        .getLogger()
+                        .warning("A mountAt layout has several anchor() boxes: only the first one is used");
+                }
+            }
+        }
+        return found != null ? found : root;
     }
 
     @Override
@@ -67,7 +163,7 @@ public final class MountedLayout implements CanvasComponent {
         // Registered after its components, so the layout (boxes with onClick) is asked first.
         CanvasClicks.register(canvas, clickViewer, clickTarget);
         syncBackgrounds();
-        debugOverlay.update(root, components, canvas);
+        debugOverlay.update(root, canvas);
     }
 
     @Override
@@ -94,7 +190,7 @@ public final class MountedLayout implements CanvasComponent {
         components.forEach(CanvasComponent::refresh);
         if (canvas != null) {
             syncBackgrounds();
-            debugOverlay.update(root, components, canvas);
+            debugOverlay.update(root, canvas);
         }
     }
 
@@ -103,7 +199,7 @@ public final class MountedLayout implements CanvasComponent {
      * a single viewer), or by everyone for server components. Deeper boxes sit closer to the text.
      */
     private void syncBackgrounds() {
-        syncBackgrounds(root, 0, viewer());
+        syncBackgrounds(root, viewer());
     }
 
     /** The only player who sees this layout (the first component with a single viewer), or {@code null}. */
@@ -116,7 +212,7 @@ public final class MountedLayout implements CanvasComponent {
             .orElse(null);
     }
 
-    private void syncBackgrounds(Box<?> box, int level, Player viewer) {
+    private void syncBackgrounds(Box<?> box, Player viewer) {
         if (box.background() != 0 || backgrounds.containsKey(box)) {
             Rect r = box.rect();
             backgrounds
@@ -125,25 +221,19 @@ public final class MountedLayout implements CanvasComponent {
                     canvas,
                     new double[] { r.x(), r.y(), r.right(), r.bottom() },
                     box.background(),
-                    backgroundDepth(level)
+                    Layers.at(box.paintStep)
                 );
         }
         if (box instanceof Container<?> container) {
             for (Box<?> child : container.children) {
-                syncBackgrounds(child, level + 1, viewer);
+                syncBackgrounds(child, viewer);
             }
         }
     }
 
-    /** Box backgrounds stay below the layout debug panels and the text backgrounds. */
-    private static float backgroundDepth(int level) {
-        float text = Pixelay.settings().text().normalOffset();
-        return text * (0.05f + (0.13f * Math.min(level, MAX_BACKGROUND_LEVEL)) / MAX_BACKGROUND_LEVEL);
-    }
-
     /**
-     * Routes a click at a canvas pixel: the deepest box with {@code onClick} under the point wins,
-     * otherwise a clickable component whose measured hitbox contains the point.
+     * Routes a click at a canvas pixel: the deepest clickable box under the point wins — a box with
+     * {@code onClick}, or the whole box of a clickable component (its padding included).
      *
      * @return whether anything handled the click
      */
@@ -152,17 +242,8 @@ public final class MountedLayout implements CanvasComponent {
         py = clampToCanvas(py, false);
         for (int i = boxes.size() - 1; i >= 0; i--) {
             Box<?> box = boxes.get(i);
-            if (box.onClick() != null && box.rect().contains(px, py)) {
-                box.onClick().accept(player);
-                return true;
-            }
-        }
-
-        for (int i = components.size() - 1; i >= 0; i--) {
-            AbstractCanvasComponent component = components.get(i);
-            Consumer<Player> onClick = component.onClick();
-            double[] hitbox = component.measuredHitboxPx();
-            if (onClick != null && hitbox != null && CanvasLayout.contains(component, hitbox, px, py)) {
+            Consumer<Player> onClick = box.clickHandler();
+            if (onClick != null && box.rect().contains(px, py)) {
                 onClick.accept(player);
                 return true;
             }

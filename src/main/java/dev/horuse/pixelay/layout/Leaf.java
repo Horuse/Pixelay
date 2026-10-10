@@ -7,6 +7,8 @@ import dev.horuse.pixelay.content.FontMetrics;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.VAlign;
 import java.util.List;
+import java.util.function.Consumer;
+import org.bukkit.entity.Player;
 
 /**
  * A canvas component inside a layout. Its size is the measured text block (or the component's explicit
@@ -109,6 +111,13 @@ public final class Leaf extends Box<Leaf> {
         component.setLineWidth(lineWidthFor(content.width()));
         component.place(x, y, h, v);
         component.setOverflow(overflow);
+    }
+
+    /** A clickable component (a button) is clicked on its whole box, padding included, not just its text. */
+    @Override
+    Consumer<Player> clickHandler() {
+        Consumer<Player> own = super.clickHandler();
+        return own != null ? own : component.onClick();
     }
 
     @Override
