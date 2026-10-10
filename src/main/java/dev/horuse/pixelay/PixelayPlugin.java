@@ -13,6 +13,9 @@ import dev.horuse.pixelay.debug.LayoutDebug;
 import dev.horuse.pixelay.debug.LayoutDebugListener;
 import dev.horuse.pixelay.listeners.CanvasPacketClickListener;
 import dev.horuse.pixelay.listeners.ChatSuppression;
+import dev.horuse.pixelay.screen.ScreenListener;
+import dev.horuse.pixelay.screen.ScreenLookListener;
+import dev.horuse.pixelay.screen.ScreenSession;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
@@ -33,6 +36,7 @@ public final class PixelayPlugin extends JavaPlugin {
     private PixelaySettings settings;
     private PacketListenerCommon packetClickListener;
     private PacketListenerCommon chatSuppressionListener;
+    private PacketListenerCommon screenLookListener;
 
     @Override
     public void onEnable() {
@@ -54,6 +58,10 @@ public final class PixelayPlugin extends JavaPlugin {
         CanvasClickCatcher.clearRegistry();
 
         Bukkit.getPluginManager().registerEvents(new LayoutDebugListener(), this);
+        Bukkit.getPluginManager().registerEvents(new ScreenListener(), this);
+        screenLookListener = PacketEvents.getAPI()
+            .getEventManager()
+            .registerListener(new ScreenLookListener(), PacketListenerPriority.NORMAL);
         packetClickListener = PacketEvents.getAPI()
             .getEventManager()
             .registerListener(new CanvasPacketClickListener(), PacketListenerPriority.NORMAL);
@@ -71,7 +79,13 @@ public final class PixelayPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // Players in a screen get their game mode and position back before anything is torn down.
+        ScreenSession.closeAll();
         manager.stop();
+        if (screenLookListener != null) {
+            PacketEvents.getAPI().getEventManager().unregisterListener(screenLookListener);
+            screenLookListener = null;
+        }
         CanvasBoundsDebug.stop();
         if (packetClickListener != null) {
             PacketEvents.getAPI().getEventManager().unregisterListener(packetClickListener);
