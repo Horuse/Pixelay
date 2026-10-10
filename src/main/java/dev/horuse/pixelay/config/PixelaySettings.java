@@ -1,5 +1,6 @@
 package dev.horuse.pixelay.config;
 
+import java.util.List;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.spongepowered.configurate.ConfigurateException;
 import org.spongepowered.configurate.ConfigurationNode;
@@ -17,7 +18,8 @@ public record PixelaySettings(
     Clicks clicks,
     Cursor cursor,
     ChatSuppression chatSuppression,
-    Packets packets
+    Packets packets,
+    List<String> resourcePackOrder
 ) {
     /** Text rendering options shared by every renderer. */
     public record Text(
@@ -123,7 +125,8 @@ public record PixelaySettings(
                     meta.node("text-opacity").getInt(26),
                     meta.node("style-flags").getInt(27)
                 )
-            )
+            ),
+            root.node("resource-packs", "order").getList(String.class, List.of())
         );
     }
 

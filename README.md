@@ -14,8 +14,9 @@ Pixelay handles world transforms, rotation, font measurement, alignment and clic
   - *server* — real entities visible to everyone;
   - *packet* — real entities shown to a single viewer (per-player visibility);
   - *fake* — packet-only entities, nothing exists on the server.
-- **Accurate text measurement** — vanilla font width table (bold-aware, MiniMessage-aware) plus
-  overrides for resource-pack glyphs, used for CSS-like `HAlign`/`VAlign` anchoring and hitboxes.
+- **Accurate text measurement** — vanilla font width table (bold-aware, MiniMessage-aware); widths of
+  resource-pack glyphs are measured automatically from the packs in `plugins/Pixelay/resourcepacks/`.
+  Text boxes are exactly the drawn text, used for anchoring, layouts, backgrounds and hitboxes.
 - **Dynamic content** — constant text, suppliers or PlaceholderAPI templates, refreshed on a timer.
 - **Self-healing** — registered surfaces are respawned automatically if an entity dies.
 - **Spectator screens** — click routing via packets, sneak-dismount blocking, chat suppression.
@@ -154,7 +155,8 @@ ui.click(px, py, player);
 | `node(component)` | a component as a leaf, to set box properties on it |
 
 Every box supports `padding`, `margin` (negative values allowed), `width`/`height`, `grow`, `shrink`,
-`alignSelf` / `justifySelf`, `id` (hit testing via `idAt`) and `onClick`.
+`alignSelf` / `justifySelf`, `background` (ARGB fill, like CSS `background-color`), `id` (hit testing
+via `idAt`) and `onClick`.
 
 Alignment is one system, like CSS: `align` / `alignSelf` (vertical; the cross axis in a row or a column)
 and `justifyItems` / `justifySelf` (horizontal). A component inside a layout is pinned by them within
@@ -175,7 +177,7 @@ broken: a word wider than its space overflows instead (visible with `/pixelay de
 ### Debugging layouts
 
 `/pixelay debug layout` (permission `pixelay.admin`) toggles a per-player debug mode: every component
-gets a translucent background showing its text block — blue when it fits, red where an overflow starts
+gets a translucent panel exactly over its text box — blue when it fits, red where an overflow starts
 (the box itself is bigger than its space), orange when it sits inside an overflowing box. The
 highlight follows the next canvas refresh.
 
@@ -200,7 +202,9 @@ instead of a text background.
 | File | Purpose |
 |------|---------|
 | `config.yml` | Timings, text style, click debounce, cursor, chat suppression, packet metadata indexes. |
-| `font-widths.yml` | Width overrides (in font pixels) for custom resource-pack glyphs. |
+| `resourcepacks/` | Drop resource packs (zip or folder) here: their font glyphs are measured on start and `/pixelay reload`. Priority: `resource-packs.order` in `config.yml`. |
+| `font-widths.generated.yml` | Widths measured from `resourcepacks/`; rewritten every time, do not edit. |
+| `font-widths.yml` | Manual widths (in font pixels); they always win over the generated ones. |
 
 All options are documented inline in the generated files.
 
@@ -208,23 +212,23 @@ All options are documented inline in the generated files.
 
 | Command | Permission | Description |
 |---------|------------|-------------|
-| `/pixelay reload` | `pixelay.admin` (op) | Reloads `config.yml` and `font-widths.yml`. |
+| `/pixelay reload` | `pixelay.admin` (op) | Reloads `config.yml`, re-measures `resourcepacks/` and reloads the width files. |
 | `/pixelay debug layout` | `pixelay.admin` (op) | Highlights components that overflow their layout space. |
 
 ## Regenerating the font width table
 
-`tools/fontgen/generate.py` rebuilds `FontWidths.java` from the vanilla font assets
-(and optionally your resource pack) using only the Python standard library:
+`tools/fontgen/generate.py` rebuilds the built-in vanilla table `FontWidths.java` (for a new Minecraft
+version) using only the Python standard library. Keep resource-pack glyphs out of it: they belong in
+`plugins/Pixelay/resourcepacks/`.
 
 ```sh
 python3 tools/fontgen/generate.py \
   --assets path/to/vanilla-font-assets \
-  --pack path/to/your-resource-pack \
   --output src/main/java/dev/horuse/pixelay/content/FontWidths.java
 ```
 
 Paths can also be set in a `.env` file at the repository root
-(`VANILLA_ASSETS_PATH`, `RESOURCE_PACK_PATH`). See the script header for details.
+(`VANILLA_ASSETS_PATH`). See the script header for details.
 
 ## Building
 

@@ -136,11 +136,13 @@ public final class FontMetrics {
     }
 
     /**
-     * Loads overrides from the plugin's font-widths.yml: glyphs section, key is a single character,
-     * value is width in font px.
+     * Loads glyph widths on top of the built-in vanilla table: first the ones computed from the packs in
+     * {@code resourcepacks/} (written to {@code font-widths.generated.yml}), then the manual entries of
+     * {@code font-widths.yml}, which always win.
      */
     public static void loadOverrides(JavaPlugin plugin) throws ConfigurateException {
         OVERRIDES.clear();
+        OVERRIDES.putAll(PackFontWidths.generate(plugin));
         ConfigurationNode glyphs = YamlFiles.load(plugin, "font-widths.yml").node("glyphs");
 
         for (Map.Entry<Object, ? extends ConfigurationNode> entry : glyphs.childrenMap().entrySet()) {

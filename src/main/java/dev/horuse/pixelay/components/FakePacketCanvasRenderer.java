@@ -295,6 +295,11 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         return measuredHitbox;
     }
 
+    @Override
+    public Player viewer() {
+        return viewer;
+    }
+
     private static int nextId() {
         return nextFakeEntityId();
     }

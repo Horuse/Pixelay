@@ -1,11 +1,16 @@
 package dev.horuse.pixelay.layout;
 
+import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.components.CanvasComponent;
 import dev.horuse.pixelay.components.CanvasLayout;
+import dev.horuse.pixelay.components.TextBackground;
 import dev.horuse.pixelay.data.Canvas;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 
@@ -16,6 +21,8 @@ import org.bukkit.entity.Player;
  */
 public final class MountedLayout implements CanvasComponent {
 
+    private static final int MAX_BACKGROUND_LEVEL = 12;
+
     // spawn/refresh/despawn must run on the main server thread: the debug overlay uses the Bukkit API.
 
     private final Box<?> root;
@@ -23,6 +30,8 @@ public final class MountedLayout implements CanvasComponent {
     private final List<Box<?>> boxes = new ArrayList<>();
     private Canvas canvas;
     private final DebugOverlay debugOverlay = new DebugOverlay();
+    /** Panels of boxes with a {@link Box#background}, by box. */
+    private final Map<Box<?>, TextBackground> backgrounds = new IdentityHashMap<>();
 
     MountedLayout(Box<?> root) {
         this.root = root;
@@ -50,12 +59,15 @@ public final class MountedLayout implements CanvasComponent {
     public void spawn(Canvas canvas) {
         layout(canvas);
         components.forEach(component -> component.spawn(canvas));
+        syncBackgrounds();
         debugOverlay.update(root, components, canvas);
     }
 
     @Override
     public void despawn() {
         components.forEach(CanvasComponent::despawn);
+        backgrounds.values().forEach(TextBackground::remove);
+        backgrounds.clear();
         debugOverlay.clear();
     }
 
@@ -71,8 +83,48 @@ public final class MountedLayout implements CanvasComponent {
         }
         components.forEach(CanvasComponent::refresh);
         if (canvas != null) {
+            syncBackgrounds();
             debugOverlay.update(root, components, canvas);
         }
+    }
+
+    /**
+     * Draws box backgrounds. They are seen by the same player as the components (the first one that has
+     * a single viewer), or by everyone for server components. Deeper boxes sit closer to the text.
+     */
+    private void syncBackgrounds() {
+        Player viewer = components
+            .stream()
+            .map(AbstractCanvasComponent::viewer)
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
+        syncBackgrounds(root, 0, viewer);
+    }
+
+    private void syncBackgrounds(Box<?> box, int level, Player viewer) {
+        if (box.background() != 0 || backgrounds.containsKey(box)) {
+            Rect r = box.rect();
+            backgrounds
+                .computeIfAbsent(box, key -> new TextBackground(viewer))
+                .sync(
+                    canvas,
+                    new double[] { r.x(), r.y(), r.right(), r.bottom() },
+                    box.background(),
+                    backgroundDepth(level)
+                );
+        }
+        if (box instanceof Container<?> container) {
+            for (Box<?> child : container.children) {
+                syncBackgrounds(child, level + 1, viewer);
+            }
+        }
+    }
+
+    /** Box backgrounds stay below the layout debug panels and the text backgrounds. */
+    private static float backgroundDepth(int level) {
+        float text = Pixelay.settings().text().normalOffset();
+        return text * (0.05f + (0.13f * Math.min(level, MAX_BACKGROUND_LEVEL)) / MAX_BACKGROUND_LEVEL);
     }
 
     /**

@@ -24,7 +24,7 @@ import org.joml.Vector3f;
  * With a viewer the panel is a fake entity sent to that player only; without one it is a server
  * entity visible to everyone. A fully transparent colour removes the panel.
  */
-final class TextBackground {
+public final class TextBackground {
 
     /** Between the canvas (and the layout debug panels) and the text. */
     private static float depth() {
@@ -37,7 +37,8 @@ final class TextBackground {
     private int color;
     private double[] box;
 
-    TextBackground(Player viewer) {
+    /** @param viewer the only player who sees the panel, or {@code null} for a server entity everyone sees */
+    public TextBackground(Player viewer) {
         this.viewer = viewer;
     }
 
@@ -51,7 +52,17 @@ final class TextBackground {
 
     /** Shows the panel over the element's box ({@code hitbox} as measured), in place when it already exists. */
     void sync(Canvas canvas, CanvasDrawable drawable, double[] hitbox, int argb) {
-        double[] next = hitbox != null ? CanvasLayout.clickBounds(drawable, hitbox) : null;
+        double[] bounds = hitbox != null ? CanvasLayout.clickBounds(drawable, hitbox) : null;
+        sync(canvas, bounds, argb, depth());
+    }
+
+    /**
+     * Shows the panel over {@code bounds = {left, top, right, bottom}} (canvas px) at {@code depth} blocks
+     * off the plane, in place when it already exists; {@code null}, empty bounds or a transparent colour
+     * remove it.
+     */
+    public void sync(Canvas canvas, double[] bounds, int argb, float depth) {
+        double[] next = bounds;
         boolean empty = next == null || next[2] <= next[0] || next[3] <= next[1] || argb >>> 24 == 0;
         if (empty) {
             remove();
@@ -69,12 +80,12 @@ final class TextBackground {
         double height = next[3] - next[1];
         if (viewer != null) {
             if (fakeId == 0) {
-                fakeId = DebugPanel.spawn(viewer, canvas, x, y, width, height, argb, depth());
+                fakeId = DebugPanel.spawn(viewer, canvas, x, y, width, height, argb, depth);
             } else {
-                DebugPanel.update(viewer, fakeId, canvas, x, y, width, height, depth());
+                DebugPanel.update(viewer, fakeId, canvas, x, y, width, height, depth);
             }
         } else {
-            Location origin = DebugPanel.origin(canvas, x, y, width, height, depth());
+            Location origin = DebugPanel.origin(canvas, x, y, width, height, depth);
             Vector3f scale = toJoml(DebugPanel.scale(canvas, width, height));
             if (entity == null) {
                 entity = DisplayUtils.spawnText(origin, Component.text(" "), canvas.contentRotation(), 1f);
@@ -90,10 +101,10 @@ final class TextBackground {
             );
         }
         color = argb;
-        box = next;
+        box = next.clone();
     }
 
-    void remove() {
+    public void remove() {
         if (fakeId != 0) {
             DebugPanel.destroy(viewer, fakeId);
             fakeId = 0;

@@ -1,6 +1,7 @@
 # Manual glyph width overrides for canvas text measurement (FontMetrics).
-# The built-in table (FontWidths) covers the vanilla Minecraft font. Add entries here
-# for custom resource-pack glyphs (icons, custom fonts) so alignment and hitboxes stay exact.
+# The built-in table (FontWidths) covers the vanilla Minecraft font, and the glyphs of the packs in
+# resourcepacks/ are measured automatically (font-widths.generated.yml). Entries here always win:
+# use them to fix a width by hand, e.g. for a glyph drawn by a ttf provider.
 # Key: a single character (quoted unicode escape); value: advance width in vanilla font pixels.
 # Example:
 # glyphs:

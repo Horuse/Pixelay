@@ -42,6 +42,13 @@ cursor:
   # Extra distance (blocks) towards the viewer, so the cursor is always drawn above other text.
   depth-offset: 0.02
 
+resource-packs:
+  # Glyph widths of custom characters are measured from the packs in plugins/Pixelay/resourcepacks/
+  # (folders or .zip files) on every start and /pixelay reload, into font-widths.generated.yml.
+  # When several packs define the same character, the higher one wins, like in the client's pack list.
+  # List pack file/folder names here, highest priority first; packs not listed follow alphabetically.
+  order: []
+
 chat-suppression:
   # Allow ChatSuppression.suppress(player) to hide chat while a full-screen canvas is shown.
   enabled: true

@@ -33,4 +33,9 @@ public interface CanvasRenderer {
     default double[] measuredHitboxPx() {
         return null;
     }
+
+    /** @return the only player who sees this element, or {@code null} when everyone does */
+    default org.bukkit.entity.Player viewer() {
+        return null;
+    }
 }

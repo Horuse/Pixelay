@@ -101,6 +101,11 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
         return renderer != null ? renderer.measuredHitboxPx() : null;
     }
 
+    /** @return the only player who sees this element, or {@code null} when everyone does */
+    public Player viewer() {
+        return renderer != null ? renderer.viewer() : null;
+    }
+
     /**
      * Moves the anchor point and alignment; used by layouts. Renderers pick the change up on the next
      * refresh, even if the text stayed the same.

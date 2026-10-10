@@ -152,6 +152,11 @@ public class PacketCanvasRenderer implements CanvasRenderer {
         return measuredHitbox;
     }
 
+    @Override
+    public Player viewer() {
+        return viewer;
+    }
+
     /** Background panel: the debug highlight (blue / red / orange) while debugging, the configured one otherwise. */
     private void syncBackground() {
         background.sync(

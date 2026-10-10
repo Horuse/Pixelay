@@ -38,6 +38,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     protected Overflow overflow = Overflow.NONE;
     private String id;
     private Consumer<Player> onClick;
+    private int background;
     private Rect rect = new Rect(0, 0, 0, 0);
 
     // Two cached sizes per pass: the natural one and the last constrained one (parents ask both).
@@ -260,6 +261,19 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     public S id(String id) {
         this.id = id;
         return self();
+    }
+
+    /**
+     * Fills the box (padding included, margin not) with a colour, {@code #AARRGGBB} as an int, like CSS
+     * {@code background-color}. Nested boxes are drawn above their parents, all of them under the text.
+     */
+    public S background(int argb) {
+        this.background = argb;
+        return self();
+    }
+
+    public int background() {
+        return background;
     }
 
     /** Makes the whole box clickable via {@link MountedLayout#click}. */
