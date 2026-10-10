@@ -66,7 +66,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
     private String lastRendered;
     private int lastLayoutVersion;
     private int lastLineWidth;
-    private int lastBackground;
+    private final TextBackground background;
     /** Where the fake entity actually stands; repositioning on refresh is done via translation. */
     private Vector entityPos;
     /** Current display translation (world axes: the entity is spawned with zero yaw/pitch). */
@@ -76,6 +76,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
     public FakePacketCanvasRenderer(Player viewer, CanvasDrawable drawable) {
         this.viewer = viewer;
         this.drawable = drawable;
+        this.background = new TextBackground(viewer);
     }
 
     @Override
@@ -96,6 +97,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         entityPos = worldPos;
         translation = new Vector();
         textEntityId = spawnText(worldPos, text);
+        syncBackground();
         Pixelay.debug(
             "fake text spawned id=" +
                 textEntityId +
@@ -161,12 +163,8 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         data.add(new EntityData<>(idx.viewRange(), EntityDataTypes.FLOAT, style.viewRange()));
         data.add(new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, CanvasText.parse(text)));
         data.add(new EntityData<>(idx.lineWidth(), EntityDataTypes.INT, drawable.lineWidth()));
-        lastBackground = LayoutDebug.background(
-            drawable.overflow(),
-            drawable.debugBackground() && LayoutDebug.isEnabled(viewer),
-            style.backgroundArgb()
-        );
-        data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, lastBackground));
+        // The background is a separate panel (TextBackground), never the client's own one.
+        data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, 0));
         data.add(new EntityData<>(idx.textOpacity(), EntityDataTypes.BYTE, (byte) -1));
         data.add(
             new EntityData<>(
@@ -207,6 +205,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         }
 
         textEntityId = 0;
+        background.remove();
     }
 
     /** Teleports the rendered text to a world position (used by moving elements like a cursor). */
@@ -216,7 +215,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
             return;
         }
 
-        // Moved elements (like the cursor) are not refreshed by layouts: keep their debug background here.
+        // Moved elements (like the cursor) are not refreshed by layouts: keep their background here.
         syncBackground();
         // The translation is kept, so the entity goes where the visible text lands on worldPos.
         entityPos = worldPos.clone().subtract(translation);
@@ -244,7 +243,6 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
             return;
         }
 
-        syncBackground();
         String rendered = drawable.renderText();
 
         if (
@@ -252,6 +250,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
             drawable.layoutVersion() == lastLayoutVersion &&
             drawable.lineWidth() == lastLineWidth
         ) {
+            syncBackground();
             return;
         }
 
@@ -288,6 +287,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
                 )
             )
         );
+        syncBackground();
     }
 
     @Override
@@ -317,29 +317,13 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         return ENTITY_ID.getAndIncrement();
     }
 
-    /** Debug background (blue / red / orange) while its viewer debugs layouts, the configured one otherwise. */
+    /** Background panel: the debug highlight (blue / red / orange) while debugging, the configured one otherwise. */
     private void syncBackground() {
-        int background = LayoutDebug.background(
-            drawable.overflow(),
-            drawable.debugBackground() && LayoutDebug.isEnabled(viewer),
-            Pixelay.settings().text().backgroundArgb()
-        );
-        if (background == lastBackground) {
-            return;
-        }
-        lastBackground = background;
-        PacketUtils.send(
-            viewer,
-            new WrapperPlayServerEntityMetadata(
-                textEntityId,
-                List.of(
-                    new EntityData<>(
-                        Pixelay.settings().packets().metadata().backgroundColor(),
-                        EntityDataTypes.INT,
-                        background
-                    )
-                )
-            )
+        background.sync(
+            canvas,
+            drawable,
+            measuredHitbox,
+            TextBackground.colorOf(drawable, LayoutDebug.isEnabled(viewer))
         );
     }
 }

@@ -1,10 +1,8 @@
 package dev.horuse.pixelay.components;
 
-import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.debug.LayoutDebug;
 import dev.horuse.pixelay.utils.DisplayUtils;
-import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.TextDisplay;
@@ -25,11 +23,12 @@ public class ServerCanvasRenderer implements CanvasRenderer {
     private String lastRendered;
     private int lastLayoutVersion;
     private int lastLineWidth;
-    private int lastBackground;
+    private final TextBackground background;
     private double[] measuredHitbox;
 
     public ServerCanvasRenderer(CanvasDrawable drawable) {
         this.drawable = drawable;
+        this.background = new TextBackground(null);
     }
 
     @Override
@@ -56,7 +55,6 @@ public class ServerCanvasRenderer implements CanvasRenderer {
         );
         AbstractCanvasComponent.applyTextStyle(display);
         display.setLineWidth(drawable.lineWidth());
-        lastBackground = Integer.MIN_VALUE;
         syncBackground();
         AbstractCanvasComponent.tag(display);
 
@@ -80,6 +78,7 @@ public class ServerCanvasRenderer implements CanvasRenderer {
 
     @Override
     public void despawn() {
+        background.remove();
         if (display != null) {
             display.remove();
             display = null;
@@ -107,7 +106,6 @@ public class ServerCanvasRenderer implements CanvasRenderer {
             return;
         }
 
-        syncBackground();
         String rendered = drawable.renderText();
 
         if (
@@ -115,6 +113,7 @@ public class ServerCanvasRenderer implements CanvasRenderer {
             drawable.layoutVersion() == lastLayoutVersion &&
             drawable.lineWidth() == lastLineWidth
         ) {
+            syncBackground();
             return;
         }
 
@@ -135,6 +134,7 @@ public class ServerCanvasRenderer implements CanvasRenderer {
             interaction.setInteractionWidth(canvas.blocksForHeightPx(size[0]));
             interaction.setInteractionHeight(canvas.blocksForHeightPx(size[1]));
         }
+        syncBackground();
     }
 
     @Override
@@ -142,17 +142,8 @@ public class ServerCanvasRenderer implements CanvasRenderer {
         return measuredHitbox;
     }
 
-    /** Debug background (blue / red / orange) while anyone debugs layouts, the configured one otherwise. */
+    /** Background panel: the debug highlight (blue / red / orange) while debugging, the configured one otherwise. */
     private void syncBackground() {
-        int background = LayoutDebug.background(
-            drawable.overflow(),
-            drawable.debugBackground() && LayoutDebug.anyEnabled(),
-            Pixelay.settings().text().backgroundArgb()
-        );
-        if (background == lastBackground) {
-            return;
-        }
-        lastBackground = background;
-        display.setBackgroundColor(Color.fromARGB(background));
+        background.sync(canvas, drawable, measuredHitbox, TextBackground.colorOf(drawable, LayoutDebug.anyEnabled()));
     }
 }

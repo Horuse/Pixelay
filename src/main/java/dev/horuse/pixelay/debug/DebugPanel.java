@@ -149,7 +149,7 @@ public final class DebugPanel {
     }
 
     /** Non-uniform TextDisplay scale that stretches the one-space background to {@code width x height} canvas px. */
-    private static Vector3f scale(Canvas canvas, double width, double height) {
+    public static Vector3f scale(Canvas canvas, double width, double height) {
         CanvasResolution res = canvas.resolution();
         float x = (float) (((width / BG_WIDTH_FONT_PX) * (res.blockWidth() / res.pixelWidth())) / BLOCKS_PER_FONT_PX);
         float y = (float) (((height / BG_HEIGHT_FONT_PX) * (res.blockHeight() / res.pixelHeight())) /
@@ -157,7 +157,8 @@ public final class DebugPanel {
         return new Vector3f(x, y, 1f);
     }
 
-    private static Location origin(Canvas canvas, double x, double y, double width, double height, float depth) {
+    /** Where a panel's entity stands for the rectangle {@code (x, y, width, height)}. */
+    public static Location origin(Canvas canvas, double x, double y, double width, double height, float depth) {
         double unitX = width / BG_WIDTH_FONT_PX;
         return canvas.pixelToWorld(x + width / 2 - 0.5 * unitX, y + height, depth);
     }

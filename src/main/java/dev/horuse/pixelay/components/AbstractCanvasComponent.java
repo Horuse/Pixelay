@@ -194,7 +194,8 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
         PixelaySettings.Text style = Pixelay.settings().text();
         display.setShadowed(style.shadow());
         display.setSeeThrough(style.seeThrough());
-        display.setBackgroundColor(Color.fromARGB(style.backgroundArgb()));
+        // The configured background is drawn as a separate panel (TextBackground).
+        display.setBackgroundColor(Color.fromARGB(0));
         display.setLineWidth(style.lineWidth());
         display.setViewRange(style.viewRange());
         if (style.fullBrightness()) {

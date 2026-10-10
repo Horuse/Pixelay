@@ -17,7 +17,7 @@ import org.bukkit.entity.Player;
  */
 public class CanvasCursor extends AbstractCanvasComponent {
 
-    private static final double DEBUG_DOT_PX = 8;
+    private static final double DEBUG_DOT_PX = 3;
     private static final int DEBUG_DOT_COLOR = 0xD0FF00FF;
     /** The dot sits just in front of the cursor glyph. */
     private static final float DEBUG_DOT_LIFT = 0.002f;
@@ -63,9 +63,7 @@ public class CanvasCursor extends AbstractCanvasComponent {
             place(pixelX, pixelY, HAlign.CENTER, VAlign.MIDDLE);
         } else {
             double fontPx = heightPx / FontMetrics.LINE_HEIGHT_PX;
-            // The element's box starts 1 font px left of and above the glyph (the text background).
-            double pad = CanvasLayout.backgroundPadPx(this);
-            place(pixelX - hotspot[0] * fontPx - pad, pixelY - hotspot[1] * fontPx - pad, HAlign.LEFT, VAlign.TOP);
+            place(pixelX - hotspot[0] * fontPx, pixelY - hotspot[1] * fontPx, HAlign.LEFT, VAlign.TOP);
         }
         if (!isValid()) {
             spawn(canvas);

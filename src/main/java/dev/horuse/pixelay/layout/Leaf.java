@@ -59,7 +59,8 @@ public final class Leaf extends Box<Leaf> {
         if (maxWidth < 0) {
             return configured;
         }
-        int available = (int) Math.floor((maxWidth * FontMetrics.LINE_HEIGHT_PX) / component.heightPx());
+        // The line width counts the advance, which is 1 font px wider than the drawn text.
+        int available = (int) Math.floor((maxWidth * FontMetrics.LINE_HEIGHT_PX) / component.heightPx()) + 1;
         return Math.min(configured, Math.max(available, longestWord()));
     }
 
@@ -75,11 +76,9 @@ public final class Leaf extends Box<Leaf> {
         if (component.hitboxWidthPx() > 0 && component.hitboxHeightPx() > 0) {
             return component.hitboxWidthPx();
         }
-        double word =
-            (Math.min(longestWord(), Pixelay.settings().text().lineWidth()) * component.heightPx()) /
-            FontMetrics.LINE_HEIGHT_PX;
-        // Plus the background the client paints left of the text (part of the element's box).
-        return word + CanvasLayout.backgroundPadPx(component);
+        // The drawn word: its advance without the trailing 1 font px of spacing.
+        int word = Math.min(longestWord(), Pixelay.settings().text().lineWidth()) - 1;
+        return (Math.max(0, word) * component.heightPx()) / FontMetrics.LINE_HEIGHT_PX;
     }
 
     @Override
