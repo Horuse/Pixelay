@@ -1,15 +1,18 @@
 package dev.horuse.pixelay.components;
 
+import dev.horuse.pixelay.clicks.CanvasClicks;
+import dev.horuse.pixelay.clicks.ClickTarget;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.debug.LayoutDebug;
 import dev.horuse.pixelay.utils.DisplayUtils;
 import org.bukkit.Location;
-import org.bukkit.entity.Interaction;
+import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 
 /**
  * Draws a {@link CanvasDrawable} as ordinary server entities visible to everyone: a {@link
- * TextDisplay} for the text, plus an {@link Interaction} hitbox when the element is clickable.
+ * TextDisplay} for the text. A clickable element is registered in {@link CanvasClicks}, which hit-tests
+ * its exact box.
  * Clickable hitboxes are registered in {@link CanvasButton#CLICK_REGISTRY}. Positioning and hitbox
  * sizing are computed by {@link CanvasLayout} from the drawable's anchor and alignment.
  */
@@ -19,12 +22,13 @@ public class ServerCanvasRenderer implements CanvasRenderer {
 
     private Canvas canvas;
     private TextDisplay display;
-    private Interaction interaction;
     private String lastRendered;
     private int lastLayoutVersion;
     private int lastLineWidth;
     private final TextBackground background;
     private double[] measuredHitbox;
+    /** Click target of a clickable element: its exact box on the canvas. */
+    private final ClickTarget clickTarget = this::clickAt;
 
     public ServerCanvasRenderer(CanvasDrawable drawable) {
         this.drawable = drawable;
@@ -59,21 +63,8 @@ public class ServerCanvasRenderer implements CanvasRenderer {
         AbstractCanvasComponent.tag(display);
 
         if (drawable.onClick() != null) {
-            spawnInteraction(text);
+            CanvasClicks.register(canvas, null, clickTarget);
         }
-    }
-
-    private void spawnInteraction(String text) {
-        double[] size = CanvasLayout.hitboxSizePx(drawable, text);
-        double[] pos = CanvasLayout.boxPosition(drawable, size[0], size[1]);
-        Location loc = canvas.pixelToWorld(pos[0], pos[1]);
-
-        interaction = loc.getWorld().spawn(loc, Interaction.class);
-        interaction.setInteractionWidth(canvas.blocksForHeightPx(size[0]));
-        interaction.setInteractionHeight(canvas.blocksForHeightPx(size[1]));
-        AbstractCanvasComponent.tag(interaction);
-
-        CanvasButton.registerClick(interaction.getUniqueId(), drawable.onClick());
     }
 
     @Override
@@ -84,10 +75,8 @@ public class ServerCanvasRenderer implements CanvasRenderer {
             display = null;
         }
 
-        if (interaction != null) {
-            CanvasButton.unregisterClick(interaction.getUniqueId());
-            interaction.remove();
-            interaction = null;
+        if (canvas != null) {
+            CanvasClicks.unregister(canvas, null, clickTarget);
         }
     }
 
@@ -97,7 +86,7 @@ public class ServerCanvasRenderer implements CanvasRenderer {
             return false;
         }
 
-        return drawable.onClick() == null || (interaction != null && interaction.isValid());
+        return true;
     }
 
     @Override
@@ -127,13 +116,6 @@ public class ServerCanvasRenderer implements CanvasRenderer {
         display.teleport(canvas.pixelToWorld(pos[0], pos[1]));
         display.setLineWidth(drawable.lineWidth());
         display.text(CanvasText.parse(rendered));
-        if (interaction != null) {
-            double[] size = measuredHitbox;
-            double[] box = CanvasLayout.boxPosition(drawable, size[0], size[1]);
-            interaction.teleport(canvas.pixelToWorld(box[0], box[1]));
-            interaction.setInteractionWidth(canvas.blocksForHeightPx(size[0]));
-            interaction.setInteractionHeight(canvas.blocksForHeightPx(size[1]));
-        }
         syncBackground();
     }
 
@@ -145,5 +127,14 @@ public class ServerCanvasRenderer implements CanvasRenderer {
     /** Background panel: the debug highlight (blue / red / orange) while debugging, the configured one otherwise. */
     private void syncBackground() {
         background.sync(canvas, drawable, measuredHitbox, TextBackground.colorOf(drawable, LayoutDebug.anyEnabled()));
+    }
+
+    private boolean clickAt(double px, double py, Player player) {
+        double[] hitbox = measuredHitbox;
+        if (drawable.onClick() == null || hitbox == null || !CanvasLayout.contains(drawable, hitbox, px, py)) {
+            return false;
+        }
+        drawable.onClick().accept(player);
+        return true;
     }
 }

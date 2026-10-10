@@ -1,6 +1,7 @@
 package dev.horuse.pixelay.commands;
 
 import dev.horuse.pixelay.PixelayPlugin;
+import dev.horuse.pixelay.debug.CanvasBoundsDebug;
 import dev.horuse.pixelay.debug.LayoutDebug;
 import java.util.List;
 import org.bukkit.command.Command;
@@ -53,8 +54,22 @@ public class PixelayCommand implements TabExecutor {
             return true;
         }
 
+        if (args.length == 2 && args[0].equalsIgnoreCase("debug") && args[1].equalsIgnoreCase("bounds")) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("Only players can see canvas bounds.");
+                return true;
+            }
+            boolean enabled = CanvasBoundsDebug.toggle(player);
+            sender.sendMessage(enabled ? "Canvas bounds on: outlines of the canvases near you." : "Canvas bounds off.");
+            return true;
+        }
+
         sender.sendMessage(
-            "Pixelay " + plugin.getPluginMeta().getVersion() + " — usage: /" + label + " <reload|debug layout>"
+            "Pixelay " +
+                plugin.getPluginMeta().getVersion() +
+                " — usage: /" +
+                label +
+                " <reload|debug layout|debug bounds>"
         );
         return true;
     }
@@ -73,7 +88,10 @@ public class PixelayCommand implements TabExecutor {
                 .toList();
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("debug")) {
-            return "layout".startsWith(args[1].toLowerCase()) ? List.of("layout") : List.of();
+            return List.of("layout", "bounds")
+                .stream()
+                .filter(option -> option.startsWith(args[1].toLowerCase()))
+                .toList();
         }
         return List.of();
     }

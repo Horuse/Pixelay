@@ -10,12 +10,11 @@ import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPl
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerInput;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientSpectate;
 import dev.horuse.pixelay.Pixelay;
-import dev.horuse.pixelay.components.CanvasButton;
+import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.components.CanvasClickCatcher;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 
 /**
@@ -132,18 +131,8 @@ public class CanvasPacketClickListener implements PacketListener {
     }
 
     private void handleClick(PacketReceiveEvent event, int entityId) {
-        if (!(event.getPlayer() instanceof Player player)) {
-            return;
+        if (event.getPlayer() instanceof Player player && CanvasClicks.onEntityClick(entityId, player)) {
+            event.setCancelled(true);
         }
-
-        Consumer<Player> callback = CanvasButton.getCallbackById(entityId, player);
-
-        if (callback == null) {
-            return;
-        }
-
-        Pixelay.debug("click " + event.getPacketType() + " id=" + entityId);
-        callback.accept(player);
-        event.setCancelled(true);
     }
 }

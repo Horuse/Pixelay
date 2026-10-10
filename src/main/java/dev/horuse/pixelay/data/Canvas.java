@@ -35,6 +35,7 @@ public class Canvas {
     private final Vector3f right;
     private final Vector3f up;
     private final Vector3f normal;
+    private volatile boolean worldClicks;
 
     public Canvas(Location center, float yawDegrees, CanvasResolution resolution) {
         this(center, yawDegrees, 0f, 0f, 0f, resolution);
@@ -83,6 +84,27 @@ public class Canvas {
         this.right = rotation.transform(new Vector3f(1f, 0f, 0f));
         this.up = rotation.transform(new Vector3f(0f, 1f, 0f));
         this.normal = rotation.transform(new Vector3f(0f, 0f, 1f));
+        warnIfPixelsNotSquare(resolution);
+    }
+
+    /**
+     * Text is scaled by the pixel height, while boxes, positions and clicks use both pixel sizes: with
+     * pixels wider than tall (or the other way round) texts no longer fill their boxes.
+     */
+    private static void warnIfPixelsNotSquare(CanvasResolution resolution) {
+        double pixelWidth = resolution.blockWidth() / resolution.pixelWidth();
+        double pixelHeight = resolution.blockHeight() / resolution.pixelHeight();
+        if (Math.abs(pixelWidth / pixelHeight - 1) > 0.01) {
+            Pixelay.plugin()
+                .getLogger()
+                .warning(
+                    "Canvas " +
+                        resolution +
+                        " has non-square pixels (" +
+                        String.format(java.util.Locale.ROOT, "%.3f", pixelWidth / pixelHeight) +
+                        ":1): keep pixelWidth/pixelHeight equal to blockWidth/blockHeight, or texts will not match their boxes"
+                );
+        }
     }
 
     /**
@@ -162,6 +184,22 @@ public class Canvas {
         return new Vector3f(normal);
     }
 
+    /**
+     * Lets players click this canvas in the world (off by default): invisible click tiles are laid over
+     * its plane while something clickable is spawned, and the clicked pixel comes from the player's look
+     * ray. Leave it off for canvases with their own input, such as a full-screen screen with a cursor:
+     * clicks then come only through {@link dev.horuse.pixelay.clicks.CanvasClicks#click}. Set it before
+     * spawning anything clickable.
+     */
+    public Canvas worldClicks(boolean enabled) {
+        this.worldClicks = enabled;
+        return this;
+    }
+
+    public boolean worldClicks() {
+        return worldClicks;
+    }
+
     public Location center() {
         return center.clone();
     }
@@ -227,16 +265,19 @@ public class Canvas {
             return null;
         }
 
-        Vector3f c = new Vector3f((float) center.getX(), (float) center.getY(), (float) center.getZ());
+        // The plane the components are drawn on: pushed out by depthOffset and text.normal-offset.
+        float outward = depthOffset + Pixelay.settings().text().normalOffset();
+        Vector3f c = new Vector3f((float) center.getX(), (float) center.getY(), (float) center.getZ()).fma(
+            outward,
+            normal
+        );
         float t = new Vector3f(c).sub(o).dot(normal) / denom;
 
         if (t < 0) {
             return null;
         }
 
-        Vector3f hit = new Vector3f(o)
-            .fma(t, d)
-            .sub(new Vector3f((float) center.getX(), (float) center.getY(), (float) center.getZ()));
+        Vector3f hit = new Vector3f(o).fma(t, d).sub(c);
         double px =
             (hit.dot(right) / resolution.blockWidth()) * resolution.pixelWidth() + resolution.pixelWidth() / 2.0;
         double py =

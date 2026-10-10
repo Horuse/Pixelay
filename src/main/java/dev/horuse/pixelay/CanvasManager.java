@@ -1,5 +1,6 @@
 package dev.horuse.pixelay;
 
+import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.config.PixelaySettings;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,6 +39,7 @@ public class CanvasManager {
                         surface.respawn();
                     }
                 }
+                CanvasClicks.heal();
             },
             healPeriod,
             healPeriod

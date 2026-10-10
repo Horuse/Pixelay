@@ -3,14 +3,14 @@ package dev.horuse.pixelay;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerCommon;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
+import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.commands.PixelayCommand;
-import dev.horuse.pixelay.components.CanvasButton;
 import dev.horuse.pixelay.components.CanvasClickCatcher;
 import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.content.FontMetrics;
+import dev.horuse.pixelay.debug.CanvasBoundsDebug;
 import dev.horuse.pixelay.debug.LayoutDebug;
 import dev.horuse.pixelay.debug.LayoutDebugListener;
-import dev.horuse.pixelay.listeners.CanvasClickListener;
 import dev.horuse.pixelay.listeners.CanvasPacketClickListener;
 import dev.horuse.pixelay.listeners.ChatSuppression;
 import org.bukkit.Bukkit;
@@ -50,10 +50,9 @@ public final class PixelayPlugin extends JavaPlugin {
             cleanupCanvasEntities();
         }
 
-        CanvasButton.clearRegistry();
+        CanvasClicks.clear();
         CanvasClickCatcher.clearRegistry();
 
-        Bukkit.getPluginManager().registerEvents(new CanvasClickListener(), this);
         Bukkit.getPluginManager().registerEvents(new LayoutDebugListener(), this);
         packetClickListener = PacketEvents.getAPI()
             .getEventManager()
@@ -67,11 +66,13 @@ public final class PixelayPlugin extends JavaPlugin {
         getCommand("pixelay").setTabCompleter(command);
 
         manager.start(this);
+        CanvasBoundsDebug.start(this);
     }
 
     @Override
     public void onDisable() {
         manager.stop();
+        CanvasBoundsDebug.stop();
         if (packetClickListener != null) {
             PacketEvents.getAPI().getEventManager().unregisterListener(packetClickListener);
             packetClickListener = null;
@@ -82,7 +83,7 @@ public final class PixelayPlugin extends JavaPlugin {
             chatSuppressionListener = null;
         }
 
-        CanvasButton.clearRegistry();
+        CanvasClicks.clear();
         CanvasClickCatcher.clearRegistry();
         LayoutDebug.clear();
         if (entityKey != null) {

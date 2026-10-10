@@ -5,6 +5,7 @@ import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.VAlign;
+import dev.horuse.pixelay.debug.CanvasBoundsDebug;
 import dev.horuse.pixelay.debug.Overflow;
 import dev.horuse.pixelay.layout.LayoutItem;
 import java.util.function.Consumer;
@@ -51,11 +52,15 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
     public void spawn(Canvas canvas) {
         this.canvas = canvas;
         renderer.spawn(canvas);
+        CanvasBoundsDebug.track(canvas);
     }
 
     @Override
     public void despawn() {
         renderer.despawn();
+        if (canvas != null) {
+            CanvasBoundsDebug.untrack(canvas);
+        }
     }
 
     @Override

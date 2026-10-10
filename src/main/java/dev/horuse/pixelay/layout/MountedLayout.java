@@ -1,6 +1,8 @@
 package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.Pixelay;
+import dev.horuse.pixelay.clicks.CanvasClicks;
+import dev.horuse.pixelay.clicks.ClickTarget;
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.components.CanvasComponent;
 import dev.horuse.pixelay.components.CanvasLayout;
@@ -32,6 +34,8 @@ public final class MountedLayout implements CanvasComponent {
     private final DebugOverlay debugOverlay = new DebugOverlay();
     /** Panels of boxes with a {@link Box#background}, by box. */
     private final Map<Box<?>, TextBackground> backgrounds = new IdentityHashMap<>();
+    private final ClickTarget clickTarget = this::click;
+    private Player clickViewer;
 
     MountedLayout(Box<?> root) {
         this.root = root;
@@ -59,12 +63,18 @@ public final class MountedLayout implements CanvasComponent {
     public void spawn(Canvas canvas) {
         layout(canvas);
         components.forEach(component -> component.spawn(canvas));
+        clickViewer = viewer();
+        // Registered after its components, so the layout (boxes with onClick) is asked first.
+        CanvasClicks.register(canvas, clickViewer, clickTarget);
         syncBackgrounds();
         debugOverlay.update(root, components, canvas);
     }
 
     @Override
     public void despawn() {
+        if (canvas != null) {
+            CanvasClicks.unregister(canvas, clickViewer, clickTarget);
+        }
         components.forEach(CanvasComponent::despawn);
         backgrounds.values().forEach(TextBackground::remove);
         backgrounds.clear();
@@ -93,13 +103,17 @@ public final class MountedLayout implements CanvasComponent {
      * a single viewer), or by everyone for server components. Deeper boxes sit closer to the text.
      */
     private void syncBackgrounds() {
-        Player viewer = components
+        syncBackgrounds(root, 0, viewer());
+    }
+
+    /** The only player who sees this layout (the first component with a single viewer), or {@code null}. */
+    private Player viewer() {
+        return components
             .stream()
             .map(AbstractCanvasComponent::viewer)
             .filter(Objects::nonNull)
             .findFirst()
             .orElse(null);
-        syncBackgrounds(root, 0, viewer);
     }
 
     private void syncBackgrounds(Box<?> box, int level, Player viewer) {

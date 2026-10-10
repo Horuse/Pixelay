@@ -34,7 +34,8 @@ public record PixelaySettings(
     ) {}
 
     /** Click routing options. */
-    public record Clicks(long debounceMs, boolean blockSneakDismount) {}
+    /** @param hitTileSize size (blocks) of the invisible click tiles laid over a canvas */
+    public record Clicks(long debounceMs, boolean blockSneakDismount, double hitTileSize) {}
 
     /** Look-at cursor appearance. */
     /** @param depthOffset extra distance (blocks) towards the viewer, so the cursor is drawn above other text */
@@ -94,7 +95,8 @@ public record PixelaySettings(
             ),
             new Clicks(
                 Math.max(0, clicks.node("debounce-ms").getLong(150)),
-                clicks.node("block-sneak-dismount").getBoolean(true)
+                clicks.node("block-sneak-dismount").getBoolean(true),
+                clicks.node("hit-tile-size").getDouble(0.25)
             ),
             new Cursor(
                 cursor.node("glyph").getString("+"),

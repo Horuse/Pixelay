@@ -11,6 +11,8 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEn
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import dev.horuse.pixelay.Pixelay;
+import dev.horuse.pixelay.clicks.CanvasClicks;
+import dev.horuse.pixelay.clicks.ClickTarget;
 import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.debug.LayoutDebug;
@@ -72,6 +74,8 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
     /** Current display translation (world axes: the entity is spawned with zero yaw/pitch). */
     private Vector translation = new Vector();
     private double[] measuredHitbox;
+    /** Click target of a clickable element: its exact box on the canvas. */
+    private final ClickTarget clickTarget = this::clickAt;
 
     public FakePacketCanvasRenderer(Player viewer, CanvasDrawable drawable) {
         this.viewer = viewer;
@@ -98,6 +102,9 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         translation = new Vector();
         textEntityId = spawnText(worldPos, text);
         syncBackground();
+        if (drawable.onClick() != null) {
+            CanvasClicks.register(canvas, viewer, clickTarget);
+        }
         Pixelay.debug(
             "fake text spawned id=" +
                 textEntityId +
@@ -206,6 +213,9 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
 
         textEntityId = 0;
         background.remove();
+        if (canvas != null) {
+            CanvasClicks.unregister(canvas, viewer, clickTarget);
+        }
     }
 
     /** Teleports the rendered text to a world position (used by moving elements like a cursor). */
@@ -330,5 +340,14 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
             measuredHitbox,
             TextBackground.colorOf(drawable, LayoutDebug.isEnabled(viewer))
         );
+    }
+
+    private boolean clickAt(double px, double py, Player player) {
+        double[] hitbox = measuredHitbox;
+        if (drawable.onClick() == null || hitbox == null || !CanvasLayout.contains(drawable, hitbox, px, py)) {
+            return false;
+        }
+        drawable.onClick().accept(player);
+        return true;
     }
 }

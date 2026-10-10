@@ -33,6 +33,10 @@ clicks:
   debounce-ms: 150
   # Cancel Shift (dismount) input for players viewing a full-screen canvas.
   block-sneak-dismount: true
+  # Clicks on a canvas are caught by invisible Interaction tiles laid over its plane; the clicked pixel
+  # comes from the player's look ray, so buttons are hit exactly. Tile size in blocks: smaller tiles
+  # stick out of a standing canvas less, but a canvas needs more of them.
+  hit-tile-size: 0.25
 
 cursor:
   # Default CanvasCursor glyph (MiniMessage). Use a resource-pack glyph for a custom cursor.

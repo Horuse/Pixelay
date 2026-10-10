@@ -1,17 +1,18 @@
 package dev.horuse.pixelay.components;
 
 import dev.horuse.pixelay.Pixelay;
+import dev.horuse.pixelay.clicks.CanvasClicks;
+import dev.horuse.pixelay.clicks.ClickTarget;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.debug.LayoutDebug;
 import dev.horuse.pixelay.utils.DisplayUtils;
 import org.bukkit.Location;
-import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 
 /**
- * Draws a {@link CanvasDrawable} as per-player entities: the backing {@link TextDisplay} and {@link
- * Interaction} are spawned in the world but made invisible by default and shown only to a single
+ * Draws a {@link CanvasDrawable} as per-player entities: the backing {@link TextDisplay} is spawned in
+ * the world but made invisible by default and shown only to a single
  * {@link Player} viewer through Paper's per-player entity visibility (which sends the
  * spawn/metadata packets to that viewer only). This gives the same look as the server renderer
  * while keeping the canvas fully private to one player — e.g. for a menu screen where concurrent
@@ -24,12 +25,13 @@ public class PacketCanvasRenderer implements CanvasRenderer {
 
     private Canvas canvas;
     private TextDisplay display;
-    private Interaction interaction;
     private String lastRendered;
     private int lastLayoutVersion;
     private int lastLineWidth;
     private final TextBackground background;
     private double[] measuredHitbox;
+    /** Click target of a clickable element: its exact box on the canvas. */
+    private final ClickTarget clickTarget = this::clickAt;
 
     public PacketCanvasRenderer(Player viewer, CanvasDrawable drawable) {
         this.viewer = viewer;
@@ -67,23 +69,8 @@ public class PacketCanvasRenderer implements CanvasRenderer {
         AbstractCanvasComponent.tag(display);
 
         if (drawable.onClick() != null) {
-            spawnInteraction(text);
+            CanvasClicks.register(canvas, viewer, clickTarget);
         }
-    }
-
-    private void spawnInteraction(String text) {
-        double[] size = CanvasLayout.hitboxSizePx(drawable, text);
-        double[] pos = CanvasLayout.boxPosition(drawable, size[0], size[1]);
-        Location loc = canvas.pixelToWorld(pos[0], pos[1]);
-
-        interaction = loc.getWorld().spawn(loc, Interaction.class);
-        interaction.setInteractionWidth(canvas.blocksForHeightPx(size[0]));
-        interaction.setInteractionHeight(canvas.blocksForHeightPx(size[1]));
-        interaction.setVisibleByDefault(false);
-        viewer.showEntity(Pixelay.plugin(), interaction);
-        AbstractCanvasComponent.tag(interaction);
-
-        CanvasButton.registerClickById(interaction.getEntityId(), viewer.getUniqueId(), drawable.onClick());
     }
 
     @Override
@@ -94,10 +81,8 @@ public class PacketCanvasRenderer implements CanvasRenderer {
             display = null;
         }
 
-        if (interaction != null) {
-            CanvasButton.unregisterClickById(interaction.getEntityId());
-            interaction.remove();
-            interaction = null;
+        if (canvas != null) {
+            CanvasClicks.unregister(canvas, viewer, clickTarget);
         }
     }
 
@@ -107,7 +92,7 @@ public class PacketCanvasRenderer implements CanvasRenderer {
             return false;
         }
 
-        return drawable.onClick() == null || (interaction != null && interaction.isValid());
+        return true;
     }
 
     @Override
@@ -137,13 +122,6 @@ public class PacketCanvasRenderer implements CanvasRenderer {
         display.teleport(canvas.pixelToWorld(pos[0], pos[1]));
         display.setLineWidth(drawable.lineWidth());
         display.text(CanvasText.parse(rendered));
-        if (interaction != null) {
-            double[] size = measuredHitbox;
-            double[] box = CanvasLayout.boxPosition(drawable, size[0], size[1]);
-            interaction.teleport(canvas.pixelToWorld(box[0], box[1]));
-            interaction.setInteractionWidth(canvas.blocksForHeightPx(size[0]));
-            interaction.setInteractionHeight(canvas.blocksForHeightPx(size[1]));
-        }
         syncBackground();
     }
 
@@ -165,5 +143,14 @@ public class PacketCanvasRenderer implements CanvasRenderer {
             measuredHitbox,
             TextBackground.colorOf(drawable, LayoutDebug.isEnabled(viewer))
         );
+    }
+
+    private boolean clickAt(double px, double py, Player player) {
+        double[] hitbox = measuredHitbox;
+        if (drawable.onClick() == null || hitbox == null || !CanvasLayout.contains(drawable, hitbox, px, py)) {
+            return false;
+        }
+        drawable.onClick().accept(player);
+        return true;
     }
 }
