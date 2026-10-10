@@ -37,6 +37,9 @@ clicks:
   # comes from the player's look ray, so buttons are hit exactly. Tile size in blocks: smaller tiles
   # stick out of a standing canvas less, but a canvas needs more of them.
   hit-tile-size: 0.25
+  # Farthest a player may click a canvas from (blocks, eye to the clicked point). Clicks come as packets
+  # handled before the server's own reach check, so this also stops modified clients clicking from afar.
+  max-distance: 6
 
 cursor:
   # Default CanvasCursor glyph (MiniMessage). Use a resource-pack glyph for a custom cursor.

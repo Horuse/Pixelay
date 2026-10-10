@@ -109,8 +109,14 @@ public final class CanvasClicks {
                 return;
             }
             Location eye = player.getEyeLocation();
+            // The packet is taken before the server checks the reach, so a modified client could send it
+            // from anywhere: the clicked point must be in the player's world and within reach.
+            if (!eye.getWorld().equals(area.canvas.center().getWorld())) {
+                return;
+            }
             double[] pixel = area.canvas.pixelFromRay(eye.toVector(), eye.getDirection());
-            if (pixel != null) {
+            double reach = Pixelay.settings().clicks().maxDistance();
+            if (pixel != null && area.canvas.pixelToWorld(pixel[0], pixel[1]).distanceSquared(eye) <= reach * reach) {
                 Pixelay.debug(
                     "canvas click " + Math.round(pixel[0]) + "x" + Math.round(pixel[1]) + " by " + player.getName()
                 );
