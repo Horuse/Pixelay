@@ -26,6 +26,11 @@ public final class FontMetrics {
     public static final float LINE_PITCH_PX = 10f;
 
     private static final Map<Integer, Integer> OVERRIDES = new ConcurrentHashMap<>();
+    /**
+     * Glyphs drawn outside the normal line box (rows 0..9 from the line top), as {@code {top, bottom}}
+     * in font px from the line top: a bitmap glyph spans {@code 7 - ascent} to {@code 7 - ascent + height}.
+     */
+    private static final Map<Integer, int[]> VERTICAL = new ConcurrentHashMap<>();
 
     private FontMetrics() {}
 
@@ -44,13 +49,14 @@ public final class FontMetrics {
      */
     public static Metrics measure(String miniMessageText, int maxLineWidth) {
         if (miniMessageText == null || miniMessageText.isEmpty()) {
-            return new Metrics(0, 1);
+            return new Metrics(0, 1, 0, LINE_HEIGHT_PX);
         }
 
         Component root = MiniMessage.miniMessage().deserialize(miniMessageText);
         Walker walker = new Walker(maxLineWidth);
         walk(root, false, walker);
-        return new Metrics(walker.finish(), walker.lines);
+        double width = walker.finish();
+        return new Metrics(width, walker.lines, walker.top, walker.bottom);
     }
 
     /**
@@ -142,7 +148,13 @@ public final class FontMetrics {
      */
     public static void loadOverrides(JavaPlugin plugin) throws ConfigurateException {
         OVERRIDES.clear();
-        OVERRIDES.putAll(PackFontWidths.generate(plugin));
+        VERTICAL.clear();
+        PackFontWidths.generate(plugin).forEach((codePoint, glyph) -> {
+            OVERRIDES.put(codePoint, glyph.advance());
+            if (glyph.height() > 0) {
+                setVertical(codePoint, glyph.ascent(), glyph.height());
+            }
+        });
         ConfigurationNode glyphs = YamlFiles.load(plugin, "font-widths.yml").node("glyphs");
 
         for (Map.Entry<Object, ? extends ConfigurationNode> entry : glyphs.childrenMap().entrySet()) {
@@ -153,7 +165,38 @@ public final class FontMetrics {
                 continue;
             }
 
-            OVERRIDES.put(key.codePointAt(0), entry.getValue().getInt());
+            putGlyph(key.codePointAt(0), entry.getValue());
+        }
+    }
+
+    /**
+     * A width entry: either the advance alone ({@code "\\uE000": 12}) or {@code {advance, ascent, height}}
+     * for a glyph drawn outside the normal line (ascent and height as in the font provider).
+     */
+    static void putGlyph(int codePoint, ConfigurationNode value) {
+        if (!value.isMap()) {
+            OVERRIDES.put(codePoint, value.getInt());
+            VERTICAL.remove(codePoint);
+            return;
+        }
+        if (!value.node("advance").virtual()) {
+            OVERRIDES.put(codePoint, value.node("advance").getInt());
+        }
+        if (!value.node("height").virtual()) {
+            int height = value.node("height").getInt();
+            int ascent = value.node("ascent").getInt(7);
+            setVertical(codePoint, ascent, height);
+        }
+    }
+
+    /** Records where a glyph is drawn, if outside the normal line box. */
+    static void setVertical(int codePoint, int ascent, int height) {
+        int top = 7 - ascent;
+        int bottom = top + height;
+        if (top < 0 || bottom > LINE_HEIGHT_PX) {
+            VERTICAL.put(codePoint, new int[] { top, bottom });
+        } else {
+            VERTICAL.remove(codePoint);
         }
     }
 
@@ -170,7 +213,13 @@ public final class FontMetrics {
                 if (codePoint == '\n') {
                     walker.newline();
                 } else {
-                    walker.add(advance(codePoint, bold), codePoint == ' ');
+                    int[] vertical = VERTICAL.get(codePoint);
+                    walker.add(
+                        advance(codePoint, bold),
+                        codePoint == ' ',
+                        vertical != null ? vertical[0] : 0,
+                        vertical != null ? vertical[1] : (int) LINE_HEIGHT_PX
+                    );
                 }
 
                 i += Character.charCount(codePoint);
@@ -189,9 +238,14 @@ public final class FontMetrics {
     }
 
     /**
-     * @param maxWidthPx width of the widest line, @param lines number of lines
+     * @param maxWidthPx width of the widest line (advance)
+     * @param lines number of lines
+     * @param topPx top of the drawn block in font px from the first line's top: 0, or negative when a
+     *     glyph of the first line rises above it
+     * @param bottomPx bottom of the drawn block in font px from the first line's top: {@code 9 + 10 *
+     *     (lines - 1)}, or more when a glyph hangs below its line
      */
-    public record Metrics(double maxWidthPx, int lines) {}
+    public record Metrics(double maxWidthPx, int lines, double topPx, double bottomPx) {}
 
     /**
      * Line width accumulator with client-like word wrapping: when a glyph would overflow the line
@@ -208,12 +262,20 @@ public final class FontMetrics {
         private double breakSpace;
         private double max;
         private int lines = 1;
+        /** Vertical extent of the current line without / of the current word (font px from the line top). */
+        private int lineTop;
+        private int lineBottom = (int) LINE_HEIGHT_PX;
+        private int wordTop;
+        private int wordBottom = (int) LINE_HEIGHT_PX;
+        /** Extent of the whole block, from the first line's top. */
+        double top;
+        double bottom = LINE_HEIGHT_PX;
 
         Walker(int limit) {
             this.limit = limit;
         }
 
-        void add(double width, boolean space) {
+        void add(double width, boolean space, int glyphTop, int glyphBottom) {
             if (current + width > limit && current > 0) {
                 wrap(space);
                 if (space) {
@@ -226,28 +288,40 @@ public final class FontMetrics {
                 word = 0;
                 breakSpace = width;
                 lineHasBreak = true;
+                mergeWord();
             } else {
                 word += width;
+                wordTop = Math.min(wordTop, glyphTop);
+                wordBottom = Math.max(wordBottom, glyphBottom);
             }
         }
 
         /** Breaks the line before the overflowing glyph; a space at the break is swallowed like in the client. */
         private void wrap(boolean space) {
-            lines++;
             if (!space && lineHasBreak && word < current) {
+                // The current word moves to the next line, together with its height.
                 max = Math.max(max, current - word - breakSpace);
                 current = word;
+                endLine();
+                lineTop = wordTop;
+                lineBottom = wordBottom;
             } else {
                 max = Math.max(max, current);
                 current = 0;
                 word = 0;
+                mergeWord();
+                endLine();
             }
-
+            resetWord();
+            lines++;
             lineHasBreak = false;
         }
 
         void newline() {
             max = Math.max(max, current);
+            mergeWord();
+            endLine();
+            resetWord();
             lines++;
             current = 0;
             word = 0;
@@ -255,7 +329,29 @@ public final class FontMetrics {
         }
 
         double finish() {
+            mergeWord();
+            endLine();
             return Math.max(max, current);
+        }
+
+        private void mergeWord() {
+            lineTop = Math.min(lineTop, wordTop);
+            lineBottom = Math.max(lineBottom, wordBottom);
+            resetWord();
+        }
+
+        private void resetWord() {
+            wordTop = 0;
+            wordBottom = (int) LINE_HEIGHT_PX;
+        }
+
+        /** Adds the current line's extent to the block and starts a normal-height line. */
+        private void endLine() {
+            double lineStart = (lines - 1) * LINE_PITCH_PX;
+            top = Math.min(top, lineStart + lineTop);
+            bottom = Math.max(bottom, lineStart + lineBottom);
+            lineTop = 0;
+            lineBottom = (int) LINE_HEIGHT_PX;
         }
     }
 }

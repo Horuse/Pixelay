@@ -1,9 +1,30 @@
-# Manual glyph width overrides for canvas text measurement (FontMetrics).
+# Manual glyph metrics for canvas text measurement (FontMetrics).
 # The built-in table (FontWidths) covers the vanilla Minecraft font, and the glyphs of the packs in
 # resourcepacks/ are measured automatically (font-widths.generated.yml). Entries here always win:
-# use them to fix a width by hand, e.g. for a glyph drawn by a ttf provider.
-# Key: a single character (quoted unicode escape); value: advance width in vanilla font pixels.
+# use them to fix a glyph by hand, e.g. one drawn by a ttf provider.
+#
+# Key: a single character (quoted unicode escape). Value: the advance alone, or the full form
+#   { advance: <n>, ascent: <n>, height: <n> }
+#
+# advance - the width the client gives the glyph, in font pixels. For a bitmap provider:
+#
+#     advance = round(inkWidth * height / cellHeight) + 1
+#
+#   inkWidth   - in the glyph's cell of the PNG: the rightmost column that has any non-transparent
+#                pixel, plus 1, counted from the cell's left edge (transparent columns on the left
+#                count, on the right they do not)
+#   cellHeight - PNG height / number of rows in the provider's "chars"
+#   height     - the provider's "height" (8 when missing)
+#   + 1        - the 1 px spacing the client adds after every glyph
+#
+#   Example: cursor.png is 11x17 with one glyph, "height": 17 -> round(11 * 17 / 17) + 1 = 12
+#
+# ascent, height - copied as they are from the glyph's provider in assets/minecraft/font/default.json.
+#   Needed when the glyph is taller than a text line or sits above/below it (icons): the glyph is
+#   drawn from (7 - ascent) to (7 - ascent + height) font px below the line top.
+#
 # Example:
 # glyphs:
-#   "": 16
+#   "\uE000": 12
+#   "\uE001": { advance: 17, ascent: 6, height: 16 }
 glyphs: {}

@@ -29,10 +29,9 @@ public final class CanvasLayout {
 
     /** Text block height when wrapped at {@code lineWidth} font px (instead of the drawable's own). */
     public static double textHeightPx(CanvasDrawable drawable, String text, int lineWidth) {
-        // The client stacks lines with a 1 px gap, so every extra line adds a pitch, not a glyph height.
-        int lines = Math.max(1, FontMetrics.lineCount(text, lineWidth));
-        double fontPx = FontMetrics.LINE_HEIGHT_PX + (lines - 1) * FontMetrics.LINE_PITCH_PX;
-        return (fontPx * drawable.heightPx()) / FontMetrics.LINE_HEIGHT_PX;
+        // Lines are 10 font px apart; glyphs taller than a line (icons) stretch the block up or down.
+        FontMetrics.Metrics metrics = FontMetrics.measure(text, lineWidth);
+        return ((metrics.bottomPx() - metrics.topPx()) * drawable.heightPx()) / FontMetrics.LINE_HEIGHT_PX;
     }
 
     /**
@@ -93,14 +92,19 @@ public final class CanvasLayout {
      */
     public static double[] displayPosition(CanvasDrawable drawable, String text) {
         double width = textWidthPx(drawable, text, drawable.lineWidth());
-        double height = textHeightPx(drawable, text);
+        FontMetrics.Metrics metrics = FontMetrics.measure(text, drawable.lineWidth());
         double fontPx = drawable.heightPx() / FontMetrics.LINE_HEIGHT_PX;
+        double height = (metrics.bottomPx() - metrics.topPx()) * fontPx;
         double bottomOffset = drawable.vAlign().bottomOffset(height);
         double gapShare = height > 0 ? 1 - bottomOffset / height : 1;
         double boxCenterX = drawable.pixelX() + drawable.hAlign().horizontalOffset(width);
+        // The client stacks the lines from the entity up; a glyph hanging below the last line does not
+        // move them, so the entity stands where the last normal line ends.
+        double boxBottom = drawable.pixelY() + bottomOffset;
+        double linesBottom = boxBottom - height + (normalBottomPx(metrics) - metrics.topPx()) * fontPx;
         return new double[] {
             boxCenterX + (TRAILING_SPACING_FONT_PX / 2.0 - CLIENT_TEXT_OFFSET_FONT_PX) * fontPx,
-            drawable.pixelY() + bottomOffset + bottomGapPx(drawable) * gapShare,
+            linesBottom + bottomGapPx(drawable) * gapShare,
         };
     }
 
@@ -122,5 +126,10 @@ public final class CanvasLayout {
     public static boolean contains(CanvasDrawable drawable, double[] hitboxSizePx, double px, double py) {
         double[] box = clickBounds(drawable, hitboxSizePx);
         return px >= box[0] && px <= box[2] && py >= box[1] && py <= box[3];
+    }
+
+    /** Bottom of the last line as if every glyph had the normal height, in font px from the first line's top. */
+    private static double normalBottomPx(FontMetrics.Metrics metrics) {
+        return FontMetrics.LINE_HEIGHT_PX + (metrics.lines() - 1) * FontMetrics.LINE_PITCH_PX;
     }
 }

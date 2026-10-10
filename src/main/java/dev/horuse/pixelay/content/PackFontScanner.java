@@ -39,8 +39,11 @@ public final class PackFontScanner {
 
     private static final String DEFAULT_FONT = "minecraft:default";
 
-    /** One computed advance and where it came from (for the generated file's comments). */
-    public record Glyph(int advance, String pack, String source) {}
+    /**
+     * One computed glyph: its advance, where it is drawn ({@code ascent}/{@code height} as in its provider,
+     * height 0 for spaces) and where it came from (for the generated file's comments).
+     */
+    public record Glyph(int advance, int ascent, int height, String pack, String source) {}
 
     private final List<Pack> packs = new ArrayList<>();
     private final Consumer<String> warn;
@@ -142,7 +145,9 @@ public final class PackFontScanner {
         }
         int cellWidth = image.getWidth() / columns;
         int cellHeight = image.getHeight() / rows.size();
-        double scale = provider.has("height") ? provider.get("height").getAsDouble() / cellHeight : 8.0 / cellHeight;
+        int height = provider.has("height") ? provider.get("height").getAsInt() : 8;
+        int ascent = provider.get("ascent").getAsInt();
+        double scale = (double) height / cellHeight;
         boolean alpha = image.getColorModel().hasAlpha();
 
         for (int row = 0; row < rows.size(); row++) {
@@ -154,7 +159,7 @@ public final class PackFontScanner {
                 }
                 int width = inkWidth(image, column * cellWidth, row * cellHeight, cellWidth, cellHeight, alpha);
                 int advance = (int) (0.5 + width * scale) + 1;
-                glyphs.put(codePoint, new Glyph(advance, owner.name, file));
+                glyphs.put(codePoint, new Glyph(advance, ascent, height, owner.name, file));
             }
         }
     }
@@ -171,7 +176,10 @@ public final class PackFontScanner {
             }
             int codePoint = key.codePointAt(0);
             if (!glyphs.containsKey(codePoint)) {
-                glyphs.put(codePoint, new Glyph((int) Math.round(entry.getValue().getAsDouble()), owner.name, "space"));
+                glyphs.put(
+                    codePoint,
+                    new Glyph((int) Math.round(entry.getValue().getAsDouble()), 0, 0, owner.name, "space")
+                );
             }
         }
     }
