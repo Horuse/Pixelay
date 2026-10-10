@@ -1,6 +1,7 @@
 package dev.horuse.pixelay.components;
 
 import dev.horuse.pixelay.Pixelay;
+import dev.horuse.pixelay.content.TextWrap;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.VAlign;
@@ -33,6 +34,11 @@ public interface CanvasDrawable {
      */
     default int lineWidth() {
         return Pixelay.settings().text().lineWidth();
+    }
+
+    /** @return how the text wraps (CSS {@code white-space} / {@code word-break}) */
+    default TextWrap textWrap() {
+        return TextWrap.NORMAL;
     }
 
     /** @return depth of the text in front of the canvas surface, in blocks (see {@link Layers}) */

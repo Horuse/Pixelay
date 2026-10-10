@@ -373,13 +373,17 @@ public final class ScreenSession {
 
     private void updateHover() {
         MountedLayout layout = currentLayout();
+        boolean changed = layout.pointerAt(cursorX, cursorY, player);
         String id = layout.idAt(cursorX, cursorY);
         if (!Objects.equals(id, hovered)) {
             hovered = id;
+            changed = true;
             if (options.onHover != null && !calibrating) {
                 options.onHover.accept(this, id);
             }
-            // After the callback: texts may depend on what is hovered (highlighted buttons).
+        }
+        if (changed) {
+            // Hover texts and backgrounds show at once, not on the next scheduled refresh.
             layout.refresh();
         }
     }
@@ -411,6 +415,7 @@ public final class ScreenSession {
     /** Replaces the UI with another layout built for this session's canvas. */
     public void setContent(MountedLayout layout) {
         if (!calibrating) {
+            content.pointerLeft(player);
             content.despawn();
         }
         content = layout;
@@ -426,6 +431,7 @@ public final class ScreenSession {
         if (calibration == null || calibrating) {
             return;
         }
+        content.pointerLeft(player);
         content.despawn();
         calibrating = true;
         calibrationLayout().spawn(canvas);
@@ -440,6 +446,7 @@ public final class ScreenSession {
         if (options.onScaleChanged != null) {
             options.onScaleChanged.accept(this, scale);
         }
+        calibrationLayout.pointerLeft(player);
         calibrationLayout.despawn();
         calibrating = false;
         content.spawn(canvas);
@@ -496,6 +503,7 @@ public final class ScreenSession {
             task.cancel();
         }
         Pixelay.manager().unregister(surface);
+        currentLayout().pointerLeft(player);
         currentLayout().despawn();
         if (cursor != null) {
             cursor.despawn();

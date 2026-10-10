@@ -52,13 +52,13 @@ public class ServerCanvasRenderer implements CanvasRenderer {
         lastLineWidth = drawable.lineWidth();
         display = DisplayUtils.spawnText(
             loc,
-            CanvasText.parse(text),
+            CanvasLayout.component(drawable, text),
             canvas.contentRotation(),
             canvas.scaleForHeightPx(drawable.heightPx()),
             drawable.hAlign().textAlignment()
         );
         AbstractCanvasComponent.applyTextStyle(display);
-        display.setLineWidth(drawable.lineWidth());
+        display.setLineWidth(CanvasLayout.CLIENT_LINE_WIDTH);
         syncBackground();
         AbstractCanvasComponent.tag(display);
 
@@ -114,8 +114,8 @@ public class ServerCanvasRenderer implements CanvasRenderer {
         measuredHitbox = CanvasLayout.hitboxSizePx(drawable, rendered);
         double[] pos = CanvasLayout.displayPosition(drawable, rendered);
         display.teleport(canvas.pixelToWorld(pos[0], pos[1], drawable.textDepth()));
-        display.setLineWidth(drawable.lineWidth());
-        display.text(CanvasText.parse(rendered));
+        display.setLineWidth(CanvasLayout.CLIENT_LINE_WIDTH);
+        display.text(CanvasLayout.component(drawable, rendered));
         syncBackground();
     }
 

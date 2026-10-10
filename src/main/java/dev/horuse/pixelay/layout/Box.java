@@ -2,7 +2,12 @@ package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.debug.Overflow;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 
@@ -43,6 +48,17 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     int paintStep = 1;
     int paintEnd;
     private boolean anchor;
+    /** Styles of states, by {@link State} or custom name, in declaration order. */
+    private final Map<Object, Style> stateStyles = new LinkedHashMap<>();
+    private final Set<String> customStates = ConcurrentHashMap.newKeySet();
+    private volatile boolean selected;
+    private volatile boolean disabled;
+    private BooleanSupplier selectedWhen;
+    private BooleanSupplier disabledWhen;
+    private Consumer<Player> onHoverEnter;
+    private Consumer<Player> onHoverLeave;
+    /** Under the pointer (itself or a descendant), from the last {@link MountedLayout#pointerAt} — CSS {@code :hover}. */
+    private volatile boolean hovered;
     private Rect rect = new Rect(0, 0, 0, 0);
 
     // Two cached sizes per pass: the natural one and the last constrained one (parents ask both).
@@ -278,6 +294,132 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
 
     public int background() {
         return background;
+    }
+
+    /**
+     * The look of the box in a state, like a CSS rule for a pseudo-class:
+     * {@code state(State.HOVERED, style -> style.background(0x40FFFFFF).text("<yellow>Play"))}.
+     */
+    public S state(State state, Consumer<Style> rule) {
+        rule.accept(stateStyles.computeIfAbsent(state, key -> new Style()));
+        return self();
+    }
+
+    /** The look of the box in a custom state (switched with {@link #state(String, boolean)}). */
+    public S state(String name, Consumer<Style> rule) {
+        rule.accept(stateStyles.computeIfAbsent(name, key -> new Style()));
+        return self();
+    }
+
+    /** Switches a custom state on or off. */
+    public S state(String name, boolean on) {
+        if (on) {
+            customStates.add(name);
+        } else {
+            customStates.remove(name);
+        }
+        return self();
+    }
+
+    public S selected(boolean value) {
+        this.selected = value;
+        this.selectedWhen = null;
+        return self();
+    }
+
+    /** Selected while the condition holds; checked on every refresh of the layout. */
+    public S selected(BooleanSupplier condition) {
+        this.selectedWhen = condition;
+        return self();
+    }
+
+    /** A disabled box swallows clicks (nothing runs, not even a parent's handler) and shows its disabled style. */
+    public S disabled(boolean value) {
+        this.disabled = value;
+        this.disabledWhen = null;
+        return self();
+    }
+
+    /** Disabled while the condition holds; checked on every refresh of the layout. */
+    public S disabled(BooleanSupplier condition) {
+        this.disabledWhen = condition;
+        return self();
+    }
+
+    public boolean is(State state) {
+        return switch (state) {
+            case DISABLED -> disabled;
+            case HOVERED -> hovered;
+            case SELECTED -> selected;
+        };
+    }
+
+    public boolean is(String customState) {
+        return customStates.contains(customState);
+    }
+
+    /** Re-reads the conditional states (see {@link #selected(BooleanSupplier)}). */
+    void updateStates() {
+        if (selectedWhen != null) {
+            selected = selectedWhen.getAsBoolean();
+        }
+        if (disabledWhen != null) {
+            disabled = disabledWhen.getAsBoolean();
+        }
+    }
+
+    /** The style of the active states merged by importance (see {@link State}), or {@code null}. */
+    Style activeStyle() {
+        if (stateStyles.isEmpty()) {
+            return null;
+        }
+        Style merged = new Style();
+        boolean any = false;
+        for (State state : State.values()) {
+            Style style = stateStyles.get(state);
+            if (style != null && is(state)) {
+                merged.fillFrom(style);
+                any = true;
+            }
+        }
+        for (Map.Entry<Object, Style> entry : stateStyles.entrySet()) {
+            if (entry.getKey() instanceof String name && customStates.contains(name)) {
+                merged.fillFrom(entry.getValue());
+                any = true;
+            }
+        }
+        return any ? merged : null;
+    }
+
+    /** Runs when the pointer enters the box (or a box inside it), with the pointing player. */
+    public S onHoverEnter(Consumer<Player> handler) {
+        this.onHoverEnter = handler;
+        return self();
+    }
+
+    /** Runs when the pointer leaves the box, with the pointing player. */
+    public S onHoverLeave(Consumer<Player> handler) {
+        this.onHoverLeave = handler;
+        return self();
+    }
+
+    /** The background to draw now: from the active states, if they set one. */
+    int effectiveBackground() {
+        Style style = activeStyle();
+        return style != null && style.background() != null ? style.background() : background;
+    }
+
+    /** @return whether the state changed (the enter/leave handler has run then) */
+    boolean setHovered(boolean value, Player player) {
+        if (hovered == value) {
+            return false;
+        }
+        hovered = value;
+        Consumer<Player> handler = value ? onHoverEnter : onHoverLeave;
+        if (handler != null && player != null) {
+            handler.accept(player);
+        }
+        return true;
     }
 
     /**

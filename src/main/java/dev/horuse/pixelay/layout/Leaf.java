@@ -4,6 +4,7 @@ import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.components.CanvasLayout;
 import dev.horuse.pixelay.content.FontMetrics;
+import dev.horuse.pixelay.content.TextWrap;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.VAlign;
 import java.util.List;
@@ -48,9 +49,10 @@ public final class Leaf extends Box<Leaf> {
         return text;
     }
 
+    /** The widest piece of the text that can not break (CSS min-content), in font px. */
     private int longestWord() {
         if (longestWord < 0) {
-            longestWord = FontMetrics.longestWordWidth(text());
+            longestWord = FontMetrics.minContentWidth(text(), component.textWrap());
         }
         return longestWord;
     }
@@ -63,6 +65,13 @@ public final class Leaf extends Box<Leaf> {
         }
         // The line width counts the advance, which is 1 font px wider than the drawn text.
         int available = (int) Math.floor((maxWidth * FontMetrics.LINE_HEIGHT_PX) / component.heightPx()) + 1;
+        if (component.textWrap().whiteSpace() == TextWrap.WhiteSpace.NOWRAP) {
+            return configured;
+        }
+        if (component.textWrap().wordBreak() != TextWrap.WordBreak.NORMAL) {
+            // Words may break: the text takes exactly the space it gets.
+            return Math.min(configured, Math.max(1, available));
+        }
         return Math.min(configured, Math.max(available, longestWord()));
     }
 
@@ -118,6 +127,20 @@ public final class Leaf extends Box<Leaf> {
     Consumer<Player> clickHandler() {
         Consumer<Player> own = super.clickHandler();
         return own != null ? own : component.onClick();
+    }
+
+    /** CSS {@code white-space} of the text. */
+    public Leaf whiteSpace(TextWrap.WhiteSpace value) {
+        component.whiteSpace(value);
+        invalidate();
+        return this;
+    }
+
+    /** CSS {@code word-break} / {@code overflow-wrap} of the text. */
+    public Leaf wordBreak(TextWrap.WordBreak value) {
+        component.wordBreak(value);
+        invalidate();
+        return this;
     }
 
     @Override

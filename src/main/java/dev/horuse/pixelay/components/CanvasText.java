@@ -39,7 +39,8 @@ public class CanvasText extends AbstractCanvasComponent {
 
     @Override
     public String renderText() {
-        return content.render();
+        TextContent override = textOverride();
+        return override != null ? override.render() : content.render();
     }
 
     /** Parses component text as MiniMessage — the single markup format used by canvas content. */

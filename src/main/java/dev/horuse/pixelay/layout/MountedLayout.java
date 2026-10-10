@@ -66,6 +66,8 @@ public final class MountedLayout implements CanvasComponent {
     /** Runs measure + arrange over the whole canvas, or at the mount point (see {@link Layout#mountAt}). */
     public void layout(Canvas canvas) {
         this.canvas = canvas;
+        // States may change texts (state styles), and so sizes: they go before measuring.
+        updateStates();
         // Texts may have changed since the last pass: measure everything once more, then reuse.
         root.invalidate();
         if (placement == null) {
@@ -213,14 +215,14 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     private void syncBackgrounds(Box<?> box, Player viewer) {
-        if (box.background() != 0 || backgrounds.containsKey(box)) {
+        if (box.effectiveBackground() != 0 || backgrounds.containsKey(box)) {
             Rect r = box.rect();
             backgrounds
                 .computeIfAbsent(box, key -> new TextBackground(viewer))
                 .sync(
                     canvas,
                     new double[] { r.x(), r.y(), r.right(), r.bottom() },
-                    box.background(),
+                    box.effectiveBackground(),
                     Layers.at(box.paintStep)
                 );
         }
@@ -243,9 +245,95 @@ public final class MountedLayout implements CanvasComponent {
         for (int i = boxes.size() - 1; i >= 0; i--) {
             Box<?> box = boxes.get(i);
             Consumer<Player> onClick = box.clickHandler();
-            if (onClick != null && box.rect().contains(px, py)) {
-                onClick.accept(player);
+            if ((onClick != null || box.is(State.DISABLED)) && box.rect().contains(px, py)) {
+                if (isDisabled(i)) {
+                    // A disabled box (or one inside it) swallows the click, like CSS :disabled.
+                    return true;
+                }
+                if (onClick != null) {
+                    onClick.accept(player);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Moves {@code player}'s pointer to a canvas pixel: every box under it (and its ancestors) becomes
+     * hovered, like CSS {@code :hover} — hover styles apply and enter/leave handlers run. A
+     * {@code ScreenSession} calls it for its cursor; call it yourself for any other pointer. Texts and
+     * backgrounds follow on the next {@link #refresh}.
+     *
+     * @return whether any box changed its hover state
+     */
+    public boolean pointerAt(double px, double py, Player player) {
+        double x = clampToCanvas(px, true);
+        double y = clampToCanvas(py, false);
+        boolean changed = false;
+        for (Box<?> box : boxes) {
+            changed |= setHovered(box, box.rect().contains(x, y), player);
+        }
+        return changed;
+    }
+
+    /** The pointer left the layout: nothing is hovered any more. */
+    public boolean pointerLeft(Player player) {
+        boolean changed = false;
+        for (Box<?> box : boxes) {
+            changed |= setHovered(box, false, player);
+        }
+        return changed;
+    }
+
+    private static boolean setHovered(Box<?> box, boolean over, Player player) {
+        boolean changed = box.setHovered(over, player);
+        if (box instanceof Leaf leaf) {
+            leaf.component().setHovered(over);
+        }
+        if (changed) {
+            applyStyle(box);
+        }
+        return changed;
+    }
+
+    /** The texts of state styles (backgrounds are read when they are drawn). */
+    private static void applyStyle(Box<?> box) {
+        if (box instanceof Leaf leaf) {
+            Style style = box.activeStyle();
+            leaf.component().setTextOverride(style != null ? style.text() : null);
+        }
+    }
+
+    /** Re-reads conditional states and applies the state styles, before a layout pass. */
+    private void updateStates() {
+        for (Box<?> box : boxes) {
+            box.updateStates();
+            applyStyle(box);
+        }
+    }
+
+    /** Whether box {@code index} or any box around it is disabled. */
+    private boolean isDisabled(int index) {
+        Box<?> box = boxes.get(index);
+        for (Box<?> other : boxes) {
+            if (other.is(State.DISABLED) && contains(other, box)) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether {@code inner} is {@code outer} or lies in its subtree. */
+    private static boolean contains(Box<?> outer, Box<?> inner) {
+        if (outer == inner) {
+            return true;
+        }
+        if (outer instanceof Container<?> container) {
+            for (Box<?> child : container.children) {
+                if (contains(child, inner)) {
+                    return true;
+                }
             }
         }
         return false;

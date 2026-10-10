@@ -2,6 +2,8 @@ package dev.horuse.pixelay.components;
 
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.config.PixelaySettings;
+import dev.horuse.pixelay.content.TextContent;
+import dev.horuse.pixelay.content.TextWrap;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
@@ -145,6 +147,51 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
         return layoutLineWidth > 0 ? layoutLineWidth : CanvasDrawable.super.lineWidth();
     }
 
+    private volatile boolean hovered;
+    private volatile TextWrap textWrap = TextWrap.NORMAL;
+
+    /** CSS {@code white-space}: whether the text wraps to its width at all. */
+    @SuppressWarnings("unchecked")
+    public <T extends AbstractCanvasComponent> T whiteSpace(TextWrap.WhiteSpace value) {
+        textWrap = textWrap.withWhiteSpace(value);
+        layoutVersion++;
+        return (T) this;
+    }
+
+    /** CSS {@code word-break} / {@code overflow-wrap}: whether a word may break inside. */
+    @SuppressWarnings("unchecked")
+    public <T extends AbstractCanvasComponent> T wordBreak(TextWrap.WordBreak value) {
+        textWrap = textWrap.withWordBreak(value);
+        layoutVersion++;
+        return (T) this;
+    }
+
+    @Override
+    public TextWrap textWrap() {
+        return textWrap;
+    }
+
+    /** Whether the pointer is over this element's box in its layout (CSS {@code :hover}). */
+    public boolean isHovered() {
+        return hovered;
+    }
+
+    private volatile TextContent textOverride;
+
+    /** Set by layouts: text replacing the component's own one (a hover style), or {@code null}. */
+    public void setTextOverride(TextContent content) {
+        this.textOverride = content;
+    }
+
+    protected TextContent textOverride() {
+        return textOverride;
+    }
+
+    /** Set by layouts from their pointer, see {@code MountedLayout.pointerAt}. */
+    public void setHovered(boolean hovered) {
+        this.hovered = hovered;
+    }
+
     /** Set by layouts: the depth step of this element's text background, see {@link Layers}. */
     public void setLayerStep(int step) {
         if (step != layerStep) {
@@ -228,7 +275,7 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
         display.setSeeThrough(style.seeThrough());
         // The configured background is drawn as a separate panel (TextBackground).
         display.setBackgroundColor(Color.fromARGB(0));
-        display.setLineWidth(style.lineWidth());
+        display.setLineWidth(CanvasLayout.CLIENT_LINE_WIDTH);
         display.setViewRange(style.viewRange());
         if (style.fullBrightness()) {
             display.setBrightness(new Display.Brightness(15, 15));

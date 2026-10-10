@@ -2,6 +2,7 @@ package dev.horuse.pixelay.components;
 
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.content.FontMetrics;
+import net.kyori.adventure.text.Component;
 
 /**
  * Single source of placement geometry: translates the component's anchor point, its alignment, and
@@ -30,7 +31,7 @@ public final class CanvasLayout {
     /** Text block height when wrapped at {@code lineWidth} font px (instead of the drawable's own). */
     public static double textHeightPx(CanvasDrawable drawable, String text, int lineWidth) {
         // Lines are 10 font px apart; glyphs taller than a line (icons) stretch the block up or down.
-        FontMetrics.Metrics metrics = FontMetrics.measure(text, lineWidth);
+        FontMetrics.Metrics metrics = FontMetrics.measure(text, lineWidth, drawable.textWrap());
         return ((metrics.bottomPx() - metrics.topPx()) * drawable.heightPx()) / FontMetrics.LINE_HEIGHT_PX;
     }
 
@@ -68,7 +69,7 @@ public final class CanvasLayout {
      * keeps after the last glyph, so the box ends where the ink ends.
      */
     public static double textWidthPx(CanvasDrawable drawable, String text, int lineWidth) {
-        int advance = FontMetrics.widthVanilla(text, lineWidth);
+        int advance = (int) Math.round(FontMetrics.measure(text, lineWidth, drawable.textWrap()).maxWidthPx());
         return (Math.max(0, advance - TRAILING_SPACING_FONT_PX) * drawable.heightPx()) / FontMetrics.LINE_HEIGHT_PX;
     }
 
@@ -91,7 +92,7 @@ public final class CanvasLayout {
      */
     public static double[] displayPosition(CanvasDrawable drawable, String text) {
         double width = textWidthPx(drawable, text, drawable.lineWidth());
-        FontMetrics.Metrics metrics = FontMetrics.measure(text, drawable.lineWidth());
+        FontMetrics.Metrics metrics = FontMetrics.measure(text, drawable.lineWidth(), drawable.textWrap());
         double fontPx = drawable.heightPx() / FontMetrics.LINE_HEIGHT_PX;
         double height = (metrics.bottomPx() - metrics.topPx()) * fontPx;
         double boxTop = drawable.pixelY() + drawable.vAlign().bottomOffset(height) - height;
@@ -123,6 +124,17 @@ public final class CanvasLayout {
     public static boolean contains(CanvasDrawable drawable, double[] hitboxSizePx, double px, double py) {
         double[] box = clickBounds(drawable, hitboxSizePx);
         return px >= box[0] && px <= box[2] && py >= box[1] && py <= box[3];
+    }
+
+    /**
+     * Line width the client gets: far beyond any text, so it never wraps by itself; Pixelay writes the line
+     * breaks into the text (see {@link #component}).
+     */
+    public static final int CLIENT_LINE_WIDTH = 1_000_000;
+
+    /** The text as the client must draw it: MiniMessage parsed, with Pixelay's line breaks written in. */
+    public static Component component(CanvasDrawable drawable, String text) {
+        return FontMetrics.wrap(CanvasText.parse(text), drawable.lineWidth(), drawable.textWrap());
     }
 
     /** Bottom of the last line as if every glyph had the normal height, in font px from the first line's top. */

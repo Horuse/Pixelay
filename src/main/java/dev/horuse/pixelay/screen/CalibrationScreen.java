@@ -12,6 +12,7 @@ import dev.horuse.pixelay.layout.Align;
 import dev.horuse.pixelay.layout.Box;
 import dev.horuse.pixelay.layout.LayoutItem;
 import dev.horuse.pixelay.layout.MountedLayout;
+import dev.horuse.pixelay.layout.State;
 import java.util.Objects;
 import java.util.function.IntFunction;
 
@@ -25,8 +26,6 @@ import java.util.function.IntFunction;
  * the drawing, see the wiki).
  */
 public final class CalibrationScreen {
-
-    private static final String DONE_ID = "pixelay:calibration-done";
 
     private final ScreenSession session;
     private final Options options;
@@ -80,9 +79,13 @@ public final class CalibrationScreen {
                             .alignSelf(Align.CENTER)
                             .onClick(player -> session.stepScale(1))
                     ).gap(24),
-                    node(text(options.doneSizePx(), TextContent.supplier(this::doneText)))
+                    node(text(options.doneSizePx(), TextContent.of(options.done())))
                         .padding(16)
-                        .id(DONE_ID)
+                        .state(State.HOVERED, style -> {
+                            if (options.doneHover() != null) {
+                                style.text(options.doneHover());
+                            }
+                        })
                         .onClick(player -> session.finishCalibration())
                 )
                     .align(Align.CENTER)
@@ -108,10 +111,6 @@ public final class CalibrationScreen {
             ).size(length, length);
         }
         return mark.justifySelf(horizontal).alignSelf(vertical);
-    }
-
-    private String doneText() {
-        return options.doneHover() != null && DONE_ID.equals(session.hovered()) ? options.doneHover() : options.done();
     }
 
     private CanvasText text(double heightPx, TextContent content) {

@@ -168,8 +168,8 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         data.add(new EntityData<>(idx.rightRotation(), EntityDataTypes.QUATERNION, new Quaternion4f(0f, 0f, 0f, 1f)));
         data.add(new EntityData<>(idx.billboard(), EntityDataTypes.BYTE, BILLBOARD_FIXED));
         data.add(new EntityData<>(idx.viewRange(), EntityDataTypes.FLOAT, style.viewRange()));
-        data.add(new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, CanvasText.parse(text)));
-        data.add(new EntityData<>(idx.lineWidth(), EntityDataTypes.INT, drawable.lineWidth()));
+        data.add(new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, CanvasLayout.component(drawable, text)));
+        data.add(new EntityData<>(idx.lineWidth(), EntityDataTypes.INT, CanvasLayout.CLIENT_LINE_WIDTH));
         // The background is a separate panel (TextBackground), never the client's own one.
         data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, 0));
         data.add(new EntityData<>(idx.textOpacity(), EntityDataTypes.BYTE, (byte) -1));
@@ -281,18 +281,18 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
                     new EntityData<>(
                         Pixelay.settings().packets().metadata().text(),
                         EntityDataTypes.ADV_COMPONENT,
-                        CanvasText.parse(rendered)
+                        CanvasLayout.component(drawable, rendered)
                     ),
                     new EntityData<>(
                         Pixelay.settings().packets().metadata().translation(),
                         EntityDataTypes.VECTOR3F,
                         new Vector3f((float) translation.getX(), (float) translation.getY(), (float) translation.getZ())
                     ),
-                    // The layout may have changed the element's width: the client must wrap at the same place.
+                    // Pixelay breaks the lines itself (written into the text): the client must never wrap.
                     new EntityData<>(
                         Pixelay.settings().packets().metadata().lineWidth(),
                         EntityDataTypes.INT,
-                        drawable.lineWidth()
+                        CanvasLayout.CLIENT_LINE_WIDTH
                     )
                 )
             )
