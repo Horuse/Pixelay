@@ -71,13 +71,15 @@ public final class Leaf extends Box<Leaf> {
 
     @Override
     protected double minContentWidth() {
-        if (component.hitboxWidthPx() > 0) {
+        // Same rule as CanvasLayout.hitboxSizePx: an explicit hitbox counts only when both sides are set.
+        if (component.hitboxWidthPx() > 0 && component.hitboxHeightPx() > 0) {
             return component.hitboxWidthPx();
         }
-        return (
+        double word =
             (Math.min(longestWord(), Pixelay.settings().text().lineWidth()) * component.heightPx()) /
-            FontMetrics.LINE_HEIGHT_PX
-        );
+            FontMetrics.LINE_HEIGHT_PX;
+        // Plus the background the client paints left of the text (part of the element's box).
+        return word + CanvasLayout.backgroundPadPx(component);
     }
 
     @Override

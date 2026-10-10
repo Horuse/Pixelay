@@ -46,7 +46,8 @@ public class PixelayCommand implements TabExecutor {
             boolean enabled = LayoutDebug.toggle(player);
             sender.sendMessage(
                 enabled
-                    ? "Layout debug on: every element shows its block (blue), elements that do not fit their space are red."
+                    ? "Layout debug on. Text: blue fits, red overflows, orange inside an overflow. Panels: row light blue," +
+                          " column lime, grid purple, stack gray, spacer white, click zone yellow."
                     : "Layout debug off."
             );
             return true;

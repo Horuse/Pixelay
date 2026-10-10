@@ -163,7 +163,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
         data.add(new EntityData<>(idx.lineWidth(), EntityDataTypes.INT, drawable.lineWidth()));
         lastBackground = LayoutDebug.background(
             drawable.overflow(),
-            LayoutDebug.isEnabled(viewer),
+            drawable.debugBackground() && LayoutDebug.isEnabled(viewer),
             style.backgroundArgb()
         );
         data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, lastBackground));
@@ -216,6 +216,8 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
             return;
         }
 
+        // Moved elements (like the cursor) are not refreshed by layouts: keep their debug background here.
+        syncBackground();
         // The translation is kept, so the entity goes where the visible text lands on worldPos.
         entityPos = worldPos.clone().subtract(translation);
         PacketUtils.send(
@@ -319,7 +321,7 @@ public class FakePacketCanvasRenderer implements CanvasRenderer {
     private void syncBackground() {
         int background = LayoutDebug.background(
             drawable.overflow(),
-            LayoutDebug.isEnabled(viewer),
+            drawable.debugBackground() && LayoutDebug.isEnabled(viewer),
             Pixelay.settings().text().backgroundArgb()
         );
         if (background == lastBackground) {

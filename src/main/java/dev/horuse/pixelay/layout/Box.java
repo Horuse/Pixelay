@@ -196,7 +196,10 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return width(width).height(height);
     }
 
-    /** Share of the free space along the parent's main axis (CSS {@code flex-grow}). */
+    /**
+     * Share of the free space along the parent's main axis, added to the natural size (CSS
+     * {@code flex-grow} with {@code flex-basis: auto}).
+     */
     public S grow(double grow) {
         this.grow = grow;
         return self();

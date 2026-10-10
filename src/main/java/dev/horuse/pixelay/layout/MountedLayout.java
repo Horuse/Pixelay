@@ -16,10 +16,13 @@ import org.bukkit.entity.Player;
  */
 public final class MountedLayout implements CanvasComponent {
 
+    // spawn/refresh/despawn must run on the main server thread: the debug overlay uses the Bukkit API.
+
     private final Box<?> root;
     private final List<AbstractCanvasComponent> components = new ArrayList<>();
     private final List<Box<?>> boxes = new ArrayList<>();
     private Canvas canvas;
+    private final DebugOverlay debugOverlay = new DebugOverlay();
 
     MountedLayout(Box<?> root) {
         this.root = root;
@@ -47,11 +50,13 @@ public final class MountedLayout implements CanvasComponent {
     public void spawn(Canvas canvas) {
         layout(canvas);
         components.forEach(component -> component.spawn(canvas));
+        debugOverlay.update(root, components, canvas);
     }
 
     @Override
     public void despawn() {
         components.forEach(CanvasComponent::despawn);
+        debugOverlay.clear();
     }
 
     @Override
@@ -65,6 +70,9 @@ public final class MountedLayout implements CanvasComponent {
             layout(canvas);
         }
         components.forEach(CanvasComponent::refresh);
+        if (canvas != null) {
+            debugOverlay.update(root, components, canvas);
+        }
     }
 
     /**

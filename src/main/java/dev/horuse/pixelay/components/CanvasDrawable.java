@@ -34,6 +34,11 @@ public interface CanvasDrawable {
         return Pixelay.settings().text().lineWidth();
     }
 
+    /** @return whether the layout debug mode may tint this element's text background (the cursor opts out) */
+    default boolean debugBackground() {
+        return true;
+    }
+
     /** @return whether the last layout pass found this element (or its box) bigger than its space */
     default Overflow overflow() {
         return Overflow.NONE;

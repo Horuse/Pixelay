@@ -19,6 +19,11 @@ public final class Flex extends Container<Flex> {
         this.horizontal = horizontal;
     }
 
+    /** @return whether this is a row (else a column) */
+    public boolean isRow() {
+        return horizontal;
+    }
+
     /** Cross-axis alignment of the children (CSS {@code align-items}). */
     public Flex align(Align align) {
         this.align = align;
@@ -62,7 +67,10 @@ public final class Flex extends Container<Flex> {
     /** Child size with margin; a spacer only has its length along the main axis. */
     private Size childSize(Box<?> child, double maxWidth) {
         if (child instanceof Spacer spacer) {
-            return Size.of(horizontal, spacer.mainLength(), 0);
+            Insets m = spacer.margin;
+            double mainMargin = horizontal ? m.horizontal() : m.vertical();
+            double crossMargin = horizontal ? m.vertical() : m.horizontal();
+            return Size.of(horizontal, spacer.mainLength() + mainMargin, crossMargin);
         }
         return child.outer(maxWidth);
     }
@@ -81,11 +89,11 @@ public final class Flex extends Container<Flex> {
             return sizes;
         }
 
+        // flex-basis: auto — every child starts at its natural width (CSS flex-grow / flex-shrink).
         double[] widths = new double[sizes.length];
         double used = gaps();
         for (int i = 0; i < sizes.length; i++) {
-            Box<?> child = children.get(i);
-            widths[i] = child.grow > 0 ? 0 : childSize(child, Box.UNBOUNDED).width();
+            widths[i] = childSize(children.get(i), Box.UNBOUNDED).width();
             used += widths[i];
         }
 
@@ -96,11 +104,11 @@ public final class Flex extends Container<Flex> {
             for (Box<?> child : children) {
                 totalGrow += child.grow;
             }
-            double leftover = maxWidth - used;
+            double free = maxWidth - used;
             for (int i = 0; i < sizes.length; i++) {
                 Box<?> child = children.get(i);
                 if (child.grow > 0) {
-                    widths[i] = (leftover * child.grow) / totalGrow;
+                    widths[i] += (free * child.grow) / totalGrow;
                 }
             }
         }

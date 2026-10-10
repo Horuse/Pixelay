@@ -146,7 +146,7 @@ public class ServerCanvasRenderer implements CanvasRenderer {
     private void syncBackground() {
         int background = LayoutDebug.background(
             drawable.overflow(),
-            LayoutDebug.anyEnabled(),
+            drawable.debugBackground() && LayoutDebug.anyEnabled(),
             Pixelay.settings().text().backgroundArgb()
         );
         if (background == lastBackground) {

@@ -177,8 +177,23 @@ broken: a word wider than its space overflows instead (visible with `/pixelay de
 `/pixelay debug layout` (permission `pixelay.admin`) toggles a per-player debug mode: every component
 gets a translucent background showing its text block — blue when it fits, red where an overflow starts
 (the box itself is bigger than its space), orange when it sits inside an overflowing box. The
-highlight follows the next canvas refresh. Fake and per-player components show it only to the debugging player; server-wide
-components show it to everyone while anyone debugs.
+highlight follows the next canvas refresh.
+
+It also draws every box of the layout as a translucent panel (fake text displays with a stretched
+background, visible only to debugging players within 64 blocks), under the text:
+
+| Panel | Box |
+|-------|-----|
+| light blue | `row` |
+| lime | `column` |
+| purple | `grid` |
+| gray | `stack` |
+| white | `spacer` |
+| yellow | click zone (`onClick` box or clickable component hitbox) |
+
+Fake and per-player components show the highlight only to the debugging player; server-wide
+components show it to everyone while anyone debugs. The cursor shows a magenta dot on its hot spot
+instead of a text background.
 
 ## Configuration
 

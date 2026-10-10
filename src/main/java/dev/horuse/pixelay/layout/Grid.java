@@ -223,6 +223,10 @@ public final class Grid extends Container<Grid> {
             }
         }
 
+        if (horizontal && autoLimit >= 0) {
+            fitAutoColumns(tracks, sizes, placements, autoLimit);
+        }
+
         if (available >= 0 && frTotal > 0) {
             double free = Math.max(0, available - sum(sizes));
             for (int t = 0; t < count; t++) {
@@ -232,6 +236,36 @@ public final class Grid extends Container<Grid> {
             }
         }
         return sizes;
+    }
+
+    /**
+     * Auto columns are each measured within the whole space left by px tracks; together they may not
+     * fit, so they are shrunk proportionally, never below the min-content width of their items.
+     */
+    private void fitAutoColumns(Track[] tracks, double[] sizes, int[][] placements, double autoLimit) {
+        double autoTotal = 0;
+        double[] floors = new double[sizes.length];
+        for (int t = 0; t < sizes.length; t++) {
+            if (tracks[t].kind() == Track.Kind.AUTO) {
+                autoTotal += sizes[t];
+            }
+        }
+        if (autoTotal <= autoLimit) {
+            return;
+        }
+        for (int i = 0; i < children.size(); i++) {
+            Box<?> child = children.get(i);
+            int t = placements[i][1];
+            if (child.columnSpan == 1 && tracks[t].kind() == Track.Kind.AUTO) {
+                floors[t] = Math.max(floors[t], child.minOuterWidth());
+            }
+        }
+        double ratio = autoLimit / autoTotal;
+        for (int t = 0; t < sizes.length; t++) {
+            if (tracks[t].kind() == Track.Kind.AUTO) {
+                sizes[t] = Math.max(floors[t], sizes[t] * ratio);
+            }
+        }
     }
 
     private static boolean contentSized(Track track, double available) {

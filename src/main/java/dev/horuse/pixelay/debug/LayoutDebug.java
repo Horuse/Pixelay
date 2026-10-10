@@ -1,8 +1,11 @@
 package dev.horuse.pixelay.debug;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 /**
@@ -32,6 +35,18 @@ public final class LayoutDebug {
         }
         VIEWERS.add(player.getUniqueId());
         return true;
+    }
+
+    /** Online players with the debug mode on. */
+    public static List<Player> onlineViewers() {
+        List<Player> players = new ArrayList<>();
+        for (UUID id : VIEWERS) {
+            Player player = Bukkit.getPlayer(id);
+            if (player != null) {
+                players.add(player);
+            }
+        }
+        return players;
     }
 
     public static boolean isEnabled(Player player) {

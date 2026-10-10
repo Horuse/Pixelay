@@ -1,0 +1,164 @@
+package dev.horuse.pixelay.debug;
+
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
+import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
+import com.github.retrooper.packetevents.util.Quaternion4f;
+import com.github.retrooper.packetevents.util.Vector3d;
+import com.github.retrooper.packetevents.util.Vector3f;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
+import dev.horuse.pixelay.Pixelay;
+import dev.horuse.pixelay.components.FakePacketCanvasRenderer;
+import dev.horuse.pixelay.config.PixelaySettings;
+import dev.horuse.pixelay.data.Canvas;
+import dev.horuse.pixelay.data.CanvasResolution;
+import dev.horuse.pixelay.utils.PacketUtils;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import net.kyori.adventure.text.Component;
+import org.bukkit.Location;
+import org.bukkit.entity.Player;
+import org.joml.Quaternionf;
+
+/**
+ * A flat translucent rectangle on a canvas, for debugging: a fake TextDisplay holding a single space
+ * whose background is stretched to the rectangle, sent to one player only.
+ */
+public final class DebugPanel {
+
+    /**
+     * Background of a one-space TextDisplay in font px, as the client draws it: the text width (4)
+     * plus 1, and the line height (9) plus 1 (verified in game). The quad is centred half a font px
+     * right of the entity and grows up from it.
+     */
+    private static final double BG_WIDTH_FONT_PX = 5;
+    private static final double BG_HEIGHT_FONT_PX = 10;
+    private static final double BLOCKS_PER_FONT_PX = 0.025;
+    private static final int FULL_BRIGHTNESS = 0xF000F0;
+
+    private DebugPanel() {}
+
+    /** Spawns a panel over canvas px {@code (x, y, width, height)} at {@code depth} blocks off the plane. */
+    public static int spawn(
+        Player viewer,
+        Canvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        int argb,
+        float depth
+    ) {
+        int id = FakePacketCanvasRenderer.nextFakeEntityId();
+        Location origin = origin(canvas, x, y, width, height, depth);
+        PacketUtils.send(
+            viewer,
+            new WrapperPlayServerSpawnEntity(
+                id,
+                Optional.of(UUID.randomUUID()),
+                EntityTypes.TEXT_DISPLAY,
+                new Vector3d(origin.getX(), origin.getY(), origin.getZ()),
+                0f,
+                0f,
+                0f,
+                0,
+                Optional.empty()
+            )
+        );
+
+        Quaternionf rotation = canvas.contentRotation();
+        PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
+        List<EntityData<?>> data = new ArrayList<>();
+        data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)));
+        data.add(
+            new EntityData<>(
+                idx.leftRotation(),
+                EntityDataTypes.QUATERNION,
+                new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
+            )
+        );
+        data.add(new EntityData<>(idx.brightnessOverride(), EntityDataTypes.INT, FULL_BRIGHTNESS));
+        data.add(new EntityData<>(idx.viewRange(), EntityDataTypes.FLOAT, Pixelay.settings().text().viewRange()));
+        data.add(new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, Component.text(" ")));
+        data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, argb));
+        PacketUtils.send(viewer, new WrapperPlayServerEntityMetadata(id, data));
+        return id;
+    }
+
+    /** Moves and resizes an existing panel to a new rectangle. */
+    public static void update(
+        Player viewer,
+        int id,
+        Canvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        float depth
+    ) {
+        // Scale first: a teleport arriving alone would show the old size at the new position.
+        PacketUtils.send(
+            viewer,
+            new WrapperPlayServerEntityMetadata(
+                id,
+                List.of(
+                    new EntityData<>(
+                        Pixelay.settings().packets().metadata().scale(),
+                        EntityDataTypes.VECTOR3F,
+                        scale(canvas, width, height)
+                    )
+                )
+            )
+        );
+        move(viewer, id, canvas, x, y, width, height, depth);
+    }
+
+    /** Moves a panel spawned with the same size to a new position. */
+    public static void move(
+        Player viewer,
+        int id,
+        Canvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        float depth
+    ) {
+        Location origin = origin(canvas, x, y, width, height, depth);
+        PacketUtils.send(
+            viewer,
+            new WrapperPlayServerEntityTeleport(
+                id,
+                new Vector3d(origin.getX(), origin.getY(), origin.getZ()),
+                0f,
+                0f,
+                false
+            )
+        );
+    }
+
+    public static void destroy(Player viewer, int... ids) {
+        if (viewer != null && ids.length > 0) {
+            PacketUtils.send(viewer, new WrapperPlayServerDestroyEntities(ids));
+        }
+    }
+
+    /** Non-uniform TextDisplay scale that stretches the one-space background to {@code width x height} canvas px. */
+    private static Vector3f scale(Canvas canvas, double width, double height) {
+        CanvasResolution res = canvas.resolution();
+        float x = (float) (((width / BG_WIDTH_FONT_PX) * (res.blockWidth() / res.pixelWidth())) / BLOCKS_PER_FONT_PX);
+        float y = (float) (((height / BG_HEIGHT_FONT_PX) * (res.blockHeight() / res.pixelHeight())) /
+            BLOCKS_PER_FONT_PX);
+        return new Vector3f(x, y, 1f);
+    }
+
+    private static Location origin(Canvas canvas, double x, double y, double width, double height, float depth) {
+        double unitX = width / BG_WIDTH_FONT_PX;
+        return canvas.pixelToWorld(x + width / 2 - 0.5 * unitX, y + height, depth);
+    }
+}

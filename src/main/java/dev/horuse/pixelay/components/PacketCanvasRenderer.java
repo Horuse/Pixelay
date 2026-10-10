@@ -155,7 +155,7 @@ public class PacketCanvasRenderer implements CanvasRenderer {
     private void syncBackground() {
         int background = LayoutDebug.background(
             drawable.overflow(),
-            LayoutDebug.isEnabled(viewer),
+            drawable.debugBackground() && LayoutDebug.isEnabled(viewer),
             Pixelay.settings().text().backgroundArgb()
         );
         if (background == lastBackground) {
