@@ -5,6 +5,7 @@ import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.debug.CanvasBoundsDebug;
 import dev.horuse.pixelay.debug.LayoutDebug;
+import java.util.Arrays;
 import java.util.List;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.command.Command;
@@ -142,17 +143,18 @@ public class PixelayCommand implements TabExecutor {
         String[] args
     ) {
         if (args.length == 1) {
-            return List.of("reload", "debug")
-                .stream()
-                .filter(option -> option.startsWith(args[0].toLowerCase()))
-                .toList();
+            return startingWith(args[0], "reload", "debug");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("debug")) {
-            return List.of("layout", "bounds", "layers")
-                .stream()
-                .filter(option -> option.startsWith(args[1].toLowerCase()))
-                .toList();
+            return startingWith(args[1], "layout", "bounds", "layers");
         }
         return List.of();
+    }
+
+    private static List<String> startingWith(String typed, String... options) {
+        String prefix = typed.toLowerCase();
+        return Arrays.stream(options)
+            .filter(option -> option.startsWith(prefix))
+            .toList();
     }
 }

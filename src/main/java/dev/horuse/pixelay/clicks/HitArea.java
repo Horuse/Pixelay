@@ -1,26 +1,17 @@
 package dev.horuse.pixelay.clicks;
 
-import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
-import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
-import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
-import com.github.retrooper.packetevents.util.Vector3d;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import dev.horuse.pixelay.Pixelay;
-import dev.horuse.pixelay.components.FakePacketCanvasRenderer;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.Layers;
+import dev.horuse.pixelay.utils.DisplayUtils;
+import dev.horuse.pixelay.utils.FakeEntityIds;
 import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 import org.bukkit.Location;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Player;
-import org.bukkit.persistence.PersistentDataType;
 import org.joml.Vector3f;
 
 /**
@@ -36,9 +27,6 @@ final class HitArea {
 
     /** Thickness (blocks) of the tiles of a lying canvas. */
     private static final float FLAT_THICKNESS = 0.05f;
-    /** Metadata indexes of Interaction width and height (1.21.11). */
-    private static final int META_WIDTH = 8;
-    private static final int META_HEIGHT = 9;
 
     final Canvas canvas;
     final Player viewer;
@@ -64,36 +52,12 @@ final class HitArea {
                 Interaction interaction = at.getWorld().spawn(at, Interaction.class);
                 interaction.setInteractionWidth(tile.width());
                 interaction.setInteractionHeight(tile.height());
-                interaction.setPersistent(false);
-                interaction.getPersistentDataContainer().set(Pixelay.entityKey(), PersistentDataType.BYTE, (byte) 1);
+                DisplayUtils.tag(interaction);
                 entities.add(interaction);
                 CanvasClicks.bind(interaction.getEntityId(), this);
             } else {
-                int id = FakePacketCanvasRenderer.nextFakeEntityId();
-                PacketUtils.send(
-                    viewer,
-                    new WrapperPlayServerSpawnEntity(
-                        id,
-                        Optional.of(UUID.randomUUID()),
-                        EntityTypes.INTERACTION,
-                        new Vector3d(tile.x(), tile.y(), tile.z()),
-                        0f,
-                        0f,
-                        0f,
-                        0,
-                        Optional.empty()
-                    )
-                );
-                PacketUtils.send(
-                    viewer,
-                    new WrapperPlayServerEntityMetadata(
-                        id,
-                        List.of(
-                            new EntityData<>(META_WIDTH, EntityDataTypes.FLOAT, tile.width()),
-                            new EntityData<>(META_HEIGHT, EntityDataTypes.FLOAT, tile.height())
-                        )
-                    )
-                );
+                int id = FakeEntityIds.next();
+                PacketUtils.spawnInteraction(viewer, id, tile.x(), tile.y(), tile.z(), tile.width(), tile.height());
                 fakeIds.add(id);
                 CanvasClicks.bind(id, this);
             }
@@ -108,12 +72,7 @@ final class HitArea {
         entities.clear();
         if (!fakeIds.isEmpty()) {
             fakeIds.forEach(CanvasClicks::unbind);
-            if (viewer.isOnline()) {
-                PacketUtils.send(
-                    viewer,
-                    new WrapperPlayServerDestroyEntities(fakeIds.stream().mapToInt(Integer::intValue).toArray())
-                );
-            }
+            PacketUtils.destroy(viewer, fakeIds.stream().mapToInt(Integer::intValue).toArray());
             fakeIds.clear();
         }
     }

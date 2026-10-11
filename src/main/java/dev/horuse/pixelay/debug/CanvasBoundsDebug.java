@@ -1,6 +1,7 @@
 package dev.horuse.pixelay.debug;
 
 import dev.horuse.pixelay.data.Canvas;
+import dev.horuse.pixelay.utils.PlayerSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,11 +46,7 @@ public final class CanvasBoundsDebug {
 
     /** @return whether the outlines are now shown to the player */
     public static boolean toggle(Player player) {
-        if (VIEWERS.remove(player.getUniqueId())) {
-            return false;
-        }
-        VIEWERS.add(player.getUniqueId());
-        return true;
+        return PlayerSet.toggle(VIEWERS, player.getUniqueId());
     }
 
     public static void remove(UUID playerId) {

@@ -1,13 +1,16 @@
-package dev.horuse.pixelay.debug;
+package dev.horuse.pixelay.listeners;
 
+import dev.horuse.pixelay.clicks.CanvasClickCatcher;
 import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.data.Layers;
+import dev.horuse.pixelay.debug.CanvasBoundsDebug;
+import dev.horuse.pixelay.debug.LayoutDebug;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-/** Drops players who left from the layout debug mode, so server-wide highlights do not stay on. */
-public class LayoutDebugListener implements Listener {
+/** Forgets a player who left in every per-player registry: debug modes, clicks, layers, Shift state. */
+public class PlayerQuitCleanup implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
@@ -15,5 +18,6 @@ public class LayoutDebugListener implements Listener {
         CanvasClicks.remove(event.getPlayer());
         CanvasBoundsDebug.remove(event.getPlayer().getUniqueId());
         Layers.forget(event.getPlayer().getUniqueId());
+        CanvasClickCatcher.forget(event.getPlayer().getUniqueId());
     }
 }

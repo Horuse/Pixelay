@@ -1,5 +1,6 @@
 package dev.horuse.pixelay.debug;
 
+import dev.horuse.pixelay.utils.PlayerSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -30,11 +31,7 @@ public final class LayoutDebug {
 
     /** @return whether the mode is now enabled for the player */
     public static boolean toggle(Player player) {
-        if (VIEWERS.remove(player.getUniqueId())) {
-            return false;
-        }
-        VIEWERS.add(player.getUniqueId());
-        return true;
+        return PlayerSet.toggle(VIEWERS, player.getUniqueId());
     }
 
     /** Online players with the debug mode on. */

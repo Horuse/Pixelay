@@ -2,6 +2,7 @@ package dev.horuse.pixelay.clicks;
 
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.data.Canvas;
+import dev.horuse.pixelay.utils.ClickDebounce;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,7 @@ public final class CanvasClicks {
 
     private static final Map<Key, HitArea> AREAS = new ConcurrentHashMap<>();
     private static final Map<Integer, HitArea> BY_ENTITY = new ConcurrentHashMap<>();
-    private static final Map<UUID, Long> LAST_CLICK = new ConcurrentHashMap<>();
+    private static final ClickDebounce DEBOUNCE = new ClickDebounce();
 
     private CanvasClicks() {}
 
@@ -99,9 +100,7 @@ public final class CanvasClicks {
         if (area.viewer != null && !area.viewer.getUniqueId().equals(player.getUniqueId())) {
             return true; // a modified client may click another player's private tiles
         }
-        long now = System.currentTimeMillis();
-        Long last = LAST_CLICK.put(player.getUniqueId(), now);
-        if (last != null && now - last < Pixelay.settings().clicks().debounceMs()) {
+        if (!DEBOUNCE.accept(player.getUniqueId())) {
             return true; // one right click arrives as two packets
         }
         Bukkit.getScheduler().runTask(Pixelay.plugin(), () -> {
@@ -114,7 +113,7 @@ public final class CanvasClicks {
             if (!eye.getWorld().equals(area.canvas.center().getWorld())) {
                 return;
             }
-            double[] pixel = area.canvas.pixelFromRay(eye.toVector(), eye.getDirection());
+            double[] pixel = area.canvas.rayHitInside(eye.toVector(), eye.getDirection());
             double reach = Pixelay.settings().clicks().maxDistance();
             if (pixel != null && area.canvas.pixelToWorld(pixel[0], pixel[1]).distanceSquared(eye) <= reach * reach) {
                 Pixelay.debug(
@@ -149,12 +148,12 @@ public final class CanvasClicks {
         AREAS.values().forEach(HitArea::despawn);
         AREAS.clear();
         BY_ENTITY.clear();
-        LAST_CLICK.clear();
+        DEBOUNCE.clear();
     }
 
     /** Forgets a player who left: their private tiles are gone with their client. */
     public static void remove(Player player) {
-        LAST_CLICK.remove(player.getUniqueId());
+        DEBOUNCE.forget(player.getUniqueId());
         AREAS.entrySet().removeIf(entry -> {
             if (player.getUniqueId().equals(entry.getKey().viewer())) {
                 entry.getValue().despawn();

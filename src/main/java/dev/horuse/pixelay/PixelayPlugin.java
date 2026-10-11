@@ -1,21 +1,24 @@
 package dev.horuse.pixelay;
 
 import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.event.PacketListener;
 import com.github.retrooper.packetevents.event.PacketListenerCommon;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
+import dev.horuse.pixelay.clicks.CanvasClickCatcher;
 import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.commands.PixelayCommand;
-import dev.horuse.pixelay.components.CanvasClickCatcher;
 import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.content.FontMetrics;
 import dev.horuse.pixelay.debug.CanvasBoundsDebug;
 import dev.horuse.pixelay.debug.LayoutDebug;
-import dev.horuse.pixelay.debug.LayoutDebugListener;
 import dev.horuse.pixelay.listeners.CanvasPacketClickListener;
 import dev.horuse.pixelay.listeners.ChatSuppression;
+import dev.horuse.pixelay.listeners.PlayerQuitCleanup;
 import dev.horuse.pixelay.screen.ScreenListener;
 import dev.horuse.pixelay.screen.ScreenLookListener;
 import dev.horuse.pixelay.screen.ScreenSession;
+import java.util.ArrayList;
+import java.util.List;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
@@ -34,9 +37,7 @@ public final class PixelayPlugin extends JavaPlugin {
     private final CanvasManager manager = new CanvasManager();
     private NamespacedKey entityKey;
     private PixelaySettings settings;
-    private PacketListenerCommon packetClickListener;
-    private PacketListenerCommon chatSuppressionListener;
-    private PacketListenerCommon screenLookListener;
+    private final List<PacketListenerCommon> packetListeners = new ArrayList<>();
 
     @Override
     public void onEnable() {
@@ -57,17 +58,17 @@ public final class PixelayPlugin extends JavaPlugin {
         CanvasClicks.clear();
         CanvasClickCatcher.clearRegistry();
 
-        Bukkit.getPluginManager().registerEvents(new LayoutDebugListener(), this);
+        Bukkit.getPluginManager().registerEvents(new PlayerQuitCleanup(), this);
         Bukkit.getPluginManager().registerEvents(new ScreenListener(), this);
-        screenLookListener = PacketEvents.getAPI()
-            .getEventManager()
-            .registerListener(new ScreenLookListener(), PacketListenerPriority.NORMAL);
-        packetClickListener = PacketEvents.getAPI()
-            .getEventManager()
-            .registerListener(new CanvasPacketClickListener(), PacketListenerPriority.NORMAL);
-        chatSuppressionListener = PacketEvents.getAPI()
-            .getEventManager()
-            .registerListener(new ChatSuppression(), PacketListenerPriority.NORMAL);
+        for (PacketListener listener : List.of(
+            new ScreenLookListener(),
+            new CanvasPacketClickListener(),
+            new ChatSuppression()
+        )) {
+            packetListeners.add(
+                PacketEvents.getAPI().getEventManager().registerListener(listener, PacketListenerPriority.NORMAL)
+            );
+        }
 
         PixelayCommand command = new PixelayCommand(this);
         getCommand("pixelay").setExecutor(command);
@@ -82,20 +83,9 @@ public final class PixelayPlugin extends JavaPlugin {
         // Players in a screen get their game mode and position back before anything is torn down.
         ScreenSession.closeAll();
         manager.stop();
-        if (screenLookListener != null) {
-            PacketEvents.getAPI().getEventManager().unregisterListener(screenLookListener);
-            screenLookListener = null;
-        }
         CanvasBoundsDebug.stop();
-        if (packetClickListener != null) {
-            PacketEvents.getAPI().getEventManager().unregisterListener(packetClickListener);
-            packetClickListener = null;
-        }
-
-        if (chatSuppressionListener != null) {
-            PacketEvents.getAPI().getEventManager().unregisterListener(chatSuppressionListener);
-            chatSuppressionListener = null;
-        }
+        packetListeners.forEach(PacketEvents.getAPI().getEventManager()::unregisterListener);
+        packetListeners.clear();
 
         CanvasClicks.clear();
         CanvasClickCatcher.clearRegistry();

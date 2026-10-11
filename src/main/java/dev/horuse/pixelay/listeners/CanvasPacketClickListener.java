@@ -8,13 +8,9 @@ import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientAt
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerDigging;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerInput;
-import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientSpectate;
 import dev.horuse.pixelay.Pixelay;
+import dev.horuse.pixelay.clicks.CanvasClickCatcher;
 import dev.horuse.pixelay.clicks.CanvasClicks;
-import dev.horuse.pixelay.components.CanvasClickCatcher;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import org.bukkit.entity.Player;
 
 /**
@@ -28,8 +24,6 @@ import org.bukkit.entity.Player;
  */
 public class CanvasPacketClickListener implements PacketListener {
 
-    private static final Set<UUID> SNEAKING = ConcurrentHashMap.newKeySet();
-
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
         if (event.getPlayer() instanceof Player player && CanvasClickCatcher.isViewer(player)) {
@@ -39,9 +33,9 @@ public class CanvasPacketClickListener implements PacketListener {
                 WrapperPlayClientPlayerInput packet = new WrapperPlayClientPlayerInput(event);
 
                 if (!packet.isShift()) {
-                    SNEAKING.remove(player.getUniqueId());
+                    CanvasClickCatcher.setSneaking(player, false);
                 } else {
-                    SNEAKING.add(player.getUniqueId());
+                    CanvasClickCatcher.setSneaking(player, true);
                     if (Pixelay.settings().clicks().blockSneakDismount()) {
                         event.setCancelled(true);
                         return;
@@ -49,20 +43,15 @@ public class CanvasPacketClickListener implements PacketListener {
                 }
             }
 
-            // LMB in spectator mode sends Spectate: UUID of the entity under the crosshair (Interaction)
-            // or its own UUID (clicking past the entity). Both = click on the screen under the cursor.
-            if (event.getPacketType() == PacketType.Play.Client.SPECTATE) {
-                WrapperPlayClientSpectate packet = new WrapperPlayClientSpectate(event);
-                event.setCancelled(true);
-                boolean sneaking = SNEAKING.contains(player.getUniqueId()) || player.isSneaking();
-
-                if (!sneaking && CanvasClickCatcher.handleSwing(player)) {
-                    Pixelay.debug("click SPECTATE " + packet.getTargetUUID() + " routed");
-                }
-
-                // The client has already locally switched the camera — forcibly return it to the anchor,
-                // otherwise the client's spectator state will desync from the server.
-                CanvasClickCatcher.resetCamera(player);
+            // LMB in spectator mode sends Spectate (the entity under the crosshair, or the player's own UUID
+            // when clicking past it). With a packet-only entity under the crosshair the client may send
+            // INTERACT_ENTITY or ATTACK instead. All of them are a click on the screen under the cursor.
+            if (
+                event.getPacketType() == PacketType.Play.Client.SPECTATE ||
+                event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY ||
+                event.getPacketType() == PacketType.Play.Client.ATTACK
+            ) {
+                routeScreenClick(event, player);
                 return;
             }
 
@@ -71,49 +60,16 @@ public class CanvasPacketClickListener implements PacketListener {
                 if (CanvasClickCatcher.handleSwing(player)) {
                     Pixelay.debug("click ANIMATION routed");
                 }
-
                 return;
             }
 
             // LMB on blocks sends PLAYER_DIGGING (START_DIGGING)
             if (event.getPacketType() == PacketType.Play.Client.PLAYER_DIGGING) {
                 WrapperPlayClientPlayerDigging packet = new WrapperPlayClientPlayerDigging(event);
-
-                if (packet.getAction() == DiggingAction.START_DIGGING) {
-                    if (CanvasClickCatcher.handleSwing(player)) {
-                        Pixelay.debug("click PLAYER_DIGGING routed");
-                    }
+                if (packet.getAction() == DiggingAction.START_DIGGING && CanvasClickCatcher.handleSwing(player)) {
+                    Pixelay.debug("click PLAYER_DIGGING routed");
                 }
-
                 event.setCancelled(true);
-                return;
-            }
-
-            // For packet (fake) entities, the client in spectator mode can send INTERACT_ENTITY
-            // instead of SPECTATE — intercept as a click on the screen.
-            if (event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY) {
-                event.setCancelled(true);
-                boolean sneaking = SNEAKING.contains(player.getUniqueId()) || player.isSneaking();
-
-                if (!sneaking && CanvasClickCatcher.handleSwing(player)) {
-                    WrapperPlayClientInteractEntity packet = new WrapperPlayClientInteractEntity(event);
-                    Pixelay.debug("click INTERACT_ENTITY id=" + packet.getEntityId() + " routed");
-                }
-
-                CanvasClickCatcher.resetCamera(player);
-                return;
-            }
-
-            if (event.getPacketType() == PacketType.Play.Client.ATTACK) {
-                event.setCancelled(true);
-                boolean sneaking = SNEAKING.contains(player.getUniqueId()) || player.isSneaking();
-
-                if (!sneaking && CanvasClickCatcher.handleSwing(player)) {
-                    WrapperPlayClientAttack packet = new WrapperPlayClientAttack(event);
-                    Pixelay.debug("click ATTACK id=" + packet.getEntityId() + " routed");
-                }
-
-                CanvasClickCatcher.resetCamera(player);
                 return;
             }
         }
@@ -128,6 +84,19 @@ public class CanvasPacketClickListener implements PacketListener {
             WrapperPlayClientInteractEntity packet = new WrapperPlayClientInteractEntity(event);
             handleClick(event, packet.getEntityId());
         }
+    }
+
+    /**
+     * A screen click packet: cancelled, routed as a click unless the player holds Shift (that is an attempt
+     * to leave the camera), and the camera put back — the client has already moved it on its own.
+     */
+    private static void routeScreenClick(PacketReceiveEvent event, Player player) {
+        event.setCancelled(true);
+        boolean sneaking = CanvasClickCatcher.isSneaking(player) || player.isSneaking();
+        if (!sneaking && CanvasClickCatcher.handleSwing(player)) {
+            Pixelay.debug("click " + event.getPacketType() + " routed");
+        }
+        CanvasClickCatcher.resetCamera(player);
     }
 
     private void handleClick(PacketReceiveEvent event, int entityId) {
