@@ -1,10 +1,13 @@
 package dev.horuse.pixelay.utils;
 
+import dev.horuse.pixelay.Pixelay;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.entity.Display;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.TextDisplay;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -16,6 +19,12 @@ import org.joml.Vector3f;
 public final class DisplayUtils {
 
     private DisplayUtils() {}
+
+    /** Tags an entity as Pixelay's (removed by {@code cleanup-on-enable}) and makes it non-persistent. */
+    public static void tag(Entity entity) {
+        entity.getPersistentDataContainer().set(Pixelay.entityKey(), PersistentDataType.BYTE, (byte) 1);
+        entity.setPersistent(false);
+    }
 
     /**
      * @return a Y-axis rotation quaternion for the given yaw in degrees

@@ -1,12 +1,14 @@
 package dev.horuse.pixelay.components;
 
 import dev.horuse.pixelay.data.Canvas;
+import dev.horuse.pixelay.data.Size;
+import org.bukkit.entity.Player;
 
 /**
  * Strategy that knows how a {@link CanvasComponent} is drawn into the world. A component keeps its
  * geometry/content ({@link CanvasDrawable}) while a renderer owns the backing entities, so the same
- * element can be spawned either as ordinary server entities visible to everyone ({@link
- * ServerCanvasRenderer}) or rendered per-player via packets ({@link PacketCanvasRenderer}).
+ * element can be drawn with real entities ({@link EntityRenderer}, for everyone or one player) or as
+ * packet-only entities of one player ({@link FakeRenderer}).
  */
 public interface CanvasRenderer {
     /** Spawns the renderer's backing entities, positioned via the canvas. */
@@ -23,19 +25,12 @@ public interface CanvasRenderer {
     /** Re-evaluates dynamic content and updates the backing entities in place. */
     void refresh();
 
-    /** Repositions the backing entity to a world position (no-op for non-movable renderers). */
-    default void move(org.bukkit.util.Vector worldPos) {}
-
     /**
-     * @return measured hitbox of the last rendered text {@code {width, height}} in canvas px, or
-     *     null before the first spawn; used for click hit-testing
+     * @return the element's box size in canvas px from the last render, or null before the
+     *     first spawn; used for click hit-testing
      */
-    default double[] measuredHitboxPx() {
-        return null;
-    }
+    Size measuredHitboxPx();
 
     /** @return the only player who sees this element, or {@code null} when everyone does */
-    default org.bukkit.entity.Player viewer() {
-        return null;
-    }
+    Player viewer();
 }

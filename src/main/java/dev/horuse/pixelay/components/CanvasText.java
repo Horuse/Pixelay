@@ -1,40 +1,51 @@
 package dev.horuse.pixelay.components;
 
 import dev.horuse.pixelay.content.TextContent;
+import java.util.function.Function;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.entity.Player;
 
 /**
- * A text label positioned at a pixel coordinate and sized in pixels. Spawned as ordinary server
- * entities by default, or per-player via {@link #packet(Player, double, double, double,
- * TextContent)}.
+ * A text label positioned at a pixel coordinate and sized in pixels. Drawn with real entities seen by
+ * everyone by default, for one player with {@link #perPlayer}, or packet-only with {@link #fake}.
  */
 public class CanvasText extends AbstractCanvasComponent {
 
     private final TextContent content;
 
+    /** A label drawn with real entities seen by everyone. */
     public CanvasText(double pixelX, double pixelY, double heightPx, TextContent content) {
+        this(pixelX, pixelY, heightPx, content, drawable -> new EntityRenderer(drawable, null));
+    }
+
+    /** @param renderer creates the renderer for this element */
+    protected CanvasText(
+        double pixelX,
+        double pixelY,
+        double heightPx,
+        TextContent content,
+        Function<CanvasDrawable, CanvasRenderer> renderer
+    ) {
         super(pixelX, pixelY, heightPx);
         this.content = content;
-        this.renderer = new ServerCanvasRenderer(this);
+        this.renderer = renderer.apply(this);
     }
 
-    /** Per-player variant: the label is rendered only for the given viewer via packets. */
-    public static CanvasText packet(Player viewer, double pixelX, double pixelY, double heightPx, TextContent content) {
-        CanvasText text = new CanvasText(pixelX, pixelY, heightPx, content);
-        text.renderer = new PacketCanvasRenderer(viewer, text);
-        return text;
+    /** A label drawn with real entities that only {@code viewer} sees. */
+    public static CanvasText perPlayer(
+        Player viewer,
+        double pixelX,
+        double pixelY,
+        double heightPx,
+        TextContent content
+    ) {
+        return new CanvasText(pixelX, pixelY, heightPx, content, drawable -> new EntityRenderer(drawable, viewer));
     }
 
-    /**
-     * Fully fake variant: no server entity is spawned; spawn/metadata packets are sent only to the
-     * given viewer.
-     */
+    /** A label made of packets only, for {@code viewer}: nothing is spawned on the server. */
     public static CanvasText fake(Player viewer, double pixelX, double pixelY, double heightPx, TextContent content) {
-        CanvasText text = new CanvasText(pixelX, pixelY, heightPx, content);
-        text.renderer = new FakePacketCanvasRenderer(viewer, text);
-        return text;
+        return new CanvasText(pixelX, pixelY, heightPx, content, drawable -> new FakeRenderer(viewer, drawable));
     }
 
     @Override
@@ -44,7 +55,7 @@ public class CanvasText extends AbstractCanvasComponent {
     }
 
     /** Parses component text as MiniMessage — the single markup format used by canvas content. */
-    protected static Component parse(String text) {
+    static Component parse(String text) {
         return MiniMessage.miniMessage().deserialize(text);
     }
 }

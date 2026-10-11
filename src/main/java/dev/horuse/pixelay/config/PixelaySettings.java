@@ -33,8 +33,12 @@ public record PixelaySettings(
         int backgroundArgb
     ) {}
 
-    /** Click routing options. */
-    /** @param hitTileSize size (blocks) of the invisible click tiles laid over a canvas */
+    /**
+     * Click routing options.
+     *
+     * @param hitTileSize size (blocks) of the invisible click tiles laid over a canvas
+     * @param maxDistance farthest (blocks) a player may click a canvas from
+     */
     public record Clicks(long debounceMs, boolean blockSneakDismount, double hitTileSize, double maxDistance) {}
 
     /** Look-at cursor appearance. */
@@ -67,7 +71,9 @@ public record PixelaySettings(
         int lineWidth,
         int backgroundColor,
         int textOpacity,
-        int styleFlags
+        int styleFlags,
+        int interactionWidth,
+        int interactionHeight
     ) {}
 
     /** Copies the default config.yml if missing, then parses it into a fresh snapshot. */
@@ -125,7 +131,9 @@ public record PixelaySettings(
                     meta.node("line-width").getInt(24),
                     meta.node("background-color").getInt(25),
                     meta.node("text-opacity").getInt(26),
-                    meta.node("style-flags").getInt(27)
+                    meta.node("style-flags").getInt(27),
+                    meta.node("interaction-width").getInt(8),
+                    meta.node("interaction-height").getInt(9)
                 )
             ),
             root.node("resource-packs", "order").getList(String.class, List.of())

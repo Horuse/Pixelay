@@ -6,8 +6,8 @@ import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.VAlign;
-import dev.horuse.pixelay.debug.DebugPanel;
 import dev.horuse.pixelay.debug.LayoutDebug;
+import dev.horuse.pixelay.utils.PacketUtils;
 import org.bukkit.entity.Player;
 
 /**
@@ -26,6 +26,8 @@ public class CanvasCursor extends AbstractCanvasComponent {
     private int debugDotId;
     /** Hot spot in font px from the glyph's line-box top-left, or {@code null} to centre the glyph. */
     private final double[] hotspot;
+    /** The cursor is always packet-only: kept typed for {@link FakeRenderer#move}. */
+    private final FakeRenderer fakeRenderer;
 
     /** Cursor with the glyph and size from config.yml ({@code cursor.*}), centred on the pointed pixel. */
     public CanvasCursor(Player viewer) {
@@ -52,7 +54,8 @@ public class CanvasCursor extends AbstractCanvasComponent {
         this.viewer = viewer;
         this.glyph = glyph;
         this.hotspot = hotspot;
-        this.renderer = new FakePacketCanvasRenderer(viewer, this);
+        this.fakeRenderer = new FakeRenderer(viewer, this);
+        this.renderer = fakeRenderer;
     }
 
     /** Repositions the cursor so its hot spot is on the given canvas pixel (spawning it first if needed). */
@@ -69,8 +72,8 @@ public class CanvasCursor extends AbstractCanvasComponent {
 
         // Lifted towards the viewer: text on the same plane would otherwise overlap the cursor at random.
         float depth = Layers.cursor(canvas, viewer);
-        double[] position = CanvasLayout.displayPosition(this, glyph);
-        ((FakePacketCanvasRenderer) renderer).move(canvas.pixelToWorld(position[0], position[1], depth).toVector());
+        TextPlacement.Placement placement = TextPlacement.place(this, glyph);
+        fakeRenderer.move(canvas.pixelToWorld(placement.x(), placement.y(), depth).toVector());
         updateDebugDot(canvas, pixelX, pixelY, Layers.cursorDot(canvas, viewer));
     }
 
@@ -83,15 +86,15 @@ public class CanvasCursor extends AbstractCanvasComponent {
         double x = pixelX - DEBUG_DOT_PX / 2;
         double y = pixelY - DEBUG_DOT_PX / 2;
         if (debugDotId == 0) {
-            debugDotId = DebugPanel.spawn(viewer, canvas, x, y, DEBUG_DOT_PX, DEBUG_DOT_PX, DEBUG_DOT_COLOR, depth);
+            debugDotId = ColorPanel.spawn(viewer, canvas, x, y, DEBUG_DOT_PX, DEBUG_DOT_PX, DEBUG_DOT_COLOR, depth);
         } else {
-            DebugPanel.move(viewer, debugDotId, canvas, x, y, DEBUG_DOT_PX, DEBUG_DOT_PX, depth);
+            ColorPanel.move(viewer, debugDotId, canvas, x, y, DEBUG_DOT_PX, DEBUG_DOT_PX, depth);
         }
     }
 
     private void removeDebugDot() {
         if (debugDotId != 0) {
-            DebugPanel.destroy(viewer, debugDotId);
+            PacketUtils.destroy(viewer, debugDotId);
             debugDotId = 0;
         }
     }

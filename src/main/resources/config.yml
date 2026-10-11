@@ -93,3 +93,6 @@ packets:
     background-color: 25
     text-opacity: 26
     style-flags: 27
+    # Interaction (the invisible click boxes) width and height.
+    interaction-width: 8
+    interaction-height: 9

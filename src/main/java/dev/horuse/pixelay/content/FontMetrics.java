@@ -57,6 +57,15 @@ public final class FontMetrics {
         return TextLayout.metrics(TextLayout.lay(TextLayout.glyphs(root), maxLineWidth, wrap));
     }
 
+    /** A text laid out once: its measurements and the component with the line breaks written in. */
+    public record Laid(Metrics metrics, Component component) {}
+
+    /** Measures and wraps a parsed text in one pass (see {@link #measure} and {@link #wrap}). */
+    public static Laid lay(Component text, int maxLineWidth, TextWrap wrap) {
+        TextLayout.Lines lines = TextLayout.lay(TextLayout.glyphs(text), maxLineWidth, wrap);
+        return new Laid(TextLayout.metrics(lines), TextLayout.apply(text, lines));
+    }
+
     /** The component with its line breaks written in, wrapped at {@code maxLineWidth} font px. */
     public static Component wrap(Component text, int maxLineWidth, TextWrap wrap) {
         TextLayout.Lines laid = TextLayout.lay(TextLayout.glyphs(text), maxLineWidth, wrap);
@@ -77,14 +86,14 @@ public final class FontMetrics {
     /**
      * @return text width in font-pixels (widest line)
      */
-    public static int widthVanilla(String miniMessageText) {
-        return widthVanilla(miniMessageText, Integer.MAX_VALUE);
+    public static int widthFontPx(String miniMessageText) {
+        return widthFontPx(miniMessageText, Integer.MAX_VALUE);
     }
 
     /**
      * @return text width in font-pixels (widest line) after wrapping at {@code maxLineWidth}
      */
-    public static int widthVanilla(String miniMessageText, int maxLineWidth) {
+    public static int widthFontPx(String miniMessageText, int maxLineWidth) {
         return (int) Math.round(measure(miniMessageText, maxLineWidth).maxWidthPx());
     }
 
@@ -99,7 +108,7 @@ public final class FontMetrics {
      * @return text width in canvas px given font size, after wrapping at {@code maxLineWidth} font px
      */
     public static double widthPx(String miniMessageText, double fontHeightPx, int maxLineWidth) {
-        return (widthVanilla(miniMessageText, maxLineWidth) * fontHeightPx) / LINE_HEIGHT_PX;
+        return (widthFontPx(miniMessageText, maxLineWidth) * fontHeightPx) / LINE_HEIGHT_PX;
     }
 
     /**
@@ -186,11 +195,8 @@ public final class FontMetrics {
         return rows != null ? rows : new int[] { 0, (int) LINE_HEIGHT_PX };
     }
 
-    static int advanceOf(int codePoint, boolean bold) {
-        return advance(codePoint, bold);
-    }
-
-    private static int advance(int codePoint, boolean bold) {
+    /** A glyph's advance in font px (+1 when bold), from the overrides or the vanilla table. */
+    static int advance(int codePoint, boolean bold) {
         Integer overridden = OVERRIDES.get(codePoint);
         int width = overridden != null ? overridden : FontWidths.advance(codePoint);
         return bold && width > 0 ? width + 1 : width;

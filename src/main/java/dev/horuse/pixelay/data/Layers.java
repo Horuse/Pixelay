@@ -1,6 +1,7 @@
 package dev.horuse.pixelay.data;
 
 import dev.horuse.pixelay.Pixelay;
+import dev.horuse.pixelay.utils.PlayerSet;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -28,18 +29,18 @@ public final class Layers {
     public static final int MAX_STEP = 60;
     /** Steps of a component outside a layout: its text background, then its text. */
     public static final int DEFAULT_TEXT_BACKGROUND_STEP = 1;
+    /** Step of the text of a component outside a layout (one above its text background). */
+    public static final int DEFAULT_TEXT_STEP = DEFAULT_TEXT_BACKGROUND_STEP + 1;
+    /** Step used by {@code /pixelay debug layers}: layers pulled far apart to see them like 3D devtools. */
+    public static final float EXPLODED_STEP = 0.1f;
     /**
      * Highest step of every layout on each canvas, so the cursor sits right above the current top (and not
      * far in front: parallax). Canvases are compared by identity and forgotten when dropped.
      */
     private static final Map<Canvas, Map<Object, Integer>> TOP_STEPS = Collections.synchronizedMap(new WeakHashMap<>());
 
-    /** Step used by {@code /pixelay debug layers}: layers pulled far apart to see them like 3D devtools. */
-    public static final float EXPLODED_STEP = 0.1f;
-
     /** Players who see the layers pulled apart. */
     private static final Set<UUID> EXPLODED = ConcurrentHashMap.newKeySet();
-    private static volatile int revision;
 
     private Layers() {}
 
@@ -59,25 +60,17 @@ public final class Layers {
 
     /** @return whether {@code player} now sees the layers of their own (fake and per-player) canvases apart */
     public static boolean toggleExploded(Player player) {
-        boolean on = EXPLODED.add(player.getUniqueId()) || !EXPLODED.remove(player.getUniqueId());
-        revision++;
-        return on;
+        // Renderers notice the new depths through textDepth() on their next refresh.
+        return PlayerSet.toggle(EXPLODED, player.getUniqueId());
     }
 
     public static void forget(UUID player) {
-        if (EXPLODED.remove(player)) {
-            revision++;
-        }
-    }
-
-    /** Bumped whenever depths change for someone, so renderers move what they already drew. */
-    public static int revision() {
-        return revision;
+        EXPLODED.remove(player);
     }
 
     /** The text layer of a component outside a layout: the plane clicks are measured on. */
     public static float text() {
-        return at(DEFAULT_TEXT_BACKGROUND_STEP + 1);
+        return at(DEFAULT_TEXT_STEP);
     }
 
     /** Called by a layout after each pass with the highest step it uses on the canvas. */
@@ -102,7 +95,7 @@ public final class Layers {
      * the drawing as possible: the farther it is in front of it, the more it drifts off the pointed pixel.
      */
     public static float cursor(Canvas canvas, Player viewer) {
-        int top = DEFAULT_TEXT_BACKGROUND_STEP + 1;
+        int top = DEFAULT_TEXT_STEP;
         synchronized (TOP_STEPS) {
             Map<Object, Integer> layouts = TOP_STEPS.get(canvas);
             if (layouts != null) {

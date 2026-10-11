@@ -43,7 +43,7 @@ public interface CanvasDrawable {
 
     /** @return depth of the text in front of the canvas surface, in blocks (see {@link Layers}) */
     default float textDepth() {
-        return Layers.at(Layers.DEFAULT_TEXT_BACKGROUND_STEP + 1);
+        return Layers.at(Layers.DEFAULT_TEXT_STEP);
     }
 
     /** @return depth of the text background, in blocks: one step under the text */

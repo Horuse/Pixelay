@@ -55,7 +55,7 @@ final class TextLayout {
                     out.add(new Glyph('\n', 0, 0, (int) FontMetrics.LINE_HEIGHT_PX));
                 } else {
                     int[] rows = FontMetrics.verticalOf(codePoint);
-                    out.add(new Glyph(codePoint, FontMetrics.advanceOf(codePoint, bold), rows[0], rows[1]));
+                    out.add(new Glyph(codePoint, FontMetrics.advance(codePoint, bold), rows[0], rows[1]));
                 }
                 i += Character.charCount(codePoint);
             }

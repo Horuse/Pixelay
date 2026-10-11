@@ -1,29 +1,25 @@
 package dev.horuse.pixelay.components;
 
 import dev.horuse.pixelay.Pixelay;
-import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.content.TextContent;
 import dev.horuse.pixelay.content.TextWrap;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
+import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.data.VAlign;
 import dev.horuse.pixelay.debug.CanvasBoundsDebug;
 import dev.horuse.pixelay.debug.Overflow;
 import dev.horuse.pixelay.layout.LayoutItem;
 import java.util.function.Consumer;
-import org.bukkit.Color;
-import org.bukkit.entity.Display;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.TextDisplay;
-import org.bukkit.persistence.PersistentDataType;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Common state for pixel-positioned components: anchor pixel coordinates, pixel height, alignment,
  * the backing {@link CanvasRenderer} and the shared canvas tag used for world cleanup ({@link
  * Pixelay#entityKey()}). Geometry ({@link CanvasDrawable}) is owned here, rendering is delegated to
- * the renderer; layout math lives in {@link CanvasLayout}.
+ * the renderer; text placement lives in {@link TextPlacement}.
  */
 public abstract class AbstractCanvasComponent implements CanvasComponent, CanvasDrawable, LayoutItem {
 
@@ -46,6 +42,11 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
     private volatile int layoutLineWidth;
     /** Step of the text background (the text is one step above), set by layouts in painting order. */
     private volatile int layerStep = Layers.DEFAULT_TEXT_BACKGROUND_STEP;
+    /** Under the pointer in its layout (CSS {@code :hover}). */
+    private volatile boolean hovered;
+    private volatile TextWrap textWrap = TextWrap.NORMAL;
+    /** Text replacing the component's own one (a state style), or {@code null}. */
+    private volatile TextContent textOverride;
 
     protected AbstractCanvasComponent(double pixelX, double pixelY, double heightPx) {
         this.pixelX = pixelX;
@@ -107,7 +108,7 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
      * @return measured hitbox of the rendered text {@code {width, height}} in canvas px, or null
      *     before spawn
      */
-    public double[] measuredHitboxPx() {
+    public Size measuredHitboxPx() {
         return renderer != null ? renderer.measuredHitboxPx() : null;
     }
 
@@ -120,6 +121,7 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
      * Moves the anchor point and alignment; used by layouts. Renderers pick the change up on the next
      * refresh, even if the text stayed the same.
      */
+    @ApiStatus.Internal
     public void place(double pixelX, double pixelY, HAlign hAlign, VAlign vAlign) {
         if (this.pixelX == pixelX && this.pixelY == pixelY && this.hAlign == hAlign && this.vAlign == vAlign) {
             return;
@@ -136,6 +138,7 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
      * Set by layouts: wrap the text at this many font px (the width the layout gives the element),
      * capped by the configured line width; {@code <= 0} restores the default.
      */
+    @ApiStatus.Internal
     public void setLineWidth(int fontPx) {
         int width = fontPx > 0 ? Math.min(fontPx, Pixelay.settings().text().lineWidth()) : 0;
         // No layoutVersion bump: a pass may measure several times; renderers compare the final value.
@@ -146,9 +149,6 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
     public int lineWidth() {
         return layoutLineWidth > 0 ? layoutLineWidth : CanvasDrawable.super.lineWidth();
     }
-
-    private volatile boolean hovered;
-    private volatile TextWrap textWrap = TextWrap.NORMAL;
 
     /** CSS {@code white-space}: whether the text wraps to its width at all. */
     @SuppressWarnings("unchecked")
@@ -176,9 +176,8 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
         return hovered;
     }
 
-    private volatile TextContent textOverride;
-
     /** Set by layouts: text replacing the component's own one (a hover style), or {@code null}. */
+    @ApiStatus.Internal
     public void setTextOverride(TextContent content) {
         this.textOverride = content;
     }
@@ -188,16 +187,16 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
     }
 
     /** Set by layouts from their pointer, see {@code MountedLayout.pointerAt}. */
+    @ApiStatus.Internal
     public void setHovered(boolean hovered) {
         this.hovered = hovered;
     }
 
     /** Set by layouts: the depth step of this element's text background, see {@link Layers}. */
+    @ApiStatus.Internal
     public void setLayerStep(int step) {
-        if (step != layerStep) {
-            layerStep = step;
-            layoutVersion++;
-        }
+        // Renderers notice it through textDepth(): no layout version bump needed.
+        layerStep = step;
     }
 
     @Override
@@ -211,6 +210,7 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
     }
 
     /** Set by layouts: the element is bigger than the space it was given (see LayoutDebug). */
+    @ApiStatus.Internal
     public void setOverflow(Overflow overflow) {
         this.overflow = overflow;
     }
@@ -222,8 +222,7 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
 
     @Override
     public int layoutVersion() {
-        // Depths of all layers change together (debug layers), and that moves the element too.
-        return layoutVersion + Layers.revision() * 1_000_003;
+        return layoutVersion;
     }
 
     @Override
@@ -264,27 +263,5 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
     @Override
     public Consumer<Player> onClick() {
         return null;
-    }
-
-    /**
-     * Applies the shared text style from config.yml ({@code text.*}) to a server-side TextDisplay.
-     */
-    protected static void applyTextStyle(TextDisplay display) {
-        PixelaySettings.Text style = Pixelay.settings().text();
-        display.setShadowed(style.shadow());
-        display.setSeeThrough(style.seeThrough());
-        // The configured background is drawn as a separate panel (TextBackground).
-        display.setBackgroundColor(Color.fromARGB(0));
-        display.setLineWidth(CanvasLayout.CLIENT_LINE_WIDTH);
-        display.setViewRange(style.viewRange());
-        if (style.fullBrightness()) {
-            display.setBrightness(new Display.Brightness(15, 15));
-        }
-    }
-
-    /** Tags an entity as canvas-owned and marks it non-persistent. */
-    protected static void tag(Entity entity) {
-        entity.getPersistentDataContainer().set(Pixelay.entityKey(), PersistentDataType.BYTE, (byte) 1);
-        entity.setPersistent(false);
     }
 }
