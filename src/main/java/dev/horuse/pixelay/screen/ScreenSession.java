@@ -174,7 +174,7 @@ public final class ScreenSession {
         camera.spawn();
         Double saved = options.scaleStore().load(player.getUniqueId());
         scale = clampScale(saved != null ? saved : 1.0);
-        canvas = new Canvas(canvasCenter, facingYaw + 180, resolution(scale));
+        canvas = new Canvas(canvasCenter, canvasYaw(), resolution(scale));
         content = options.content().apply(canvas);
         if (options.calibration() != null) {
             calibration = new CalibrationScreen(this, options.calibration());
@@ -350,9 +350,18 @@ public final class ScreenSession {
         MountedLayout shown = currentLayout();
         shown.despawn();
         cursor.despawn();
-        canvas = new Canvas(canvasCenter, facingYaw + 180, resolution(scale));
+        canvas = new Canvas(canvasCenter, canvasYaw(), resolution(scale));
         shown.spawn(canvas);
         cursor.spawn(canvas);
+    }
+
+    /**
+     * The canvas faces the camera. Minecraft yaw turns the other way than the canvas' one (a canvas with yaw
+     * {@code c} faces {@code (sin c, 0, cos c)}, a Minecraft yaw {@code y} looks along {@code (-sin y, 0, cos y)}),
+     * so facing back towards the camera is {@code 180 - y}, not {@code y + 180}: the two agree only for 0 and 180.
+     */
+    private float canvasYaw() {
+        return 180 - facingYaw;
     }
 
     private double clampScale(double value) {

@@ -7,3 +7,4 @@ out/
 .env
 __pycache__/
 tools/fontgen/vanilla-assets/
+examples/
