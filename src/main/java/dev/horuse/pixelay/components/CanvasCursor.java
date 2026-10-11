@@ -68,10 +68,10 @@ public class CanvasCursor extends AbstractCanvasComponent {
         }
 
         // Lifted towards the viewer: text on the same plane would otherwise overlap the cursor at random.
-        float depth = Layers.cursor(canvas);
+        float depth = Layers.cursor(canvas, viewer);
         double[] position = CanvasLayout.displayPosition(this, glyph);
         ((FakePacketCanvasRenderer) renderer).move(canvas.pixelToWorld(position[0], position[1], depth).toVector());
-        updateDebugDot(canvas, pixelX, pixelY, Layers.cursorDot(canvas));
+        updateDebugDot(canvas, pixelX, pixelY, Layers.cursorDot(canvas, viewer));
     }
 
     /** In layout debug mode, marks the exact pointed pixel (the hot spot) with a small dot. */

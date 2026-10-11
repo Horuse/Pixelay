@@ -202,12 +202,12 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
 
     @Override
     public float textDepth() {
-        return Layers.at(layerStep + 1);
+        return Layers.at(layerStep + 1, viewer());
     }
 
     @Override
     public float textBackgroundDepth() {
-        return Layers.at(layerStep);
+        return Layers.at(layerStep, viewer());
     }
 
     /** Set by layouts: the element is bigger than the space it was given (see LayoutDebug). */

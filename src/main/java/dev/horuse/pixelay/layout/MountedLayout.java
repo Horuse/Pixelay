@@ -11,10 +11,12 @@ import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.VAlign;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 
@@ -38,6 +40,9 @@ public final class MountedLayout implements CanvasComponent {
     private Player clickViewer;
     private boolean stepsWarned;
     private boolean anchorsWarned;
+    private boolean textOnContainerWarned;
+    /** Parent of every box, to give :hover to the ancestors of the hovered box. */
+    private final Map<Box<?>, Box<?>> parents = new IdentityHashMap<>();
 
     /** Where a layout mounted with {@link Layout#mountAt} is pinned; {@code null} = fill the canvas. */
     record Placement(double x, double y, HAlign h, VAlign v) {}
@@ -53,6 +58,16 @@ public final class MountedLayout implements CanvasComponent {
         this.placement = placement;
         root.collectComponents(components);
         root.collectBoxes(boxes);
+        mapParents(root);
+    }
+
+    private void mapParents(Box<?> box) {
+        if (box instanceof Container<?> container) {
+            for (Box<?> child : container.children) {
+                parents.put(child, box);
+                mapParents(child);
+            }
+        }
     }
 
     public Box<?> root() {
@@ -80,7 +95,7 @@ public final class MountedLayout implements CanvasComponent {
         for (Box<?> box : boxes) {
             top = Math.max(top, box.paintEnd);
         }
-        Layers.reportTopStep(canvas, top);
+        Layers.reportTopStep(canvas, this, top);
     }
 
     /**
@@ -172,6 +187,7 @@ public final class MountedLayout implements CanvasComponent {
     public void despawn() {
         if (canvas != null) {
             CanvasClicks.unregister(canvas, clickViewer, clickTarget);
+            Layers.forgetTopStep(canvas, this);
         }
         components.forEach(CanvasComponent::despawn);
         backgrounds.values().forEach(TextBackground::remove);
@@ -223,7 +239,7 @@ public final class MountedLayout implements CanvasComponent {
                     canvas,
                     new double[] { r.x(), r.y(), r.right(), r.bottom() },
                     box.effectiveBackground(),
-                    Layers.at(box.paintStep)
+                    Layers.at(box.paintStep, viewer)
                 );
         }
         if (box instanceof Container<?> container) {
@@ -260,19 +276,32 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /**
-     * Moves {@code player}'s pointer to a canvas pixel: every box under it (and its ancestors) becomes
-     * hovered, like CSS {@code :hover} — hover styles apply and enter/leave handlers run. A
-     * {@code ScreenSession} calls it for its cursor; call it yourself for any other pointer. Texts and
-     * backgrounds follow on the next {@link #refresh}.
+     * Moves {@code player}'s pointer to a canvas pixel. Like CSS {@code :hover}, the topmost box under it (the
+     * one a click would reach) and its ancestors become hovered, not the boxes drawn under it; hover styles
+     * apply, enter/leave handlers run and, if anything changed, the layout is refreshed at once. A
+     * {@code ScreenSession} calls it for its cursor; call it yourself for any other pointer.
      *
      * @return whether any box changed its hover state
      */
     public boolean pointerAt(double px, double py, Player player) {
         double x = clampToCanvas(px, true);
         double y = clampToCanvas(py, false);
+        Box<?> top = null;
+        for (int i = boxes.size() - 1; i >= 0 && top == null; i--) {
+            if (boxes.get(i).rect().contains(x, y)) {
+                top = boxes.get(i);
+            }
+        }
+        Set<Box<?>> hoveredBoxes = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Box<?> box = top; box != null; box = parents.get(box)) {
+            hoveredBoxes.add(box);
+        }
         boolean changed = false;
         for (Box<?> box : boxes) {
-            changed |= setHovered(box, box.rect().contains(x, y), player);
+            changed |= setHovered(box, hoveredBoxes.contains(box), player);
+        }
+        if (changed && canvas != null) {
+            refresh();
         }
         return changed;
     }
@@ -283,10 +312,13 @@ public final class MountedLayout implements CanvasComponent {
         for (Box<?> box : boxes) {
             changed |= setHovered(box, false, player);
         }
+        if (changed && canvas != null) {
+            refresh();
+        }
         return changed;
     }
 
-    private static boolean setHovered(Box<?> box, boolean over, Player player) {
+    private boolean setHovered(Box<?> box, boolean over, Player player) {
         boolean changed = box.setHovered(over, player);
         if (box instanceof Leaf leaf) {
             leaf.component().setHovered(over);
@@ -298,10 +330,15 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /** The texts of state styles (backgrounds are read when they are drawn). */
-    private static void applyStyle(Box<?> box) {
+    private void applyStyle(Box<?> box) {
+        Style style = box.activeStyle();
         if (box instanceof Leaf leaf) {
-            Style style = box.activeStyle();
             leaf.component().setTextOverride(style != null ? style.text() : null);
+        } else if (style != null && style.text() != null && !textOnContainerWarned) {
+            textOnContainerWarned = true;
+            Pixelay.plugin()
+                .getLogger()
+                .warning("A state style sets text on a container box: text styles only apply to node(component)");
         }
     }
 

@@ -6,6 +6,7 @@ import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.debug.CanvasBoundsDebug;
 import dev.horuse.pixelay.debug.LayoutDebug;
 import java.util.List;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
@@ -22,6 +23,15 @@ public class PixelayCommand implements TabExecutor {
         this.plugin = plugin;
     }
 
+    // Pastel palette: messages are easy to tell apart at a glance.
+    private static final String PREFIX = "<#C4B5FD>Pixelay <#94A3B8>» ";
+    private static final String TEXT = "<#E2E8F0>";
+    private static final String ON = "<#86EFAC>";
+    private static final String OFF = "<#FDBA74>";
+    private static final String ERROR = "<#FCA5A5>";
+    private static final String COMMAND = "<#93C5FD>";
+    private static final String MUTED = "<#94A3B8>";
+
     @Override
     public boolean onCommand(
         @NotNull CommandSender sender,
@@ -32,62 +42,96 @@ public class PixelayCommand implements TabExecutor {
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
             try {
                 plugin.reload();
-                sender.sendMessage("Pixelay configuration reloaded.");
+                send(sender, ON + "Configuration reloaded" + MUTED + " (config.yml, resource packs, font widths)");
             } catch (ConfigurateException e) {
-                sender.sendMessage("Pixelay reload failed: " + e.getMessage());
+                send(sender, ERROR + "Reload failed: " + MUTED + e.getMessage());
                 plugin.getLogger().warning("Reload failed: " + e.getMessage());
             }
-
             return true;
         }
 
-        if (args.length == 2 && args[0].equalsIgnoreCase("debug") && args[1].equalsIgnoreCase("layout")) {
+        if (args.length == 2 && args[0].equalsIgnoreCase("debug")) {
             if (!(sender instanceof Player player)) {
-                sender.sendMessage("Only players can debug layouts.");
+                send(sender, ERROR + "Debug modes are for players only.");
                 return true;
             }
-            boolean enabled = LayoutDebug.toggle(player);
-            sender.sendMessage(
-                enabled
-                    ? "Layout debug on. Text: blue fits, red overflows, orange inside an overflow. Panels: row light blue," +
-                          " column lime, grid purple, stack gray, spacer white, click zone yellow."
-                    : "Layout debug off."
-            );
-            return true;
-        }
-
-        if (args.length == 2 && args[0].equalsIgnoreCase("debug") && args[1].equalsIgnoreCase("layers")) {
-            boolean exploded = Layers.toggleExploded();
-            // Click tiles stand on the text layer, which just moved.
-            CanvasClicks.respawnAll();
-            sender.sendMessage(
-                exploded
-                    ? "Layers pulled apart (step " +
-                          Layers.EXPLODED_STEP +
-                          " blocks) for everyone; look at a canvas from the side. Run again to restore."
-                    : "Layers restored."
-            );
-            return true;
-        }
-
-        if (args.length == 2 && args[0].equalsIgnoreCase("debug") && args[1].equalsIgnoreCase("bounds")) {
-            if (!(sender instanceof Player player)) {
-                sender.sendMessage("Only players can see canvas bounds.");
-                return true;
+            switch (args[1].toLowerCase()) {
+                case "layout" -> layoutDebug(player);
+                case "bounds" -> toggle(
+                    player,
+                    "Canvas bounds",
+                    CanvasBoundsDebug.toggle(player),
+                    "outlines of the canvases near you"
+                );
+                case "layers" -> {
+                    boolean on = Layers.toggleExploded(player);
+                    // Click tiles stand on the text layer, which just moved.
+                    CanvasClicks.respawnAll();
+                    toggle(
+                        player,
+                        "Layers apart",
+                        on,
+                        Layers.EXPLODED_STEP + " blocks between layers on your private canvases; look from the side"
+                    );
+                }
+                default -> help(sender, label);
             }
-            boolean enabled = CanvasBoundsDebug.toggle(player);
-            sender.sendMessage(enabled ? "Canvas bounds on: outlines of the canvases near you." : "Canvas bounds off.");
             return true;
         }
 
-        sender.sendMessage(
-            "Pixelay " +
-                plugin.getPluginMeta().getVersion() +
-                " — usage: /" +
-                label +
-                " <reload|debug layout|debug bounds|debug layers>"
-        );
+        help(sender, label);
         return true;
+    }
+
+    private void layoutDebug(Player player) {
+        boolean on = LayoutDebug.toggle(player);
+        toggle(player, "Layout debug", on, null);
+        if (on) {
+            send(
+                player,
+                MUTED + "Text: <#93C5FD>fits" + MUTED + ", <#FCA5A5>overflows" + MUTED + ", <#FDBA74>inside an overflow"
+            );
+            send(
+                player,
+                MUTED +
+                    "Panels: <#7DD3FC>row" +
+                    MUTED +
+                    ", <#BEF264>column" +
+                    MUTED +
+                    ", <#D8B4FE>grid" +
+                    MUTED +
+                    ", <#CBD5E1>stack" +
+                    MUTED +
+                    ", <#F8FAFC>spacer" +
+                    MUTED +
+                    ", <#FDE68A>click zone"
+            );
+        }
+    }
+
+    private static void toggle(CommandSender sender, String name, boolean on, String details) {
+        String state = on ? ON + "on" : OFF + "off";
+        send(sender, TEXT + name + " " + state + (on && details != null ? MUTED + " — " + details : ""));
+    }
+
+    private void help(CommandSender sender, String label) {
+        send(sender, TEXT + "Version " + COMMAND + plugin.getPluginMeta().getVersion());
+        line(sender, label, "reload", "reload config.yml, resource packs and font widths");
+        line(sender, label, "debug layout", "show layout boxes and overflowing texts");
+        line(sender, label, "debug bounds", "outline canvases near you");
+        line(sender, label, "debug layers", "pull layers apart on your private canvases");
+    }
+
+    private static void line(CommandSender sender, String label, String args, String description) {
+        sender.sendMessage(
+            MiniMessage.miniMessage().deserialize(
+                "  " + COMMAND + "/" + label + " " + args + MUTED + " — " + description
+            )
+        );
+    }
+
+    private static void send(CommandSender sender, String miniMessage) {
+        sender.sendMessage(MiniMessage.miniMessage().deserialize(PREFIX + miniMessage));
     }
 
     @Override

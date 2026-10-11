@@ -1,6 +1,7 @@
 package dev.horuse.pixelay.debug;
 
 import dev.horuse.pixelay.clicks.CanvasClicks;
+import dev.horuse.pixelay.data.Layers;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -13,5 +14,6 @@ public class LayoutDebugListener implements Listener {
         LayoutDebug.remove(event.getPlayer().getUniqueId());
         CanvasClicks.remove(event.getPlayer());
         CanvasBoundsDebug.remove(event.getPlayer().getUniqueId());
+        Layers.forget(event.getPlayer().getUniqueId());
     }
 }

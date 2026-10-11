@@ -373,18 +373,16 @@ public final class ScreenSession {
 
     private void updateHover() {
         MountedLayout layout = currentLayout();
-        boolean changed = layout.pointerAt(cursorX, cursorY, player);
+        // Hover states and styles; the layout refreshes itself when they change.
+        layout.pointerAt(cursorX, cursorY, player);
         String id = layout.idAt(cursorX, cursorY);
         if (!Objects.equals(id, hovered)) {
             hovered = id;
-            changed = true;
             if (options.onHover != null && !calibrating) {
                 options.onHover.accept(this, id);
+                // The callback may have changed texts.
+                layout.refresh();
             }
-        }
-        if (changed) {
-            // Hover texts and backgrounds show at once, not on the next scheduled refresh.
-            layout.refresh();
         }
     }
 

@@ -141,7 +141,7 @@ public final class Grid extends Container<Grid> {
                 horizontal == Align.STRETCH && !child.hasFixedWidth(),
                 vertical == Align.STRETCH && !child.hasFixedHeight()
             );
-            child.arrange(placed.inset(child.margin), overflowsHere());
+            child.arrange(placed.inset(child.activeMargin()), overflowsHere());
         }
     }
 

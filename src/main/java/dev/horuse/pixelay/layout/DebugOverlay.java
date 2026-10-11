@@ -25,8 +25,8 @@ final class DebugOverlay {
     private static final double VIEW_DISTANCE = 64;
 
     /** Half a step under the box: above what is painted before it, under its own background and text. */
-    private static float depthOf(Box<?> box) {
-        return Layers.at(box.paintStep - 0.5);
+    private static float depthOf(Box<?> box, Player viewer) {
+        return Layers.at(box.paintStep - 0.5, viewer);
     }
 
     static final int ROW = 0x403399FF;
@@ -55,12 +55,13 @@ final class DebugOverlay {
             return;
         }
 
-        List<Panel> panels = new ArrayList<>();
-        collect(root, panels);
         String canvasKey = canvas.center() + "|" + canvas.resolution();
 
         for (Player viewer : viewers) {
             UUID id = viewer.getUniqueId();
+            // Depths are per viewer (debug layers pulls them apart for one player only).
+            List<Panel> panels = new ArrayList<>();
+            collect(root, panels, viewer);
             List<Panel> previous = shown.get(id);
             if (previous != null && sameStructure(previous, panels) && canvasKey.equals(canvases.get(id))) {
                 // Same boxes: only move/resize the ones whose rectangle changed (no flicker, few packets).
@@ -129,17 +130,17 @@ final class DebugOverlay {
         return result;
     }
 
-    private static void collect(Box<?> box, List<Panel> panels) {
+    private static void collect(Box<?> box, List<Panel> panels, Player viewer) {
         int color = colorOf(box);
         if (color != 0) {
-            panels.add(new Panel(box.rect(), color, depthOf(box)));
+            panels.add(new Panel(box.rect(), color, depthOf(box, viewer)));
         }
         if (box.clickHandler() != null) {
-            panels.add(new Panel(box.rect(), CLICK, depthOf(box)));
+            panels.add(new Panel(box.rect(), CLICK, depthOf(box, viewer)));
         }
         if (box instanceof Container<?> container) {
             for (Box<?> child : container.children) {
-                collect(child, panels);
+                collect(child, panels, viewer);
             }
         }
     }

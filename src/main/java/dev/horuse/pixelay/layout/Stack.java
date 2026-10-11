@@ -39,7 +39,7 @@ public final class Stack extends Container<Stack> {
                 horizontal == Align.STRETCH && !child.hasFixedWidth(),
                 vertical == Align.STRETCH && !child.hasFixedHeight()
             );
-            child.arrange(area.inset(child.margin), overflowsHere());
+            child.arrange(area.inset(child.activeMargin()), overflowsHere());
         }
     }
 }

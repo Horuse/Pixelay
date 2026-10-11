@@ -3,8 +3,8 @@ package dev.horuse.pixelay.layout;
 /**
  * Built-in states of a box, like CSS pseudo-classes. Give them a look with {@link Box#state(State,
  * java.util.function.Consumer)}; custom states go by name ({@link Box#state(String, boolean)}). When several
- * apply, the more important wins, in this order: {@code DISABLED}, {@code HOVERED}, {@code SELECTED}, then
- * custom states in the order their styles were declared.
+ * apply, the style declared later wins, as in CSS: declare {@code DISABLED} after {@code HOVERED} so that a
+ * disabled box does not light up under the pointer.
  */
 public enum State {
     /** Not usable: clicks on it are swallowed, nothing runs (CSS {@code :disabled}). */

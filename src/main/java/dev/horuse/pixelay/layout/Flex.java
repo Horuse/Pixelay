@@ -67,7 +67,7 @@ public final class Flex extends Container<Flex> {
     /** Child size with margin; a spacer only has its length along the main axis. */
     private Size childSize(Box<?> child, double maxWidth) {
         if (child instanceof Spacer spacer) {
-            Insets m = spacer.margin;
+            Insets m = spacer.activeMargin();
             double mainMargin = horizontal ? m.horizontal() : m.vertical();
             double crossMargin = horizontal ? m.vertical() : m.horizontal();
             return Size.of(horizontal, spacer.mainLength() + mainMargin, crossMargin);
@@ -192,7 +192,7 @@ public final class Flex extends Container<Flex> {
             Rect slot = horizontal
                 ? new Rect(content.x() + cursor, content.y() + crossPos, mainSize, crossSize)
                 : new Rect(content.x() + crossPos, content.y() + cursor, crossSize, mainSize);
-            child.arrange(slot.inset(child.margin), overflowsHere());
+            child.arrange(slot.inset(child.activeMargin()), overflowsHere());
             cursor += mainSize + between;
         }
     }

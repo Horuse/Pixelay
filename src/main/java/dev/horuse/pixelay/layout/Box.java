@@ -2,6 +2,7 @@ package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.debug.Overflow;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +120,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     }
 
     private Size compute(double limit) {
+        Insets padding = activePadding();
         double contentLimit = limit < 0 ? UNBOUNDED : Math.max(0, limit - padding.horizontal());
         Size content = measureContent(contentLimit);
         return new Size(
@@ -129,14 +131,15 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
 
     /** Size plus margin when at most {@code maxWidth} px (margin included) is available. */
     Size outer(double maxWidth) {
+        Insets margin = activeMargin();
         Size size = measure(maxWidth < 0 ? UNBOUNDED : Math.max(0, maxWidth - margin.horizontal()));
         return new Size(size.width() + margin.horizontal(), size.height() + margin.vertical());
     }
 
     /** {@link #minContentWidth()} as the parent sees it: with padding and margin, or the fixed width. */
     double minOuterWidth() {
-        double width = fixedWidth >= 0 ? fixedWidth : minContentWidth() + padding.horizontal();
-        return width + margin.horizontal();
+        double width = fixedWidth >= 0 ? fixedWidth : minContentWidth() + activePadding().horizontal();
+        return width + activeMargin().horizontal();
     }
 
     public final void arrange(Rect rect) {
@@ -150,7 +153,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         boolean selfOverflow =
             natural.width() > rect.width() + OVERFLOW_EPSILON || natural.height() > rect.height() + OVERFLOW_EPSILON;
         overflow = selfOverflow ? Overflow.SELF : insideOverflow ? Overflow.INSIDE : Overflow.NONE;
-        arrangeContent(rect.inset(padding));
+        arrangeContent(rect.inset(activePadding()));
     }
 
     /** Whether the last layout pass found this box bigger than its space, or inside one that is. */
@@ -368,27 +371,39 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         }
     }
 
-    /** The style of the active states merged by importance (see {@link State}), or {@code null}. */
+    /**
+     * The style of the active states, or {@code null}. Like CSS rules of the same specificity, a style declared
+     * later wins over an earlier one, property by property.
+     */
     Style activeStyle() {
         if (stateStyles.isEmpty()) {
             return null;
         }
+        List<Map.Entry<Object, Style>> declared = new ArrayList<>(stateStyles.entrySet());
         Style merged = new Style();
         boolean any = false;
-        for (State state : State.values()) {
-            Style style = stateStyles.get(state);
-            if (style != null && is(state)) {
-                merged.fillFrom(style);
-                any = true;
-            }
-        }
-        for (Map.Entry<Object, Style> entry : stateStyles.entrySet()) {
-            if (entry.getKey() instanceof String name && customStates.contains(name)) {
+        for (int i = declared.size() - 1; i >= 0; i--) {
+            Map.Entry<Object, Style> entry = declared.get(i);
+            boolean on =
+                entry.getKey() instanceof State state ? is(state) : customStates.contains((String) entry.getKey());
+            if (on) {
                 merged.fillFrom(entry.getValue());
                 any = true;
             }
         }
         return any ? merged : null;
+    }
+
+    /** Padding now: from the active states, if they set one. */
+    Insets activePadding() {
+        Style style = activeStyle();
+        return style != null && style.padding() != null ? style.padding() : padding;
+    }
+
+    /** Margin now: from the active states, if they set one. */
+    Insets activeMargin() {
+        Style style = activeStyle();
+        return style != null && style.margin() != null ? style.margin() : margin;
     }
 
     /** Runs when the pointer enters the box (or a box inside it), with the pointing player. */

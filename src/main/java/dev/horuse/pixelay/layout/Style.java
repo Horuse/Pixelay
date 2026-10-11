@@ -10,6 +10,8 @@ public final class Style {
 
     private Integer background;
     private TextContent text;
+    private Insets padding;
+    private Insets margin;
 
     Style() {}
 
@@ -30,6 +32,30 @@ public final class Style {
         return this;
     }
 
+    /** Padding while in the state (the layout is redone). */
+    public Style padding(double all) {
+        return padding(Insets.all(all));
+    }
+
+    public Style padding(Insets padding) {
+        this.padding = padding;
+        return this;
+    }
+
+    /** Margin while in the state (the layout is redone). */
+    public Style margin(Insets margin) {
+        this.margin = margin;
+        return this;
+    }
+
+    Insets padding() {
+        return padding;
+    }
+
+    Insets margin() {
+        return margin;
+    }
+
     Integer background() {
         return background;
     }
@@ -45,6 +71,12 @@ public final class Style {
         }
         if (text == null) {
             text = other.text;
+        }
+        if (padding == null) {
+            padding = other.padding;
+        }
+        if (margin == null) {
+            margin = other.margin;
         }
     }
 }
