@@ -1,5 +1,8 @@
 package dev.horuse.pixelay.layout;
 
+import dev.horuse.pixelay.data.Rect;
+import dev.horuse.pixelay.data.Size;
+
 /**
  * Layers sharing one area (like a single CSS grid cell): each child is placed by its own
  * {@code justifySelf}/{@code alignSelf} and fills the area by default (unless it has a fixed size).
@@ -32,14 +35,15 @@ public final class Stack extends Container<Stack> {
         for (Box<?> child : children) {
             Align horizontal = child.justifySelf != null ? child.justifySelf : Align.STRETCH;
             Align vertical = child.alignSelf != null ? child.alignSelf : Align.STRETCH;
-            Rect area = content.place(
+            Rect area = Align.place(
+                content,
                 child.outer(content.width()),
                 horizontal,
                 vertical,
                 horizontal == Align.STRETCH && !child.hasFixedWidth(),
                 vertical == Align.STRETCH && !child.hasFixedHeight()
             );
-            child.arrange(area.inset(child.activeMargin()), overflowsHere());
+            child.arrange(child.effectiveMargin().shrink(area), overflowsHere());
         }
     }
 }

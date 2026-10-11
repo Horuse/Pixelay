@@ -1,5 +1,8 @@
 package dev.horuse.pixelay.layout;
 
+import dev.horuse.pixelay.data.Rect;
+import dev.horuse.pixelay.data.Size;
+
 /**
  * A row or a column (CSS flexbox): children are laid out along the main axis with {@link #gap}.
  * In a row each child starts at its natural width; when they do not fit, the missing space is taken
@@ -67,7 +70,7 @@ public final class Flex extends Container<Flex> {
     /** Child size with margin; a spacer only has its length along the main axis. */
     private Size childSize(Box<?> child, double maxWidth) {
         if (child instanceof Spacer spacer) {
-            Insets m = spacer.activeMargin();
+            Insets m = spacer.effectiveMargin();
             double mainMargin = horizontal ? m.horizontal() : m.vertical();
             double crossMargin = horizontal ? m.vertical() : m.horizontal();
             return Size.of(horizontal, spacer.mainLength() + mainMargin, crossMargin);
@@ -192,7 +195,7 @@ public final class Flex extends Container<Flex> {
             Rect slot = horizontal
                 ? new Rect(content.x() + cursor, content.y() + crossPos, mainSize, crossSize)
                 : new Rect(content.x() + crossPos, content.y() + cursor, crossSize, mainSize);
-            child.arrange(slot.inset(child.activeMargin()), overflowsHere());
+            child.arrange(child.effectiveMargin().shrink(slot), overflowsHere());
             cursor += mainSize + between;
         }
     }

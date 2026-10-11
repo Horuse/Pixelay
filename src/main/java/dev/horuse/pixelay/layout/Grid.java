@@ -1,5 +1,7 @@
 package dev.horuse.pixelay.layout;
 
+import dev.horuse.pixelay.data.Rect;
+import dev.horuse.pixelay.data.Size;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -88,7 +90,7 @@ public final class Grid extends Container<Grid> {
     protected Size measureContent(double maxWidth) {
         double[] widths = trackSizes(true, maxWidth, null);
         double[] heights = trackSizes(false, UNBOUNDED, widths);
-        return new Size(sum(widths), sum(heights));
+        return new Size(totalWithGaps(widths), totalWithGaps(heights));
     }
 
     @Override
@@ -108,7 +110,7 @@ public final class Grid extends Container<Grid> {
                 widths[t] = track.value();
             }
         }
-        return sum(widths);
+        return totalWithGaps(widths);
     }
 
     @Override
@@ -134,14 +136,15 @@ public final class Grid extends Container<Grid> {
 
             Align horizontal = child.justifySelf != null ? child.justifySelf : justifyItems;
             Align vertical = child.alignSelf != null ? child.alignSelf : alignItems;
-            Rect placed = area.place(
+            Rect placed = Align.place(
+                area,
                 child.outer(area.width()),
                 horizontal,
                 vertical,
                 horizontal == Align.STRETCH && !child.hasFixedWidth(),
                 vertical == Align.STRETCH && !child.hasFixedHeight()
             );
-            child.arrange(placed.inset(child.activeMargin()), overflowsHere());
+            child.arrange(child.effectiveMargin().shrink(placed), overflowsHere());
         }
     }
 
@@ -228,7 +231,7 @@ public final class Grid extends Container<Grid> {
         }
 
         if (available >= 0 && frTotal > 0) {
-            double free = Math.max(0, available - sum(sizes));
+            double free = Math.max(0, available - totalWithGaps(sizes));
             for (int t = 0; t < count; t++) {
                 if (tracks[t].kind() == Track.Kind.FR) {
                     sizes[t] = (free * tracks[t].value()) / frTotal;
@@ -452,7 +455,7 @@ public final class Grid extends Container<Grid> {
         return result;
     }
 
-    private double sum(double[] sizes) {
+    private double totalWithGaps(double[] sizes) {
         double total = gap * Math.max(0, sizes.length - 1);
         for (double size : sizes) {
             total += size;

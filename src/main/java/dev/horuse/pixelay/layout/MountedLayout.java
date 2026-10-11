@@ -9,6 +9,8 @@ import dev.horuse.pixelay.components.TextBackground;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
+import dev.horuse.pixelay.data.Rect;
+import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.data.VAlign;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,6 +20,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import org.bukkit.entity.Player;
 
 /**
@@ -195,9 +198,10 @@ public final class MountedLayout implements CanvasComponent {
         debugOverlay.clear();
     }
 
+    /** A layout of backgrounds only (no components) has nothing that can die, so it is valid. */
     @Override
     public boolean isValid() {
-        return !components.isEmpty() && components.stream().allMatch(CanvasComponent::isValid);
+        return components.stream().allMatch(CanvasComponent::isValid);
     }
 
     @Override
@@ -217,7 +221,14 @@ public final class MountedLayout implements CanvasComponent {
      * a single viewer), or by everyone for server components. Deeper boxes sit closer to the text.
      */
     private void syncBackgrounds() {
-        syncBackgrounds(root, viewer());
+        Player viewer = viewer();
+        for (Box<?> box : boxes) {
+            if (box.effectiveBackground() != 0 || backgrounds.containsKey(box)) {
+                backgrounds
+                    .computeIfAbsent(box, key -> new TextBackground(viewer))
+                    .sync(canvas, box.rect(), box.effectiveBackground(), Layers.at(box.paintStep, viewer));
+            }
+        }
     }
 
     /** The only player who sees this layout (the first component with a single viewer), or {@code null}. */
@@ -230,25 +241,6 @@ public final class MountedLayout implements CanvasComponent {
             .orElse(null);
     }
 
-    private void syncBackgrounds(Box<?> box, Player viewer) {
-        if (box.effectiveBackground() != 0 || backgrounds.containsKey(box)) {
-            Rect r = box.rect();
-            backgrounds
-                .computeIfAbsent(box, key -> new TextBackground(viewer))
-                .sync(
-                    canvas,
-                    new double[] { r.x(), r.y(), r.right(), r.bottom() },
-                    box.effectiveBackground(),
-                    Layers.at(box.paintStep, viewer)
-                );
-        }
-        if (box instanceof Container<?> container) {
-            for (Box<?> child : container.children) {
-                syncBackgrounds(child, viewer);
-            }
-        }
-    }
-
     /**
      * Routes a click at a canvas pixel: the deepest clickable box under the point wins — a box with
      * {@code onClick}, or the whole box of a clickable component (its padding included).
@@ -256,20 +248,38 @@ public final class MountedLayout implements CanvasComponent {
      * @return whether anything handled the click
      */
     public boolean click(double px, double py, Player player) {
-        px = clampToCanvas(px, true);
-        py = clampToCanvas(py, false);
+        Box<?> target = topmost(px, py, box -> box.effectiveOnClick() != null || box.is(State.DISABLED));
+        if (target == null) {
+            return false;
+        }
+        // A disabled box (or one inside it) swallows the click, like CSS :disabled.
+        if (!insideDisabled(target)) {
+            Consumer<Player> onClick = target.effectiveOnClick();
+            if (onClick != null) {
+                onClick.accept(player);
+            }
+        }
+        return true;
+    }
+
+    /** The topmost box (last in painting order) under the point that matches, or {@code null}. */
+    private Box<?> topmost(double px, double py, Predicate<Box<?>> filter) {
+        double x = clampToCanvas(px, true);
+        double y = clampToCanvas(py, false);
         for (int i = boxes.size() - 1; i >= 0; i--) {
             Box<?> box = boxes.get(i);
-            Consumer<Player> onClick = box.clickHandler();
-            if ((onClick != null || box.is(State.DISABLED)) && box.rect().contains(px, py)) {
-                if (isDisabled(i)) {
-                    // A disabled box (or one inside it) swallows the click, like CSS :disabled.
-                    return true;
-                }
-                if (onClick != null) {
-                    onClick.accept(player);
-                    return true;
-                }
+            if (filter.test(box) && box.rect().contains(x, y)) {
+                return box;
+            }
+        }
+        return null;
+    }
+
+    /** Whether the box or any box around it is disabled. */
+    private boolean insideDisabled(Box<?> box) {
+        for (Box<?> at = box; at != null; at = parents.get(at)) {
+            if (at.is(State.DISABLED)) {
+                return true;
             }
         }
         return false;
@@ -284,14 +294,16 @@ public final class MountedLayout implements CanvasComponent {
      * @return whether any box changed its hover state
      */
     public boolean pointerAt(double px, double py, Player player) {
-        double x = clampToCanvas(px, true);
-        double y = clampToCanvas(py, false);
-        Box<?> top = null;
-        for (int i = boxes.size() - 1; i >= 0 && top == null; i--) {
-            if (boxes.get(i).rect().contains(x, y)) {
-                top = boxes.get(i);
-            }
-        }
+        return hover(topmost(px, py, box -> true), player);
+    }
+
+    /** The pointer left the layout: nothing is hovered any more. */
+    public boolean pointerLeft(Player player) {
+        return hover(null, player);
+    }
+
+    /** Hovers {@code top} and its ancestors (nothing for {@code null}); refreshes when anything changed. */
+    private boolean hover(Box<?> top, Player player) {
         Set<Box<?>> hoveredBoxes = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Box<?> box = top; box != null; box = parents.get(box)) {
             hoveredBoxes.add(box);
@@ -299,18 +311,6 @@ public final class MountedLayout implements CanvasComponent {
         boolean changed = false;
         for (Box<?> box : boxes) {
             changed |= setHovered(box, hoveredBoxes.contains(box), player);
-        }
-        if (changed && canvas != null) {
-            refresh();
-        }
-        return changed;
-    }
-
-    /** The pointer left the layout: nothing is hovered any more. */
-    public boolean pointerLeft(Player player) {
-        boolean changed = false;
-        for (Box<?> box : boxes) {
-            changed |= setHovered(box, false, player);
         }
         if (changed && canvas != null) {
             refresh();
@@ -350,43 +350,10 @@ public final class MountedLayout implements CanvasComponent {
         }
     }
 
-    /** Whether box {@code index} or any box around it is disabled. */
-    private boolean isDisabled(int index) {
-        Box<?> box = boxes.get(index);
-        for (Box<?> other : boxes) {
-            if (other.is(State.DISABLED) && contains(other, box)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Whether {@code inner} is {@code outer} or lies in its subtree. */
-    private static boolean contains(Box<?> outer, Box<?> inner) {
-        if (outer == inner) {
-            return true;
-        }
-        if (outer instanceof Container<?> container) {
-            for (Box<?> child : container.children) {
-                if (contains(child, inner)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
     /** @return the id of the deepest box with an id under the point, or {@code null} */
     public String idAt(double px, double py) {
-        px = clampToCanvas(px, true);
-        py = clampToCanvas(py, false);
-        for (int i = boxes.size() - 1; i >= 0; i--) {
-            Box<?> box = boxes.get(i);
-            if (box.id() != null && box.rect().contains(px, py)) {
-                return box.id();
-            }
-        }
-        return null;
+        Box<?> box = topmost(px, py, candidate -> candidate.id() != null);
+        return box != null ? box.id() : null;
     }
 
     /**

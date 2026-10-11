@@ -1,6 +1,8 @@
 package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
+import dev.horuse.pixelay.data.Rect;
+import dev.horuse.pixelay.data.Size;
 import java.util.List;
 
 /**

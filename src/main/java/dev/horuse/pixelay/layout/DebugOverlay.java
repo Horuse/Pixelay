@@ -1,9 +1,11 @@
 package dev.horuse.pixelay.layout;
 
+import dev.horuse.pixelay.components.ColorPanel;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.Layers;
-import dev.horuse.pixelay.debug.DebugPanel;
+import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.debug.LayoutDebug;
+import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -75,7 +77,7 @@ final class DebugOverlay {
                     if (entityIds[i] == 0) {
                         // Was empty when spawned: create it now that it has a size.
                         if (r.width() > 0 && r.height() > 0) {
-                            entityIds[i] = DebugPanel.spawn(
+                            entityIds[i] = ColorPanel.spawn(
                                 viewer,
                                 canvas,
                                 r.x(),
@@ -88,10 +90,10 @@ final class DebugOverlay {
                         }
                     } else if (r.width() <= 0 || r.height() <= 0) {
                         // Became empty: remove it (it is spawned again once it has a size).
-                        DebugPanel.destroy(viewer, entityIds[i]);
+                        PacketUtils.destroy(viewer, entityIds[i]);
                         entityIds[i] = 0;
                     } else {
-                        DebugPanel.update(
+                        ColorPanel.update(
                             viewer,
                             entityIds[i],
                             canvas,
@@ -135,7 +137,7 @@ final class DebugOverlay {
         if (color != 0) {
             panels.add(new Panel(box.rect(), color, depthOf(box, viewer)));
         }
-        if (box.clickHandler() != null) {
+        if (box.effectiveOnClick() != null) {
             panels.add(new Panel(box.rect(), CLICK, depthOf(box, viewer)));
         }
         if (box instanceof Container<?> container) {
@@ -181,7 +183,7 @@ final class DebugOverlay {
             Panel panel = panels.get(i);
             Rect rect = panel.rect();
             if (rect.width() > 0 && rect.height() > 0) {
-                ids[i] = DebugPanel.spawn(
+                ids[i] = ColorPanel.spawn(
                     viewer,
                     canvas,
                     rect.x(),
@@ -201,7 +203,7 @@ final class DebugOverlay {
         shown.remove(viewerId);
         canvases.remove(viewerId);
         if (ids != null) {
-            DebugPanel.destroy(
+            PacketUtils.destroy(
                 Bukkit.getPlayer(viewerId),
                 Arrays.stream(ids)
                     .filter(entity -> entity != 0)

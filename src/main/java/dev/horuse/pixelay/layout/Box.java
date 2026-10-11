@@ -1,8 +1,9 @@
 package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
+import dev.horuse.pixelay.data.Rect;
+import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.debug.Overflow;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,9 +51,12 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     int paintEnd;
     private boolean anchor;
     /** Styles of states, by {@link State} or custom name, in declaration order. */
-    private final Map<Object, Style> stateStyles = new LinkedHashMap<>();
+    private final LinkedHashMap<Object, Style> stateStyles = new LinkedHashMap<>();
     private final Set<String> customStates = ConcurrentHashMap.newKeySet();
     private volatile boolean selected;
+    /** The merged style of the active states; recomputed only after a state or a style changed. */
+    private Style activeStyle;
+    private volatile boolean styleStale = true;
     private volatile boolean disabled;
     private BooleanSupplier selectedWhen;
     private BooleanSupplier disabledWhen;
@@ -120,7 +124,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     }
 
     private Size compute(double limit) {
-        Insets padding = activePadding();
+        Insets padding = effectivePadding();
         double contentLimit = limit < 0 ? UNBOUNDED : Math.max(0, limit - padding.horizontal());
         Size content = measureContent(contentLimit);
         return new Size(
@@ -131,15 +135,15 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
 
     /** Size plus margin when at most {@code maxWidth} px (margin included) is available. */
     Size outer(double maxWidth) {
-        Insets margin = activeMargin();
+        Insets margin = effectiveMargin();
         Size size = measure(maxWidth < 0 ? UNBOUNDED : Math.max(0, maxWidth - margin.horizontal()));
         return new Size(size.width() + margin.horizontal(), size.height() + margin.vertical());
     }
 
     /** {@link #minContentWidth()} as the parent sees it: with padding and margin, or the fixed width. */
     double minOuterWidth() {
-        double width = fixedWidth >= 0 ? fixedWidth : minContentWidth() + activePadding().horizontal();
-        return width + activeMargin().horizontal();
+        double width = fixedWidth >= 0 ? fixedWidth : minContentWidth() + effectivePadding().horizontal();
+        return width + effectiveMargin().horizontal();
     }
 
     public final void arrange(Rect rect) {
@@ -153,7 +157,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         boolean selfOverflow =
             natural.width() > rect.width() + OVERFLOW_EPSILON || natural.height() > rect.height() + OVERFLOW_EPSILON;
         overflow = selfOverflow ? Overflow.SELF : insideOverflow ? Overflow.INSIDE : Overflow.NONE;
-        arrangeContent(rect.inset(activePadding()));
+        arrangeContent(effectivePadding().shrink(rect));
     }
 
     /** Whether the last layout pass found this box bigger than its space, or inside one that is. */
@@ -305,21 +309,21 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
      */
     public S state(State state, Consumer<Style> rule) {
         rule.accept(stateStyles.computeIfAbsent(state, key -> new Style()));
+        styleStale = true;
         return self();
     }
 
-    /** The look of the box in a custom state (switched with {@link #state(String, boolean)}). */
+    /** The look of the box in a custom state (switched with {@link #toggle(String, boolean)}). */
     public S state(String name, Consumer<Style> rule) {
         rule.accept(stateStyles.computeIfAbsent(name, key -> new Style()));
+        styleStale = true;
         return self();
     }
 
-    /** Switches a custom state on or off. */
-    public S state(String name, boolean on) {
-        if (on) {
-            customStates.add(name);
-        } else {
-            customStates.remove(name);
+    /** Switches a custom state on or off, like {@code classList.toggle(name, on)}. */
+    public S toggle(String name, boolean on) {
+        if (on ? customStates.add(name) : customStates.remove(name)) {
+            styleStale = true;
         }
         return self();
     }
@@ -327,6 +331,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     public S selected(boolean value) {
         this.selected = value;
         this.selectedWhen = null;
+        styleStale = true;
         return self();
     }
 
@@ -340,6 +345,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     public S disabled(boolean value) {
         this.disabled = value;
         this.disabledWhen = null;
+        styleStale = true;
         return self();
     }
 
@@ -363,11 +369,13 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
 
     /** Re-reads the conditional states (see {@link #selected(BooleanSupplier)}). */
     void updateStates() {
-        if (selectedWhen != null) {
-            selected = selectedWhen.getAsBoolean();
+        if (selectedWhen != null && selected != selectedWhen.getAsBoolean()) {
+            selected = !selected;
+            styleStale = true;
         }
-        if (disabledWhen != null) {
-            disabled = disabledWhen.getAsBoolean();
+        if (disabledWhen != null && disabled != disabledWhen.getAsBoolean()) {
+            disabled = !disabled;
+            styleStale = true;
         }
     }
 
@@ -376,14 +384,17 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
      * later wins over an earlier one, property by property.
      */
     Style activeStyle() {
-        if (stateStyles.isEmpty()) {
-            return null;
+        if (styleStale) {
+            activeStyle = mergeActiveStyles();
+            styleStale = false;
         }
-        List<Map.Entry<Object, Style>> declared = new ArrayList<>(stateStyles.entrySet());
+        return activeStyle;
+    }
+
+    private Style mergeActiveStyles() {
         Style merged = new Style();
         boolean any = false;
-        for (int i = declared.size() - 1; i >= 0; i--) {
-            Map.Entry<Object, Style> entry = declared.get(i);
+        for (Map.Entry<Object, Style> entry : stateStyles.sequencedEntrySet().reversed()) {
             boolean on =
                 entry.getKey() instanceof State state ? is(state) : customStates.contains((String) entry.getKey());
             if (on) {
@@ -395,13 +406,13 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     }
 
     /** Padding now: from the active states, if they set one. */
-    Insets activePadding() {
+    Insets effectivePadding() {
         Style style = activeStyle();
         return style != null && style.padding() != null ? style.padding() : padding;
     }
 
     /** Margin now: from the active states, if they set one. */
-    Insets activeMargin() {
+    Insets effectiveMargin() {
         Style style = activeStyle();
         return style != null && style.margin() != null ? style.margin() : margin;
     }
@@ -430,6 +441,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
             return false;
         }
         hovered = value;
+        styleStale = true;
         Consumer<Player> handler = value ? onHoverEnter : onHoverLeave;
         if (handler != null && player != null) {
             handler.accept(player);
@@ -452,7 +464,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     }
 
     /** What a click on this box runs: its own {@link #onClick}, or {@code null}. */
-    Consumer<Player> clickHandler() {
+    Consumer<Player> effectiveOnClick() {
         return onClick;
     }
 

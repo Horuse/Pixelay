@@ -1,5 +1,7 @@
 package dev.horuse.pixelay.layout;
 
+import dev.horuse.pixelay.data.Rect;
+
 /** Padding or margin in canvas px, CSS order: top, right, bottom, left. */
 public record Insets(double top, double right, double bottom, double left) {
     public static final Insets NONE = new Insets(0, 0, 0, 0);
@@ -36,5 +38,15 @@ public record Insets(double top, double right, double bottom, double left) {
 
     double vertical() {
         return top + bottom;
+    }
+
+    /** {@code rect} shrunk by these insets (never below zero size). */
+    Rect shrink(Rect rect) {
+        return new Rect(
+            rect.x() + left,
+            rect.y() + top,
+            Math.max(0, rect.width() - horizontal()),
+            Math.max(0, rect.height() - vertical())
+        );
     }
 }

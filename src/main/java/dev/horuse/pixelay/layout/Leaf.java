@@ -2,10 +2,12 @@ package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
-import dev.horuse.pixelay.components.CanvasLayout;
+import dev.horuse.pixelay.components.TextPlacement;
 import dev.horuse.pixelay.content.FontMetrics;
 import dev.horuse.pixelay.content.TextWrap;
 import dev.horuse.pixelay.data.HAlign;
+import dev.horuse.pixelay.data.Rect;
+import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.data.VAlign;
 import java.util.List;
 import java.util.function.Consumer;
@@ -64,7 +66,8 @@ public final class Leaf extends Box<Leaf> {
             return configured;
         }
         // The line width counts the advance, which is 1 font px wider than the drawn text.
-        int available = (int) Math.floor((maxWidth * FontMetrics.LINE_HEIGHT_PX) / component.heightPx()) + 1;
+        // A small tolerance: a text given exactly its own width must not wrap because of float rounding.
+        int available = (int) Math.floor((maxWidth * FontMetrics.LINE_HEIGHT_PX) / component.heightPx() + 1e-6) + 1;
         if (component.textWrap().whiteSpace() == TextWrap.WhiteSpace.NOWRAP) {
             return configured;
         }
@@ -77,13 +80,12 @@ public final class Leaf extends Box<Leaf> {
 
     @Override
     protected Size measureContent(double maxWidth) {
-        double[] size = CanvasLayout.hitboxSizePx(component, text(), lineWidthFor(maxWidth));
-        return new Size(size[0], size[1]);
+        return TextPlacement.boxSizePx(component, text(), lineWidthFor(maxWidth));
     }
 
     @Override
     protected double minContentWidth() {
-        // Same rule as CanvasLayout.hitboxSizePx: an explicit hitbox counts only when both sides are set.
+        // Same rule as TextPlacement.boxSizePx: an explicit hitbox counts only when both sides are set.
         if (component.hitboxWidthPx() > 0 && component.hitboxHeightPx() > 0) {
             return component.hitboxWidthPx();
         }
@@ -124,8 +126,8 @@ public final class Leaf extends Box<Leaf> {
 
     /** A clickable component (a button) is clicked on its whole box, padding included, not just its text. */
     @Override
-    Consumer<Player> clickHandler() {
-        Consumer<Player> own = super.clickHandler();
+    Consumer<Player> effectiveOnClick() {
+        Consumer<Player> own = super.effectiveOnClick();
         return own != null ? own : component.onClick();
     }
 
