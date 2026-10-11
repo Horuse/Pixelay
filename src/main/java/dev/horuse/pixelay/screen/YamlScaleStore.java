@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import org.bukkit.Bukkit;
 
 /**
@@ -22,6 +23,8 @@ public final class YamlScaleStore implements ScreenScaleStore {
 
     private final Map<UUID, Double> scales = new ConcurrentHashMap<>();
     private final Path file;
+    /** The newest file content waiting to be written. */
+    private final AtomicReference<String> latest = new AtomicReference<>();
 
     private YamlScaleStore(Path file) {
         this.file = file;
@@ -43,8 +46,8 @@ public final class YamlScaleStore implements ScreenScaleStore {
     @Override
     public void save(UUID player, double scale) {
         scales.put(player, scale);
-        String content = render();
-        Bukkit.getScheduler().runTaskAsynchronously(Pixelay.plugin(), () -> write(content));
+        latest.set(render());
+        Bukkit.getScheduler().runTaskAsynchronously(Pixelay.plugin(), this::writeLatest);
     }
 
     private void read() {
@@ -86,7 +89,18 @@ public final class YamlScaleStore implements ScreenScaleStore {
         return out.toString();
     }
 
-    private synchronized void write(String content) {
+    /**
+     * Writes the newest snapshot. Taking it and writing it happen under one lock, so a write that started
+     * later can never put an older snapshot on disk after a newer one.
+     */
+    private synchronized void writeLatest() {
+        String content = latest.getAndSet(null);
+        if (content != null) {
+            write(content);
+        }
+    }
+
+    private void write(String content) {
         try {
             Files.createDirectories(file.getParent());
             Files.writeString(file, content, StandardCharsets.UTF_8);

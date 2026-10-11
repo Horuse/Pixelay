@@ -35,24 +35,9 @@ public final class CalibrationScreen {
         this.options = options;
     }
 
-    public static Options defaults() {
-        return new Options(
-            "<white>Change the size until all 4 marks are at the edges of your screen",
-            "<white>-",
-            "<white>+",
-            "<green><b>Done",
-            "<yellow><b>Done",
-            percent -> "<yellow>" + percent + "%",
-            null,
-            80,
-            12,
-            0xFFFFFFFF,
-            48,
-            72,
-            110,
-            72,
-            0.05
-        );
+    /** Options with the defaults; change what you need and {@code build()}. */
+    public static Options.Builder options() {
+        return new Options.Builder();
     }
 
     MountedLayout build() {
@@ -148,106 +133,103 @@ public final class CalibrationScreen {
             }
         }
 
-        public Options withTexts(String hint, String minus, String plus, String done, String doneHover) {
-            return new Options(
-                hint,
-                minus,
-                plus,
-                done,
-                doneHover,
-                value,
-                cornerGlyphs,
-                cornerSizePx,
-                cornerThicknessPx,
-                cornerColor,
-                hintSizePx,
-                valueSizePx,
-                buttonSizePx,
-                doneSizePx,
-                step
-            );
-        }
+        /** Builds {@link Options}; every setter is optional. */
+        public static final class Builder {
 
-        /** How the current size is shown, from the size in percent. */
-        public Options withValue(IntFunction<String> value) {
-            return new Options(
-                hint,
-                minus,
-                plus,
-                done,
-                doneHover,
-                value,
-                cornerGlyphs,
-                cornerSizePx,
-                cornerThicknessPx,
-                cornerColor,
-                hintSizePx,
-                valueSizePx,
-                buttonSizePx,
-                doneSizePx,
-                step
-            );
-        }
+            private String hint = "<white>Change the size until all 4 marks are at the edges of your screen";
+            private String minus = "<white>-";
+            private String plus = "<white>+";
+            private String done = "<green><b>Done";
+            private String doneHover = "<yellow><b>Done";
+            private IntFunction<String> value = percent -> "<yellow>" + percent + "%";
+            private String[] cornerGlyphs;
+            private double cornerSizePx = 80;
+            private double cornerThicknessPx = 12;
+            private int cornerColor = 0xFFFFFFFF;
+            private double hintSizePx = 48;
+            private double valueSizePx = 72;
+            private double buttonSizePx = 110;
+            private double doneSizePx = 72;
+            private double step = 0.05;
 
-        /** Draws the marks with font characters (top-left, top-right, bottom-left, bottom-right) of this height. */
-        public Options withCornerGlyphs(String[] glyphs, double heightPx) {
-            return new Options(
-                hint,
-                minus,
-                plus,
-                done,
-                doneHover,
-                value,
-                glyphs,
-                heightPx,
-                cornerThicknessPx,
-                cornerColor,
-                hintSizePx,
-                valueSizePx,
-                buttonSizePx,
-                doneSizePx,
-                step
-            );
-        }
+            private Builder() {}
 
-        public Options withSizes(double hint, double value, double button, double done) {
-            return new Options(
-                this.hint,
-                minus,
-                plus,
-                this.done,
-                doneHover,
-                this.value,
-                cornerGlyphs,
-                cornerSizePx,
-                cornerThicknessPx,
-                cornerColor,
-                hint,
-                value,
-                button,
-                done,
-                step
-            );
-        }
+            /** The hint above the controls (MiniMessage). */
+            public Builder hint(String hint) {
+                this.hint = hint;
+                return this;
+            }
 
-        public Options withStep(double step) {
-            return new Options(
-                hint,
-                minus,
-                plus,
-                done,
-                doneHover,
-                value,
-                cornerGlyphs,
-                cornerSizePx,
-                cornerThicknessPx,
-                cornerColor,
-                hintSizePx,
-                valueSizePx,
-                buttonSizePx,
-                doneSizePx,
-                step
-            );
+            /** The {@code -} and {@code +} button texts (MiniMessage). */
+            public Builder buttons(String minus, String plus) {
+                this.minus = minus;
+                this.plus = plus;
+                return this;
+            }
+
+            /** The done button text, and its text under the cursor ({@code null} = the same). */
+            public Builder done(String done, String hovered) {
+                this.done = done;
+                this.doneHover = hovered;
+                return this;
+            }
+
+            /** How the current size is shown, from the size in percent. */
+            public Builder value(IntFunction<String> value) {
+                this.value = value;
+                return this;
+            }
+
+            /** Panel corner marks: an L of two bars, {@code size} long and {@code thickness} wide (canvas px). */
+            public Builder cornerPanels(double size, double thickness, int argb) {
+                this.cornerGlyphs = null;
+                this.cornerSizePx = size;
+                this.cornerThicknessPx = thickness;
+                this.cornerColor = argb;
+                return this;
+            }
+
+            /** Corner marks drawn with 4 font characters (top-left, top-right, bottom-left, bottom-right). */
+            public Builder cornerGlyphs(String[] glyphs, double heightPx) {
+                this.cornerGlyphs = glyphs;
+                this.cornerSizePx = heightPx;
+                return this;
+            }
+
+            /** Text heights (canvas px) of the hint, the size value, the {@code -}/{@code +} buttons and done. */
+            public Builder sizes(double hint, double value, double buttons, double done) {
+                this.hintSizePx = hint;
+                this.valueSizePx = value;
+                this.buttonSizePx = buttons;
+                this.doneSizePx = done;
+                return this;
+            }
+
+            /** Scale change of one {@code -}/{@code +} click (0.05 = 5%). */
+            public Builder step(double step) {
+                this.step = step;
+                return this;
+            }
+
+            public Options build() {
+                return new Options(
+                    hint,
+                    minus,
+                    plus,
+                    done,
+                    doneHover,
+                    value,
+                    cornerGlyphs,
+                    cornerSizePx,
+                    cornerThicknessPx,
+                    cornerColor,
+                    hintSizePx,
+                    valueSizePx,
+                    buttonSizePx,
+                    doneSizePx,
+                    step
+                );
+            }
         }
     }
 }

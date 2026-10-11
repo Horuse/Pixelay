@@ -1,7 +1,9 @@
 package dev.horuse.pixelay.data;
 
 import dev.horuse.pixelay.Pixelay;
+import java.util.Locale;
 import org.bukkit.Location;
+import org.bukkit.util.Vector;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
@@ -101,7 +103,7 @@ public class Canvas {
                     "Canvas " +
                         resolution +
                         " has non-square pixels (" +
-                        String.format(java.util.Locale.ROOT, "%.3f", pixelWidth / pixelHeight) +
+                        String.format(Locale.ROOT, "%.3f", pixelWidth / pixelHeight) +
                         ":1): keep pixelWidth/pixelHeight equal to blockWidth/blockHeight, or texts will not match their boxes"
                 );
         }
@@ -256,7 +258,7 @@ public class Canvas {
      * direction to a canvas position (e.g. cursor hover), letting the caller clamp to the edges or
      * treat an off-screen hit as "not looking at the canvas".
      */
-    public double[] rayPlanePixel(org.bukkit.util.Vector origin, org.bukkit.util.Vector dir) {
+    public double[] rayHit(Vector origin, Vector dir) {
         Vector3f o = new Vector3f((float) origin.getX(), (float) origin.getY(), (float) origin.getZ());
         Vector3f d = new Vector3f((float) dir.getX(), (float) dir.getY(), (float) dir.getZ());
         float denom = d.dot(normal);
@@ -290,8 +292,8 @@ public class Canvas {
      *     or {@code null} if the ray is parallel to the plane, points away, or hits outside the
      *     canvas bounds.
      */
-    public double[] pixelFromRay(org.bukkit.util.Vector origin, org.bukkit.util.Vector dir) {
-        double[] hit = rayPlanePixel(origin, dir);
+    public double[] rayHitInside(Vector origin, Vector dir) {
+        double[] hit = rayHit(origin, dir);
         if (hit == null) {
             return null;
         }

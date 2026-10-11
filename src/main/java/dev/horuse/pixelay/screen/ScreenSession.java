@@ -1,22 +1,14 @@
 package dev.horuse.pixelay.screen;
 
-import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
-import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
-import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
-import com.github.retrooper.packetevents.util.Vector3d;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
+import dev.horuse.pixelay.CanvasSurface;
 import dev.horuse.pixelay.Pixelay;
-import dev.horuse.pixelay.components.CanvasClickCatcher;
+import dev.horuse.pixelay.clicks.CanvasClickCatcher;
 import dev.horuse.pixelay.components.CanvasCursor;
-import dev.horuse.pixelay.components.FakePacketCanvasRenderer;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.layout.MountedLayout;
 import dev.horuse.pixelay.listeners.ChatSuppression;
-import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -33,10 +25,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
@@ -50,7 +40,7 @@ import org.bukkit.util.Vector;
  * ScreenSession.builder(player)
  *     .camera(viewLocation)                 // where the camera stands and which way it looks
  *     .content(canvas -> buildLayout())     // the UI, built for the player's canvas
- *     .calibration(CalibrationScreen.defaults())
+ *     .calibration(CalibrationScreen.options().build())
  *     .onClose((session, reason) -> ...)
  *     .open();
  * }</pre>
@@ -72,16 +62,10 @@ public final class ScreenSession {
     }
 
     private static final Map<UUID, ScreenSession> SESSIONS = new ConcurrentHashMap<>();
-    /** Ticks after opening during which the camera packets are re-sent (the client resets after a game mode change). */
-    private static final int CAMERA_RESEND_TICKS = 10;
-    /** Delay before mounting the camera: the client must finish switching to spectator first. */
-    private static final long MOUNT_DELAY_TICKS = 5;
     private static final int LOAD_RADIUS_CHUNKS = 1;
-    /** Size (blocks) of the click catcher box around the camera. */
-    private static final float CLICK_TARGET_SIZE = 1.5f;
 
     private final Player player;
-    private final Builder options;
+    private final Options options;
     private final Location view;
     private final Location canvasCenter;
     private final float facingYaw;
@@ -90,8 +74,7 @@ public final class ScreenSession {
     private final Set<Long> forcedChunks = new HashSet<>();
     private final List<Player> hiddenFrom = new ArrayList<>();
 
-    private ArmorStand anchor;
-    private int clickTargetId;
+    private ScreenCamera camera;
     private Canvas canvas;
     private MountedLayout content;
     private MountedLayout calibrationLayout;
@@ -101,20 +84,19 @@ public final class ScreenSession {
     private CanvasClickCatcher clickCatcher;
     private BukkitTask task;
     private double scale;
-    private int ticks;
     private volatile double cursorX;
     private volatile double cursorY;
     private String hovered;
     private boolean closed;
 
-    private ScreenSession(Player player, Builder options) {
+    private ScreenSession(Player player, Options options) {
         this.player = player;
         this.options = options;
-        this.view = options.camera.clone();
+        this.view = options.camera().clone();
         this.facingYaw = view.getYaw();
         this.view.setPitch(0);
         Vector forward = new Vector(-Math.sin(Math.toRadians(facingYaw)), 0, Math.cos(Math.toRadians(facingYaw)));
-        this.canvasCenter = view.clone().add(forward.multiply(options.distance));
+        this.canvasCenter = view.clone().add(forward.multiply(options.distance()));
         this.previousMode = player.getGameMode();
         this.previousLocation = player.getLocation().clone();
     }
@@ -135,7 +117,7 @@ public final class ScreenSession {
     /** Whether {@code entity} is the camera a player in a session rides (it must never be dismounted). */
     public static boolean isCamera(Player player, Entity entity) {
         ScreenSession session = SESSIONS.get(player.getUniqueId());
-        return session != null && session.anchor != null && session.anchor.equals(entity);
+        return session != null && session.camera != null && session.camera.is(entity);
     }
 
     public Player player() {
@@ -181,134 +163,52 @@ public final class ScreenSession {
         forceLoad(world);
         player.teleport(view);
         player.setGameMode(GameMode.SPECTATOR);
-        if (options.hideOthers) {
+        if (options.hideOthers()) {
             hideOthers();
         }
-        if (options.suppressChat) {
+        if (options.suppressChat()) {
             ChatSuppression.suppress(player);
         }
 
-        anchor = spawnAnchor();
-        clickTargetId = FakePacketCanvasRenderer.nextFakeEntityId();
-        Double saved = options.scaleStore.load(player.getUniqueId());
+        camera = new ScreenCamera(player, view);
+        camera.spawn();
+        Double saved = options.scaleStore().load(player.getUniqueId());
         scale = clampScale(saved != null ? saved : 1.0);
         canvas = new Canvas(canvasCenter, facingYaw + 180, resolution(scale));
-        content = options.content.apply(canvas);
-        if (options.calibration != null) {
-            calibration = new CalibrationScreen(this, options.calibration);
+        content = options.content().apply(canvas);
+        if (options.calibration() != null) {
+            calibration = new CalibrationScreen(this, options.calibration());
         }
         calibrating = calibration != null && saved == null;
         currentLayout().spawn(canvas);
         Pixelay.manager().register(surface);
 
         cursor =
-            options.cursorGlyph != null
+            options.cursorGlyph() != null
                 ? new CanvasCursor(
                       player,
-                      options.cursorGlyph,
-                      options.cursorHeightPx,
-                      options.hotspotX,
-                      options.hotspotY
+                      options.cursorGlyph(),
+                      options.cursorHeightPx(),
+                      options.hotspotX(),
+                      options.hotspotY()
                   )
                 : new CanvasCursor(player);
-        cursorX = options.pixelWidth / 2;
-        cursorY = options.pixelHeight / 2;
+        cursorX = options.pixelWidth() / 2;
+        cursorY = options.pixelHeight() / 2;
         cursor.spawn(canvas);
 
         // Spectator clicks arrive as packets on the network thread; the layout is used on the main thread.
-        clickCatcher = new CanvasClickCatcher(player, clicker ->
-            Bukkit.getScheduler().runTask(Pixelay.plugin(), () -> click(clicker))
+        clickCatcher = new CanvasClickCatcher(
+            player,
+            clicker -> Bukkit.getScheduler().runTask(Pixelay.plugin(), () -> click(clicker)),
+            camera::reset
         );
         clickCatcher.spawn(canvas);
-        CanvasClickCatcher.registerCameraReset(player, this::resetCamera);
 
-        // The ride and the camera only work once the client is a spectator: a few ticks later.
-        Bukkit.getScheduler().runTaskLater(Pixelay.plugin(), this::mountCamera, MOUNT_DELAY_TICKS);
         task = Bukkit.getScheduler().runTaskTimer(Pixelay.plugin(), this::tick, 1, 1);
-        if (options.onOpen != null) {
-            options.onOpen.accept(this);
+        if (options.onOpen() != null) {
+            options.onOpen().accept(this);
         }
-    }
-
-    private ArmorStand spawnAnchor() {
-        // A marker armor stand is a valid camera target with no model and no hitbox.
-        ArmorStand stand = view.getWorld().spawn(view, ArmorStand.class, s -> {
-            s.setInvisible(true);
-            s.setMarker(true);
-            s.setGravity(false);
-            s.setPersistent(false);
-            s.setRotation(facingYaw, 0);
-            s.getPersistentDataContainer().set(Pixelay.entityKey(), PersistentDataType.BYTE, (byte) 1);
-        });
-        return stand;
-    }
-
-    private void mountCamera() {
-        if (closed || !player.isOnline() || anchor == null || !anchor.isValid()) {
-            return;
-        }
-        // A real server-side ride: Paper drops the client's vehicle look packets from non-passengers.
-        if (player.getVehicle() != anchor && !anchor.addPassenger(player)) {
-            PacketUtils.mount(player, anchor);
-        }
-        sendClickTarget();
-        PacketUtils.sendCamera(player, anchor);
-        if (player.getGameMode() == GameMode.SPECTATOR) {
-            player.setSpectatorTarget(anchor);
-        }
-    }
-
-    /**
-     * A packet-only Interaction around the camera: a spectator's click is only sent when an entity is under
-     * the crosshair, and the client counts an entity it looks out of as always under it (an entity in front
-     * would also have to be within reach).
-     */
-    private void sendClickTarget() {
-        float size = CLICK_TARGET_SIZE;
-        Vector at = view.toVector();
-        PacketUtils.send(
-            player,
-            new WrapperPlayServerSpawnEntity(
-                clickTargetId,
-                Optional.of(UUID.nameUUIDFromBytes(("pixelay-screen-" + player.getUniqueId()).getBytes())),
-                EntityTypes.INTERACTION,
-                new Vector3d(at.getX(), at.getY() - size / 2.0, at.getZ()),
-                0f,
-                0f,
-                0f,
-                0,
-                Optional.empty()
-            )
-        );
-        PacketUtils.send(
-            player,
-            new WrapperPlayServerEntityMetadata(
-                clickTargetId,
-                List.of(
-                    new EntityData<>(8, EntityDataTypes.FLOAT, size),
-                    new EntityData<>(9, EntityDataTypes.FLOAT, size)
-                )
-            )
-        );
-    }
-
-    /** After a spectator click the client moves its camera on its own: put it back now and next tick. */
-    private void resetCamera() {
-        if (anchor == null) {
-            return;
-        }
-        PacketUtils.mount(player, anchor);
-        PacketUtils.sendCamera(player, anchor);
-        Bukkit.getScheduler().runTask(Pixelay.plugin(), () -> {
-            if (closed || !player.isOnline() || anchor == null || !anchor.isValid()) {
-                return;
-            }
-            if (player.getGameMode() == GameMode.SPECTATOR) {
-                player.setSpectatorTarget(anchor);
-            }
-            PacketUtils.mount(player, anchor);
-            PacketUtils.sendCamera(player, anchor);
-        });
     }
 
     // --- running -----------------------------------------------------------------------------------------
@@ -318,22 +218,7 @@ public final class ScreenSession {
             close(CloseReason.QUIT);
             return;
         }
-        if (anchor == null || !anchor.isValid()) {
-            if (player.getLocation().distanceSquared(view) > 0.001) {
-                player.teleport(view);
-            }
-        } else {
-            if (player.getVehicle() != anchor) {
-                anchor.addPassenger(player);
-            }
-            // After the switch to spectator the client resets entity tracking and may lose the camera.
-            if (ticks < CAMERA_RESEND_TICKS) {
-                sendClickTarget();
-                PacketUtils.mount(player, anchor);
-                PacketUtils.sendCamera(player, anchor);
-            }
-        }
-        ticks++;
+        camera.tick();
         updateHover();
     }
 
@@ -360,7 +245,7 @@ public final class ScreenSession {
         double y = Math.toRadians(yaw);
         double p = Math.toRadians(pitch);
         Vector direction = new Vector(-Math.sin(y) * Math.cos(p), -Math.sin(p), Math.cos(y) * Math.cos(p));
-        double[] hit = canvas.rayPlanePixel(view.toVector(), direction);
+        double[] hit = canvas.rayHit(view.toVector(), direction);
         if (hit == null) {
             return null;
         }
@@ -378,8 +263,8 @@ public final class ScreenSession {
         String id = layout.idAt(cursorX, cursorY);
         if (!Objects.equals(id, hovered)) {
             hovered = id;
-            if (options.onHover != null && !calibrating) {
-                options.onHover.accept(this, id);
+            if (options.onHover() != null && !calibrating) {
+                options.onHover().accept(this, id);
                 // The callback may have changed texts.
                 layout.refresh();
             }
@@ -440,9 +325,9 @@ public final class ScreenSession {
         if (!calibrating) {
             return;
         }
-        options.scaleStore.save(player.getUniqueId(), scale);
-        if (options.onScaleChanged != null) {
-            options.onScaleChanged.accept(this, scale);
+        options.scaleStore().save(player.getUniqueId(), scale);
+        if (options.onScaleChanged() != null) {
+            options.onScaleChanged().accept(this, scale);
         }
         calibrationLayout.pointerLeft(player);
         calibrationLayout.despawn();
@@ -452,7 +337,7 @@ public final class ScreenSession {
 
     /** Changes the screen scale by {@code steps} calibration steps (negative = smaller). */
     public void stepScale(int steps) {
-        setScale(scale + steps * options.calibration.step());
+        setScale(scale + steps * options.calibration().step());
     }
 
     /** Resizes the canvas; everything shown is re-laid out on the new size. */
@@ -471,7 +356,7 @@ public final class ScreenSession {
     }
 
     private double clampScale(double value) {
-        return Math.max(options.minScale, Math.min(options.maxScale, value));
+        return Math.max(options.minScale(), Math.min(options.maxScale(), value));
     }
 
     /**
@@ -479,10 +364,10 @@ public final class ScreenSession {
      * text layer, so the screen edges are the canvas edges.
      */
     private CanvasResolution resolution(double value) {
-        double toText = options.distance - Layers.text();
-        double height = 2 * toText * Math.tan(Math.toRadians(options.verticalFov / 2)) * value;
-        double width = (height * options.pixelWidth) / options.pixelHeight;
-        return new CanvasResolution(options.pixelWidth, options.pixelHeight, width, height);
+        double toText = options.distance() - Layers.text();
+        double height = 2 * toText * Math.tan(Math.toRadians(options.verticalFov() / 2)) * value;
+        double width = (height * options.pixelWidth()) / options.pixelHeight();
+        return new CanvasResolution(options.pixelWidth(), options.pixelHeight(), width, height);
     }
 
     // --- closing -----------------------------------------------------------------------------------------
@@ -509,27 +394,18 @@ public final class ScreenSession {
         if (clickCatcher != null) {
             clickCatcher.despawn();
         }
-        CanvasClickCatcher.unregisterCameraReset(player);
-        if (options.suppressChat) {
+        if (options.suppressChat()) {
             ChatSuppression.restore(player);
         }
-        if (player.isOnline()) {
-            PacketUtils.send(player, new WrapperPlayServerDestroyEntities(new int[] { clickTargetId }));
-            PacketUtils.sendCamera(player, player);
-        }
-        if (anchor != null) {
-            anchor.eject();
-            anchor.remove();
-            anchor = null;
-        }
+        camera.remove();
         showOthers();
         releaseChunks();
-        if (player.isOnline() && options.restore) {
+        if (player.isOnline() && options.restore()) {
             player.setGameMode(previousMode);
             player.teleport(previousLocation);
         }
-        if (options.onClose != null) {
-            options.onClose.accept(this, reason);
+        if (options.onClose() != null) {
+            options.onClose().accept(this, reason);
         }
     }
 
@@ -550,7 +426,7 @@ public final class ScreenSession {
     /** A player who joins while others are in sessions must not see them, and they must not see him. */
     static void onJoin(Player joined) {
         for (ScreenSession session : SESSIONS.values()) {
-            if (session.options.hideOthers && session.player != joined) {
+            if (session.options.hideOthers() && session.player != joined) {
                 session.hide(joined);
             }
         }
@@ -607,7 +483,7 @@ public final class ScreenSession {
     }
 
     /** Lets the scheduler refresh texts and respawn what died. */
-    private final dev.horuse.pixelay.CanvasSurface surface = new dev.horuse.pixelay.CanvasSurface() {
+    private final CanvasSurface surface = new CanvasSurface() {
         @Override
         public void refresh() {
             ScreenSession.this.refresh();
@@ -627,6 +503,31 @@ public final class ScreenSession {
             }
         }
     };
+
+    /** The session options, frozen at open(): changing the builder afterwards can not affect a session. */
+    private record Options(
+        Location camera,
+        double distance,
+        double pixelWidth,
+        double pixelHeight,
+        double verticalFov,
+        Function<Canvas, MountedLayout> content,
+        String cursorGlyph,
+        double cursorHeightPx,
+        double hotspotX,
+        double hotspotY,
+        CalibrationScreen.Options calibration,
+        ScreenScaleStore scaleStore,
+        double minScale,
+        double maxScale,
+        boolean hideOthers,
+        boolean suppressChat,
+        boolean restore,
+        Consumer<ScreenSession> onOpen,
+        BiConsumer<ScreenSession, CloseReason> onClose,
+        BiConsumer<ScreenSession, String> onHover,
+        BiConsumer<ScreenSession, Double> onScaleChanged
+    ) {}
 
     // --- options -----------------------------------------------------------------------------------------
 
@@ -759,10 +660,36 @@ public final class ScreenSession {
             return this;
         }
 
+        private Options snapshot() {
+            return new Options(
+                camera.clone(),
+                distance,
+                pixelWidth,
+                pixelHeight,
+                verticalFov,
+                content,
+                cursorGlyph,
+                cursorHeightPx,
+                hotspotX,
+                hotspotY,
+                calibration,
+                scaleStore,
+                minScale,
+                maxScale,
+                hideOthers,
+                suppressChat,
+                restore,
+                onOpen,
+                onClose,
+                onHover,
+                onScaleChanged
+            );
+        }
+
         public ScreenSession open() {
             Objects.requireNonNull(camera, "camera");
             Objects.requireNonNull(content, "content");
-            ScreenSession session = new ScreenSession(player, this);
+            ScreenSession session = new ScreenSession(player, snapshot());
             session.open();
             return session;
         }

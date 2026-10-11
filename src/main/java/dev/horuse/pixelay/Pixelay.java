@@ -28,10 +28,13 @@ public final class Pixelay {
      * @return the running plugin instance; throws if Pixelay is not enabled
      */
     public static JavaPlugin plugin() {
+        return instance();
+    }
+
+    private static PixelayPlugin instance() {
         if (plugin == null) {
             throw new IllegalStateException("Pixelay is not enabled (add 'depend: [Pixelay]' to your plugin.yml)");
         }
-
         return plugin;
     }
 
@@ -39,21 +42,21 @@ public final class Pixelay {
      * @return the registry that ticks refresh and self-healing of registered surfaces
      */
     public static CanvasManager manager() {
-        return ((PixelayPlugin) plugin()).manager();
+        return instance().manager();
     }
 
     /**
      * @return the current configuration snapshot (replaced on {@code /pixelay reload})
      */
     public static PixelaySettings settings() {
-        return ((PixelayPlugin) plugin()).settings();
+        return instance().settings();
     }
 
     /**
      * @return the PDC key that marks every entity spawned by Pixelay
      */
     public static NamespacedKey entityKey() {
-        return ((PixelayPlugin) plugin()).entityKey();
+        return instance().entityKey();
     }
 
     /** Logs a message only when {@code debug: true} is set in config.yml. */
