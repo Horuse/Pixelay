@@ -73,7 +73,10 @@ public record PixelaySettings(
         int textOpacity,
         int styleFlags,
         int interactionWidth,
-        int interactionHeight
+        int interactionHeight,
+        int item,
+        int itemDisplayTransform,
+        int blockState
     ) {}
 
     /** Copies the default config.yml if missing, then parses it into a fresh snapshot. */
@@ -133,7 +136,10 @@ public record PixelaySettings(
                     meta.node("text-opacity").getInt(26),
                     meta.node("style-flags").getInt(27),
                     meta.node("interaction-width").getInt(8),
-                    meta.node("interaction-height").getInt(9)
+                    meta.node("interaction-height").getInt(9),
+                    meta.node("item").getInt(23),
+                    meta.node("item-display-transform").getInt(24),
+                    meta.node("block-state").getInt(23)
                 )
             ),
             root.node("resource-packs", "order").getList(String.class, List.of())

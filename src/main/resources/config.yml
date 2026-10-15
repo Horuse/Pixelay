@@ -96,3 +96,7 @@ packets:
     # Interaction (the invisible click boxes) width and height.
     interaction-width: 8
     interaction-height: 9
+    # ItemDisplay item and display type, BlockDisplay block state (CanvasItem, CanvasBlock).
+    item: 23
+    item-display-transform: 24
+    block-state: 23

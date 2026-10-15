@@ -1,6 +1,7 @@
 package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
+import dev.horuse.pixelay.components.CanvasModel;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.VAlign;
 import java.util.Arrays;
@@ -20,7 +21,8 @@ import java.util.Arrays;
  * );
  * ui.spawn(canvas);
  * }</pre>
- * Canvas components can be passed directly; they become {@link Leaf leaves}.
+ * Canvas components can be passed directly; texts become {@link Leaf leaves}, items and blocks
+ * {@link ModelLeaf model leaves}.
  */
 public final class Layout {
 
@@ -79,6 +81,11 @@ public final class Layout {
         return new Leaf(component);
     }
 
+    /** An item or a block as a leaf, to set its box properties or its alignment inside its rectangle. */
+    public static ModelLeaf node(CanvasModel<?> model) {
+        return new ModelLeaf(model);
+    }
+
     /** Wraps a layout tree for spawning on a canvas; it fills the whole canvas. */
     public static MountedLayout mount(LayoutItem root) {
         return new MountedLayout(box(root));
@@ -101,6 +108,10 @@ public final class Layout {
 
         if (item instanceof AbstractCanvasComponent component) {
             return new Leaf(component);
+        }
+
+        if (item instanceof CanvasModel<?> model) {
+            return new ModelLeaf(model);
         }
 
         throw new IllegalArgumentException("Unsupported layout item: " + item);

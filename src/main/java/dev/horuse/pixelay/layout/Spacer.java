@@ -1,6 +1,6 @@
 package dev.horuse.pixelay.layout;
 
-import dev.horuse.pixelay.components.AbstractCanvasComponent;
+import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import java.util.List;
@@ -41,5 +41,5 @@ public final class Spacer extends Box<Spacer> {
     protected void arrangeContent(Rect content) {}
 
     @Override
-    protected void collectComponents(List<AbstractCanvasComponent> out) {}
+    protected void collectComponents(List<LayoutComponent> out) {}
 }

@@ -3,8 +3,8 @@ package dev.horuse.pixelay.layout;
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.clicks.ClickTarget;
-import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.components.CanvasComponent;
+import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.components.TextBackground;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
@@ -33,7 +33,7 @@ public final class MountedLayout implements CanvasComponent {
     // spawn/refresh/despawn must run on the main server thread: the debug overlay uses the Bukkit API.
 
     private final Box<?> root;
-    private final List<AbstractCanvasComponent> components = new ArrayList<>();
+    private final List<LayoutComponent> components = new ArrayList<>();
     private final List<Box<?>> boxes = new ArrayList<>();
     private Canvas canvas;
     private final DebugOverlay debugOverlay = new DebugOverlay();
@@ -43,7 +43,7 @@ public final class MountedLayout implements CanvasComponent {
     private Player clickViewer;
     private boolean stepsWarned;
     private boolean anchorsWarned;
-    private boolean textOnContainerWarned;
+    private boolean textWithoutTextWarned;
     /** Parent of every box, to give :hover to the ancestors of the hovered box. */
     private final Map<Box<?>, Box<?>> parents = new IdentityHashMap<>();
 
@@ -77,7 +77,7 @@ public final class MountedLayout implements CanvasComponent {
         return root;
     }
 
-    public List<AbstractCanvasComponent> components() {
+    public List<LayoutComponent> components() {
         return List.copyOf(components);
     }
 
@@ -109,8 +109,8 @@ public final class MountedLayout implements CanvasComponent {
         List<Box<?>> painted = new ArrayList<>();
         for (Box<?> box : boxes) {
             // Every box is a layer (like devtools' 3D view): a container its background and debug panel,
-            // a component its text background and text. Nested boxes are always above their parent.
-            int needs = box instanceof Leaf ? 2 : 1;
+            // a text its background and the text, a model itself. Nested boxes are always above their parent.
+            int needs = box.layerSteps();
             int base = 1;
             for (Box<?> earlier : painted) {
                 if (overlaps(earlier.rect(), box.rect())) {
@@ -134,8 +134,8 @@ public final class MountedLayout implements CanvasComponent {
             box.paintStep = base;
             box.paintEnd = base + needs - 1;
             painted.add(box);
-            if (box instanceof Leaf leaf) {
-                leaf.component().setLayerStep(base);
+            if (box.component() != null) {
+                box.component().setLayerStep(base);
             }
         }
     }
@@ -233,12 +233,7 @@ public final class MountedLayout implements CanvasComponent {
 
     /** The only player who sees this layout (the first component with a single viewer), or {@code null}. */
     private Player viewer() {
-        return components
-            .stream()
-            .map(AbstractCanvasComponent::viewer)
-            .filter(Objects::nonNull)
-            .findFirst()
-            .orElse(null);
+        return components.stream().map(LayoutComponent::viewer).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     /**
@@ -320,8 +315,8 @@ public final class MountedLayout implements CanvasComponent {
 
     private boolean setHovered(Box<?> box, boolean over, Player player) {
         boolean changed = box.setHovered(over, player);
-        if (box instanceof Leaf leaf) {
-            leaf.component().setHovered(over);
+        if (box.component() != null) {
+            box.component().setHovered(over);
         }
         if (changed) {
             applyStyle(box);
@@ -334,11 +329,11 @@ public final class MountedLayout implements CanvasComponent {
         Style style = box.activeStyle();
         if (box instanceof Leaf leaf) {
             leaf.component().setTextOverride(style != null ? style.text() : null);
-        } else if (style != null && style.text() != null && !textOnContainerWarned) {
-            textOnContainerWarned = true;
+        } else if (style != null && style.text() != null && !textWithoutTextWarned) {
+            textWithoutTextWarned = true;
             Pixelay.plugin()
                 .getLogger()
-                .warning("A state style sets text on a container box: text styles only apply to node(component)");
+                .warning("A state style sets text on a box without text: text styles only apply to node(text)");
         }
     }
 

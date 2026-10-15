@@ -1,6 +1,6 @@
 package dev.horuse.pixelay.layout;
 
-import dev.horuse.pixelay.components.AbstractCanvasComponent;
+import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.debug.Overflow;
@@ -82,13 +82,23 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     protected abstract void arrangeContent(Rect content);
 
     /** Adds every canvas component of this subtree to {@code out}. */
-    protected abstract void collectComponents(List<AbstractCanvasComponent> out);
+    protected abstract void collectComponents(List<LayoutComponent> out);
 
     /**
      * Narrowest content width (without padding) this box can take without breaking words or
      * squeezing fixed sizes — the floor for {@code shrink} (CSS {@code min-content}).
      */
     protected abstract double minContentWidth();
+
+    /** The component this box draws ({@link Leaf}, {@link ModelLeaf}), or {@code null} for other boxes. */
+    LayoutComponent component() {
+        return null;
+    }
+
+    /** Depth steps the box paints on (see {@link MountedLayout}): a background, or a component's layers. */
+    int layerSteps() {
+        return 1;
+    }
 
     /** Adds every box of this subtree (self included, depth-first, parents before children). */
     protected void collectBoxes(List<Box<?>> out) {

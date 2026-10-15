@@ -2,6 +2,7 @@ package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
+import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.components.TextPlacement;
 import dev.horuse.pixelay.content.FontMetrics;
 import dev.horuse.pixelay.content.TextWrap;
@@ -33,8 +34,15 @@ public final class Leaf extends Box<Leaf> {
         this.component = component;
     }
 
+    @Override
     public AbstractCanvasComponent component() {
         return component;
+    }
+
+    /** The text background, and the text one step above it. */
+    @Override
+    int layerSteps() {
+        return 2;
     }
 
     @Override
@@ -146,7 +154,7 @@ public final class Leaf extends Box<Leaf> {
     }
 
     @Override
-    protected void collectComponents(List<AbstractCanvasComponent> out) {
+    protected void collectComponents(List<LayoutComponent> out) {
         out.add(component);
     }
 }

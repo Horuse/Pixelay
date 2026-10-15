@@ -1,6 +1,6 @@
 package dev.horuse.pixelay.layout;
 
-import dev.horuse.pixelay.components.AbstractCanvasComponent;
+import dev.horuse.pixelay.components.LayoutComponent;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,7 +33,7 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
     }
 
     @Override
-    protected void collectComponents(List<AbstractCanvasComponent> out) {
+    protected void collectComponents(List<LayoutComponent> out) {
         children.forEach(child -> child.collectComponents(out));
     }
 

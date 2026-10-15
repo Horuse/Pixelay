@@ -10,7 +10,6 @@ import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.data.VAlign;
 import dev.horuse.pixelay.debug.CanvasBoundsDebug;
 import dev.horuse.pixelay.debug.Overflow;
-import dev.horuse.pixelay.layout.LayoutItem;
 import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.ApiStatus;
@@ -21,7 +20,7 @@ import org.jetbrains.annotations.ApiStatus;
  * Pixelay#entityKey()}). Geometry ({@link CanvasDrawable}) is owned here, rendering is delegated to
  * the renderer; text placement lives in {@link TextPlacement}.
  */
-public abstract class AbstractCanvasComponent implements CanvasComponent, CanvasDrawable, LayoutItem {
+public abstract class AbstractCanvasComponent implements LayoutComponent, CanvasDrawable {
 
     protected double pixelX;
     protected double pixelY;
@@ -112,7 +111,7 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
         return renderer != null ? renderer.measuredHitboxPx() : null;
     }
 
-    /** @return the only player who sees this element, or {@code null} when everyone does */
+    @Override
     public Player viewer() {
         return renderer != null ? renderer.viewer() : null;
     }
@@ -186,13 +185,14 @@ public abstract class AbstractCanvasComponent implements CanvasComponent, Canvas
         return textOverride;
     }
 
-    /** Set by layouts from their pointer, see {@code MountedLayout.pointerAt}. */
+    @Override
     @ApiStatus.Internal
     public void setHovered(boolean hovered) {
         this.hovered = hovered;
     }
 
-    /** Set by layouts: the depth step of this element's text background, see {@link Layers}. */
+    /** Set by layouts: the depth step of this element's text background (the text is one step above). */
+    @Override
     @ApiStatus.Internal
     public void setLayerStep(int step) {
         // Renderers notice it through textDepth(): no layout version bump needed.
