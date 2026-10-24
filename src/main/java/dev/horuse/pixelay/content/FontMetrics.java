@@ -1,6 +1,7 @@
 package dev.horuse.pixelay.content;
 
 import dev.horuse.pixelay.config.YamlFiles;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import net.kyori.adventure.text.Component;
@@ -58,12 +59,50 @@ public final class FontMetrics {
     }
 
     /** A text laid out once: its measurements and the component with the line breaks written in. */
-    public record Laid(Metrics metrics, Component component) {}
+    public static final class Laid {
+
+        private final Component source;
+        private final TextLayout.Lines lines;
+        private final Metrics metrics;
+        private final Component component;
+
+        private Laid(Component source, TextLayout.Lines lines) {
+            this.source = source;
+            this.lines = lines;
+            this.metrics = TextLayout.metrics(lines);
+            this.component = TextLayout.apply(source, lines);
+        }
+
+        public Metrics metrics() {
+            return metrics;
+        }
+
+        /** The text with Pixelay's line breaks, to send to the client. */
+        public Component component() {
+            return component;
+        }
+
+        /**
+         * Where each glyph is drawn when the lines are lined up by {@code align}, in font px from the block's
+         * left and its first line's top; {@code null} for glyphs that draw nothing. Index-aligned with the codes
+         * of {@link #encoded}.
+         */
+        public List<GlyphBox> glyphBoxes(LineAlign align) {
+            return TextLayout.boxes(lines, align);
+        }
+
+        /**
+         * {@link #component()} with a 9-bit code hidden in the colour of every glyph (its lowest bits), for the
+         * Pixelay core shaders. {@code codes} is index-aligned with {@link #glyphBoxes}.
+         */
+        public Component encoded(int[] codes) {
+            return TextLayout.encode(source, lines, codes);
+        }
+    }
 
     /** Measures and wraps a parsed text in one pass (see {@link #measure} and {@link #wrap}). */
     public static Laid lay(Component text, int maxLineWidth, TextWrap wrap) {
-        TextLayout.Lines lines = TextLayout.lay(TextLayout.glyphs(text), maxLineWidth, wrap);
-        return new Laid(TextLayout.metrics(lines), TextLayout.apply(text, lines));
+        return new Laid(text, TextLayout.lay(TextLayout.glyphs(text), maxLineWidth, wrap));
     }
 
     /** The component with its line breaks written in, wrapped at {@code maxLineWidth} font px. */
@@ -193,6 +232,18 @@ public final class FontMetrics {
     static int[] verticalOf(int codePoint) {
         int[] rows = VERTICAL.get(codePoint);
         return rows != null ? rows : new int[] { 0, (int) LINE_HEIGHT_PX };
+    }
+
+    /** Rows of a vanilla glyph's quad: ascent 7, height 8. */
+    private static final int[] NORMAL_QUAD_ROWS = { 0, 8 };
+
+    /**
+     * Rows the client's quad of a glyph covers, {@code {top, bottom}} in font px from the line top: the glyph's
+     * own rows when it is drawn outside the line box, otherwise those of a vanilla glyph.
+     */
+    static int[] quadRowsOf(int codePoint) {
+        int[] rows = VERTICAL.get(codePoint);
+        return rows != null ? rows : NORMAL_QUAD_ROWS;
     }
 
     /** A glyph's advance in font px (+1 when bold), from the overrides or the vanilla table. */
