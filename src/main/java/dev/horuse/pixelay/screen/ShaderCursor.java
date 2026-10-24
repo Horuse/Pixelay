@@ -74,13 +74,31 @@ final class ShaderCursor {
         sendTabListMode(GameMode.ADVENTURE);
     }
 
-    /** Puts client-side water at the player's eyes (eye height above {@code feet}), so the overlay is drawn. */
-    void flood(Location feet) {
+    /**
+     * Rows of client-side water around the eyes of a player riding a vehicle at {@code seat}, from this much
+     * above the seat to this much (block bottoms): a rider sits 0.6 below the seat, its eyes 1.62 above that,
+     * with room to spare either way.
+     */
+    private static final double WATER_FROM = 0.4;
+
+    private static final double WATER_TO = 2.4;
+
+    /**
+     * Puts client-side water around the eyes of the player sitting at {@code seat}, so the overlay is drawn: a
+     * 3x3 column, so the eyes are in it even on a block edge, and one block more above (water under water is
+     * full height, so the eyes are in it at any height).
+     */
+    void flood(Location seat) {
         clearWater();
-        Location eye = feet.clone().add(0, player.getEyeHeight(), 0);
-        // The block above too: water under water is full height, so the eyes are in it wherever they are.
-        water.add(eye.getBlock().getLocation());
-        water.add(eye.getBlock().getLocation().add(0, 1, 0));
+        int bottom = (int) Math.floor(seat.getY() + WATER_FROM);
+        int top = (int) Math.floor(seat.getY() + WATER_TO);
+        for (int y = bottom; y <= top; y++) {
+            for (int x = -1; x <= 1; x++) {
+                for (int z = -1; z <= 1; z++) {
+                    water.add(new Location(seat.getWorld(), seat.getBlockX() + x, y, seat.getBlockZ() + z));
+                }
+            }
+        }
         sendWater();
     }
 

@@ -64,6 +64,8 @@ public final class ScreenSession {
 
     private static final Map<UUID, ScreenSession> SESSIONS = new ConcurrentHashMap<>();
     private static final int LOAD_RADIUS_CHUNKS = 1;
+    /** Blocks above the camera the player sits with a shader cursor. */
+    private static final double SHADER_SEAT_HEIGHT = 4;
 
     private final Player player;
     private final Options options;
@@ -179,7 +181,6 @@ public final class ScreenSession {
         if (shaderCursor != null) {
             // Before the game mode changes: the tab list must never tell the client it is a spectator.
             shaderCursor.start();
-            shaderCursor.flood(view);
         }
         player.setGameMode(GameMode.SPECTATOR);
         if (options.hideOthers()) {
@@ -189,8 +190,12 @@ public final class ScreenSession {
             ChatSuppression.suppress(player);
         }
 
-        camera = new ScreenCamera(player, view);
+        // With a shader cursor the player sits high above the camera: the water at their eyes stays out of view.
+        camera = new ScreenCamera(player, view, shaderCursor != null ? SHADER_SEAT_HEIGHT : 0);
         camera.spawn();
+        if (shaderCursor != null) {
+            shaderCursor.flood(camera.seatLocation());
+        }
         Double saved = options.scaleStore().load(player.getUniqueId());
         scale = shaderCursor != null ? shaderScale() : clampScale(saved != null ? saved : 1.0);
         canvas = new Canvas(canvasCenter, canvasYaw(), resolution(scale));
