@@ -129,7 +129,7 @@ public final class Leaf extends Box<Leaf> {
         // Only now the element gets its final width: the client must wrap where we measured.
         component.setLineWidth(lineWidthFor(content.width()));
         component.place(x, y, h, v);
-        component.setOverflow(overflow);
+        component.setFit(fit);
     }
 
     /** A clickable component (a button) is clicked on its whole box, padding included, not just its text. */
