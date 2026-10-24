@@ -4,7 +4,6 @@
 #moj_import <minecraft:dynamictransforms.glsl>
 #moj_import <minecraft:projection.glsl>
 #moj_import <minecraft:globals.glsl>
-#moj_import <minecraft:pixelay_cursor_config.glsl>
 #moj_import <minecraft:pixelay_state.glsl>
 
 in vec3 Position;

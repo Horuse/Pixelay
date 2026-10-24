@@ -53,6 +53,8 @@ public final class PixelayPack {
     private static final int MARKER = 0xFF504958;
     /** Sprite index 7 means "hidden" to the shader: at most 7 sprites. */
     public static final int MAX_SPRITES = 7;
+    // STATE_STEP, LEVELS, TAN_MIN and TAN_MAX are also written in pixelay_state.glsl: change both together.
+
     /**
      * World age ticks per state of a screen session: the client counts the age on between two packets, the
      * shader rounds up to half of it away (about 0.8 s of lag).
@@ -60,7 +62,7 @@ public final class PixelayPack {
     public static final int STATE_STEP = 32;
     /** Levels of the canvas size in the state: {@code 1 + 7 + 8 * (levels - 1)} states of 32 ticks fit a day. */
     public static final int LEVELS = 93;
-    /** Range of {@code tan(half the canvas height as seen)} the cursor states cover, log-spaced. */
+    /** Range of {@code tan(half the canvas height as seen)} the states cover, log-spaced. */
     public static final double TAN_MIN = 0.12;
     public static final double TAN_MAX = 3.0;
 
@@ -223,10 +225,6 @@ public final class PixelayPack {
             ((MARKER >> 16) & 0xFF) + ", " + ((MARKER >> 8) & 0xFF) + ", " + (MARKER & 0xFF) + ", " + (MARKER >>> 24)
         );
         define(out, "PIXELAY_SPRITE_COUNT", String.valueOf(sprites.size()));
-        define(out, "PIXELAY_STATE_STEP", STATE_STEP + ".0");
-        define(out, "PIXELAY_LEVELS", String.valueOf(LEVELS));
-        define(out, "PIXELAY_TAN_MIN", decimal(TAN_MIN));
-        define(out, "PIXELAY_TAN_MAX", decimal(TAN_MAX));
         define(out, "PIXELAY_CURSOR_SCALE", decimal(scale));
         // Per sprite: width, height (0 when it has no image), hot spot x, y.
         out.append("const vec4 PIXELAY_SPRITES[8] = vec4[8](");
