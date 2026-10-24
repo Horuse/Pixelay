@@ -12,6 +12,7 @@ public final class Style {
     private TextContent text;
     private Insets padding;
     private Insets margin;
+    private String cursor;
 
     Style() {}
 
@@ -48,6 +49,16 @@ public final class Style {
         return this;
     }
 
+    /** CSS {@code cursor} while in the state, e.g. {@code "not-allowed"} for {@code State.DISABLED}. */
+    public Style cursor(String name) {
+        this.cursor = name;
+        return this;
+    }
+
+    String cursor() {
+        return cursor;
+    }
+
     Insets padding() {
         return padding;
     }
@@ -77,6 +88,9 @@ public final class Style {
         }
         if (margin == null) {
             margin = other.margin;
+        }
+        if (cursor == null) {
+            cursor = other.cursor;
         }
     }
 }
