@@ -34,8 +34,21 @@ public final class TextPlacement {
      * @param x TextDisplay position on the canvas, in canvas px
      * @param y TextDisplay position on the canvas, in canvas px
      * @param component the text to send, with its line breaks
+     * @param laid the laid-out text, to find where each glyph is drawn
+     * @param textLeft left edge of the drawn text block, in canvas px
+     * @param firstLineTop top of the first line, in canvas px
+     * @param fontPx canvas px per font px
      */
-    public record Placement(Size box, double x, double y, Component component) {}
+    public record Placement(
+        Size box,
+        double x,
+        double y,
+        Component component,
+        FontMetrics.Laid laid,
+        double textLeft,
+        double firstLineTop,
+        double fontPx
+    ) {}
 
     /** Parses, wraps and measures the text once, and places the element by its anchor and alignment. */
     public static Placement place(CanvasDrawable drawable, String text) {
@@ -52,7 +65,16 @@ public final class TextPlacement {
         double firstLineTop = boxTop - metrics.topPx() * fontPx;
         double x = boxCenterX + (TRAILING_SPACING_FONT_PX / 2.0 - CLIENT_TEXT_OFFSET_FONT_PX) * fontPx;
         double y = firstLineTop + normalBottomPx(metrics) * fontPx + bottomGapPx(drawable);
-        return new Placement(explicitOr(drawable, width, height), x, y, laid.component());
+        return new Placement(
+            explicitOr(drawable, width, height),
+            x,
+            y,
+            laid.component(),
+            laid,
+            boxCenterX - width / 2,
+            firstLineTop,
+            fontPx
+        );
     }
 
     /** The element's box size {@code {width, height}} when wrapped at {@code lineWidth} font px (for layouts). */

@@ -4,12 +4,14 @@ import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.content.TextContent;
 import dev.horuse.pixelay.content.TextWrap;
 import dev.horuse.pixelay.data.Canvas;
+import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
+import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.data.VAlign;
 import dev.horuse.pixelay.debug.CanvasBoundsDebug;
-import dev.horuse.pixelay.debug.Overflow;
+import dev.horuse.pixelay.debug.Fit;
 import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.ApiStatus;
@@ -36,7 +38,7 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     private int layoutVersion;
     // Layout state, written by layouts and read by renderers; both run on the main server thread,
     // volatile keeps them consistent if a renderer reads off-thread.
-    private volatile Overflow overflow = Overflow.NONE;
+    private volatile Fit fit = Fit.NONE;
     /** Line width set by a layout, in font px; {@code <= 0} means the configured default. */
     private volatile int layoutLineWidth;
     /** Step of the text background (the text is one step above), set by layouts in painting order. */
@@ -46,6 +48,8 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     private volatile TextWrap textWrap = TextWrap.NORMAL;
     /** Text replacing the component's own one (a state style), or {@code null}. */
     private volatile TextContent textOverride;
+    /** Where a layout lets the element draw, or {@code null} outside layouts (the canvas then). */
+    private volatile Rect layoutClip;
 
     protected AbstractCanvasComponent(double pixelX, double pixelY, double heightPx) {
         this.pixelX = pixelX;
@@ -209,15 +213,32 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         return Layers.at(layerStep, viewer());
     }
 
+    @Override
+    @ApiStatus.Internal
+    public void setClip(Rect clip) {
+        layoutClip = clip;
+    }
+
+    /** The layout's clip, never beyond the canvas: nothing is drawn outside a canvas. */
+    @Override
+    public Rect clip() {
+        if (canvas == null) {
+            return layoutClip;
+        }
+        CanvasResolution res = canvas.resolution();
+        Rect whole = new Rect(0, 0, res.pixelWidth(), res.pixelHeight());
+        return layoutClip != null ? layoutClip.intersect(whole) : whole;
+    }
+
     /** Set by layouts: the element is bigger than the space it was given (see LayoutDebug). */
     @ApiStatus.Internal
-    public void setOverflow(Overflow overflow) {
-        this.overflow = overflow;
+    public void setFit(Fit fit) {
+        this.fit = fit;
     }
 
     @Override
-    public Overflow overflow() {
-        return overflow;
+    public Fit fit() {
+        return fit;
     }
 
     @Override

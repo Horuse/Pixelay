@@ -11,6 +11,7 @@ import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
+import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.VAlign;
 import dev.horuse.pixelay.utils.DisplayUtils;
 import dev.horuse.pixelay.utils.FakeEntityIds;
@@ -60,6 +61,8 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     private VAlign vAlign = VAlign.BOTTOM;
     private volatile int layerStep = Layers.DEFAULT_TEXT_BACKGROUND_STEP;
     private volatile boolean hovered;
+    /** Where a layout lets the model draw, or {@code null} outside layouts (the canvas then). */
+    private volatile Rect clip;
 
     private Canvas canvas;
     private Display display;
@@ -265,6 +268,28 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         this.hovered = hovered;
     }
 
+    /**
+     * A model can not be cut like a text: it disappears once its box is entirely outside the clip (or the
+     * canvas), and is drawn whole while any part of it is inside. Picked up by the next refresh.
+     */
+    @Override
+    @ApiStatus.Internal
+    public void setClip(Rect clip) {
+        this.clip = clip;
+    }
+
+    /** Whether the model's box is entirely outside where it may draw. */
+    private boolean clippedAway() {
+        CanvasResolution res = canvas.resolution();
+        Rect visible = new Rect(0, 0, res.pixelWidth(), res.pixelHeight());
+        if (clip != null) {
+            visible = visible.intersect(clip);
+        }
+        double left = pixelX + hAlign.horizontalOffset(widthPx) - widthPx / 2;
+        double top = pixelY + vAlign.bottomOffset(heightPx) - heightPx;
+        return visible.intersect(new Rect(left, top, widthPx, heightPx)).isEmpty();
+    }
+
     private T currentContent() {
         T value = content.get();
         return value != null ? value : empty();
@@ -292,7 +317,9 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         Vector3f translation = rotation
             .transform(modelOffset(width, height, thickness))
             .add((float) corner.getX(), (float) corner.getY(), (float) corner.getZ());
-        return new Transformation(translation, rotation, new Vector3f(width, height, thickness), modelRotation());
+        // Clipped away: scaled to nothing, so it comes back in place without a respawn.
+        Vector3f scale = clippedAway() ? new Vector3f() : new Vector3f(width, height, thickness);
+        return new Transformation(translation, rotation, scale, modelRotation());
     }
 
     /** Metadata set once at spawn. */
