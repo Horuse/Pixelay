@@ -1,6 +1,9 @@
 package dev.horuse.pixelay.config;
 
+import dev.horuse.pixelay.pack.CursorSprite;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.spongepowered.configurate.ConfigurateException;
 import org.spongepowered.configurate.ConfigurationNode;
@@ -20,7 +23,8 @@ public record PixelaySettings(
     Layers layers,
     ChatSuppression chatSuppression,
     Packets packets,
-    List<String> resourcePackOrder
+    List<String> resourcePackOrder,
+    ResourcePack resourcePack
 ) {
     /** Text rendering options shared by every renderer. */
     public record Text(
@@ -41,8 +45,21 @@ public record PixelaySettings(
      */
     public record Clicks(long debounceMs, boolean blockSneakDismount, double hitTileSize, double maxDistance) {}
 
-    /** Look-at cursor appearance. */
-    public record Cursor(String glyph, double heightPx) {}
+    /**
+     * Look-at cursor appearance.
+     *
+     * @param shader whether screens draw the cursor with the core shader of Pixelay's resource pack (smooth,
+     *     every frame) instead of a TextDisplay glyph moved by the server
+     */
+    public record Cursor(String glyph, double heightPx, boolean shader) {}
+
+    /**
+     * The resource pack Pixelay builds ({@code generated-pack} in config.yml).
+     *
+     * @param cursorScale screen px per sprite px of the shader cursor, on a 1080 px tall screen
+     * @param sprites the shader cursor's sprites, in atlas order
+     */
+    public record ResourcePack(boolean enabled, double cursorScale, List<CursorSprite> sprites) {}
 
     /** @param step distance (blocks) between two drawing layers, see {@link dev.horuse.pixelay.data.Layers} */
     public record Layers(float step) {}
@@ -110,7 +127,11 @@ public record PixelaySettings(
                 clicks.node("hit-tile-size").getDouble(0.25),
                 clicks.node("max-distance").getDouble(6)
             ),
-            new Cursor(cursor.node("glyph").getString("+"), cursor.node("height-px").getDouble(17)),
+            new Cursor(
+                cursor.node("glyph").getString("+"),
+                cursor.node("height-px").getDouble(17),
+                cursor.node("shader").getBoolean(true)
+            ),
             new Layers((float) Math.max(0.0001, root.node("layers", "step").getDouble(0.002))),
             new ChatSuppression(
                 chat.node("enabled").getBoolean(true),
@@ -142,8 +163,37 @@ public record PixelaySettings(
                     meta.node("block-state").getInt(23)
                 )
             ),
-            root.node("resource-packs", "order").getList(String.class, List.of())
+            root.node("resource-packs", "order").getList(String.class, List.of()),
+            new ResourcePack(
+                root.node("generated-pack", "enabled").getBoolean(true),
+                Math.max(0.1, root.node("generated-pack", "cursor", "scale").getDouble(1.5)),
+                cursorSprites(root.node("generated-pack", "cursor", "sprites"))
+            )
         );
+    }
+
+    /** Sprites as {@code name: [hotSpotX, hotSpotY]}, in file order; the built-in four when none are listed. */
+    private static List<CursorSprite> cursorSprites(ConfigurationNode node) throws ConfigurateException {
+        if (!node.isMap()) {
+            return List.of(
+                new CursorSprite("default", 0.5, 0.5),
+                new CursorSprite("pointer", 6, 0.5),
+                new CursorSprite("text", 3.5, 8),
+                new CursorSprite("not-allowed", 8.5, 8.5)
+            );
+        }
+        List<CursorSprite> sprites = new ArrayList<>();
+        for (Map.Entry<Object, ? extends ConfigurationNode> entry : node.childrenMap().entrySet()) {
+            List<Double> hotSpot = entry.getValue().getList(Double.class, List.of(0.0, 0.0));
+            sprites.add(
+                new CursorSprite(
+                    String.valueOf(entry.getKey()),
+                    hotSpot.isEmpty() ? 0 : hotSpot.get(0),
+                    hotSpot.size() < 2 ? 0 : hotSpot.get(1)
+                )
+            );
+        }
+        return sprites;
     }
 
     /** Current config.yml layout; older files still load, with a warning for every changed option. */

@@ -48,6 +48,10 @@ cursor:
   glyph: "+"
   # Default cursor height in canvas pixels.
   height-px: 17
+  # Screens (ScreenSession) draw the cursor with the core shader of the generated pack: the client moves it
+  # every frame, as smooth as the camera. Players need the pack (generated-pack below). false = a glyph
+  # (glyph above) moved by the server every tick.
+  shader: true
 
 layers:
   # Distance (blocks) between two drawing layers in front of a canvas surface: box backgrounds, debug
@@ -61,6 +65,25 @@ resource-packs:
   # When several packs define the same character, the higher one wins, like in the client's pack list.
   # List pack file/folder names here, highest priority first; packs not listed follow alphabetically.
   order: []
+
+generated-pack:
+  # Pixelay builds its own resource pack into plugins/Pixelay/pixelay-pack.zip on every start and
+  # /pixelay reload: the core shaders of the screen cursor and of texts cut at their box (CSS overflow),
+  # for Minecraft 1.21.11. Give it to players (server resource pack, or merged into yours).
+  # Files in plugins/Pixelay/pack/ go into the pack at the same path and replace Pixelay's own ones:
+  # pack/cursors/<name>.png is a cursor sprite (at most 32x32 px), pack/assets/... any other asset.
+  enabled: true
+  cursor:
+    # Size of the shader cursor: screen pixels per sprite pixel, on a 1080 pixel tall screen.
+    scale: 1.5
+    # The cursor sprites (pack/cursors/<name>.png, at most 7) and their hot spots in sprite pixels: the
+    # point that points, like CSS cursor: url(...) x y. Boxes pick one with cursor("name"); without one
+    # the cursor is "pointer" over clickable boxes and "default" elsewhere.
+    sprites:
+      default: [0.5, 0.5]
+      pointer: [6, 0.5]
+      text: [3.5, 8]
+      not-allowed: [8.5, 8.5]
 
 chat-suppression:
   # Allow ChatSuppression.suppress(player) to hide chat while a full-screen canvas is shown.
