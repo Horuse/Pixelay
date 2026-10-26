@@ -120,6 +120,36 @@ public final class ColorPanel {
         );
     }
 
+    /** Moves, resizes, and recolors an existing panel in a single metadata packet without recreating it. */
+    public static void update(
+        Player viewer,
+        int id,
+        Canvas canvas,
+        double width,
+        double height,
+        org.bukkit.util.Vector translation,
+        int argb
+    ) {
+        PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
+        PacketUtils.send(
+            viewer,
+            new WrapperPlayServerEntityMetadata(
+                id,
+                List.of(
+                    new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0),
+                    new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0),
+                    new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)),
+                    new EntityData<>(
+                        idx.translation(),
+                        EntityDataTypes.VECTOR3F,
+                        new Vector3f((float) translation.getX(), (float) translation.getY(), (float) translation.getZ())
+                    ),
+                    new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, argb)
+                )
+            )
+        );
+    }
+
     /** Moves and resizes an existing panel to a new rectangle. */
     public static void update(
         Player viewer,

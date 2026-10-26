@@ -80,9 +80,6 @@ public final class TextBackground {
             }
             return;
         }
-        if (exists() && argb != color) {
-            remove();
-        }
         double x = bounds.x();
         double y = bounds.y();
         double width = bounds.width();
@@ -94,7 +91,11 @@ public final class TextBackground {
                 fakeId = ColorPanel.spawn(viewer, canvas, x, y, width, height, argb, depth);
             } else {
                 org.bukkit.util.Vector translation = origin.toVector().subtract(fakeOrigin);
-                ColorPanel.update(viewer, fakeId, canvas, width, height, translation);
+                if (argb != color) {
+                    ColorPanel.update(viewer, fakeId, canvas, width, height, translation, argb);
+                } else {
+                    ColorPanel.update(viewer, fakeId, canvas, width, height, translation);
+                }
             }
         } else {
             Vector3f scale = toJoml(ColorPanel.scale(canvas, width, height));
@@ -106,6 +107,9 @@ public final class TextBackground {
                 DisplayUtils.tag(entity);
             } else {
                 entity.teleport(origin);
+                if (argb != color) {
+                    entity.setBackgroundColor(Color.fromARGB(argb));
+                }
             }
             entity.setTransformation(
                 new Transformation(new Vector3f(), new Quaternionf(canvas.contentRotation()), scale, new Quaternionf())

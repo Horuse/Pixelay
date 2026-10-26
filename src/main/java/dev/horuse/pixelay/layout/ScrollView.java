@@ -136,14 +136,26 @@ public class ScrollView extends Container<ScrollView> {
         return this;
     }
 
+    public double scrollbarWidth() {
+        return scrollbarWidth;
+    }
+
     public ScrollView scrollbarMargin(double margin) {
         this.scrollbarMargin = Math.max(0, margin);
         return this;
     }
 
+    public double scrollbarMargin() {
+        return scrollbarMargin;
+    }
+
     public ScrollView minThumbSize(double size) {
         this.minThumbSize = Math.max(4, size);
         return this;
+    }
+
+    public double minThumbSize() {
+        return minThumbSize;
     }
 
     public ScrollView scrollStep(double px) {
@@ -160,9 +172,17 @@ public class ScrollView extends Container<ScrollView> {
         return this;
     }
 
+    public boolean isSmooth() {
+        return smooth;
+    }
+
     public ScrollView scrollbar(ScrollbarPolicy policy) {
         this.scrollbarPolicy = policy;
         return this;
+    }
+
+    public ScrollbarPolicy scrollbarPolicy() {
+        return scrollbarPolicy;
     }
 
     public ScrollView scrollbar(boolean visible) {
@@ -175,6 +195,10 @@ public class ScrollView extends Container<ScrollView> {
         return this;
     }
 
+    public int trackColor() {
+        return trackColor;
+    }
+
     public ScrollView thumbColor(int argb) {
         this.thumbColor = argb;
         if (!dragging) {
@@ -183,10 +207,18 @@ public class ScrollView extends Container<ScrollView> {
         return this;
     }
 
+    public int thumbColor() {
+        return thumbColor;
+    }
+
     public ScrollView thumbHoverColor(int argb) {
         this.thumbHoverColor = argb;
         thumb.state(State.HOVERED, s -> s.background(argb));
         return this;
+    }
+
+    public int thumbHoverColor() {
+        return thumbHoverColor;
     }
 
     public ScrollView thumbDragColor(int argb) {
@@ -195,6 +227,10 @@ public class ScrollView extends Container<ScrollView> {
             thumb.background(argb);
         }
         return this;
+    }
+
+    public int thumbDragColor() {
+        return thumbDragColor;
     }
 
     public ScrollView onScroll(Consumer<ScrollView> listener) {
@@ -336,8 +372,7 @@ public class ScrollView extends Container<ScrollView> {
         double available = maxWidth >= 0 ? Math.max(0, maxWidth - gutter) : UNBOUNDED;
         Size contentSize = content.measure(available);
         double width = contentSize.width() + gutter;
-        double height = hasFixedHeight() ? rect().height() : contentSize.height();
-        return new Size(width, height);
+        return new Size(width, contentSize.height());
     }
 
     @Override
@@ -351,10 +386,25 @@ public class ScrollView extends Container<ScrollView> {
         this.viewportHeight = viewport.height();
         this.viewportWidth = viewport.width();
 
-        boolean showBar = hasScrollbar();
-        double gutter = showBar ? scrollbarWidth + scrollbarMargin : 0;
-        double contentW = Math.max(0, viewport.width() - gutter);
-        Size contentSize = content.measure(contentW);
+        boolean showBar = scrollbarPolicy == ScrollbarPolicy.ALWAYS;
+        Size contentSize;
+        double contentW;
+        if (scrollbarPolicy == ScrollbarPolicy.AUTO) {
+            Size initial = content.measure(Math.max(0, viewport.width()));
+            if (initial.height() > viewport.height()) {
+                showBar = true;
+                double gutter = scrollbarWidth + scrollbarMargin;
+                contentW = Math.max(0, viewport.width() - gutter);
+                contentSize = content.measure(contentW);
+            } else {
+                contentW = Math.max(0, viewport.width());
+                contentSize = initial;
+            }
+        } else {
+            double gutter = showBar ? scrollbarWidth + scrollbarMargin : 0;
+            contentW = Math.max(0, viewport.width() - gutter);
+            contentSize = content.measure(contentW);
+        }
         this.contentHeight = contentSize.height();
         this.contentWidth = contentSize.width();
 

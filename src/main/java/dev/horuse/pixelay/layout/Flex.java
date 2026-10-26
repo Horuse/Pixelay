@@ -33,10 +33,18 @@ public final class Flex extends Container<Flex> {
         return this;
     }
 
+    public Align align() {
+        return align;
+    }
+
     /** Main-axis distribution when no child grows (CSS {@code justify-content}). */
     public Flex justify(Justify justify) {
         this.justify = justify;
         return this;
+    }
+
+    public Justify justify() {
+        return justify;
     }
 
     @Override
@@ -172,11 +180,21 @@ public final class Flex extends Container<Flex> {
         boolean distributeGrow = !horizontal && totalGrow > 0;
         double cursor = 0;
         double between = gap;
-        if (totalGrow == 0) {
+        if (totalGrow == 0 && !children.isEmpty()) {
             switch (justify) {
                 case CENTER -> cursor = free / 2;
                 case END -> cursor = free;
                 case SPACE_BETWEEN -> between += children.size() > 1 ? free / (children.size() - 1) : 0;
+                case SPACE_AROUND -> {
+                    double unit = free / children.size();
+                    cursor = unit / 2;
+                    between += unit;
+                }
+                case SPACE_EVENLY -> {
+                    double unit = free / (children.size() + 1);
+                    cursor = unit;
+                    between += unit;
+                }
                 case START -> {
                 }
             }

@@ -6,4 +6,6 @@ public enum Justify {
     CENTER,
     END,
     SPACE_BETWEEN,
+    SPACE_AROUND,
+    SPACE_EVENLY,
 }
