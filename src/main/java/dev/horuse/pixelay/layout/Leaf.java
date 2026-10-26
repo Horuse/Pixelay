@@ -2,9 +2,11 @@ package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
+import dev.horuse.pixelay.components.CanvasText;
 import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.components.TextPlacement;
 import dev.horuse.pixelay.content.FontMetrics;
+import dev.horuse.pixelay.content.TextContent;
 import dev.horuse.pixelay.content.TextWrap;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Rect;
@@ -12,31 +14,102 @@ import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.data.VAlign;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.bukkit.entity.Player;
 
 /**
- * A canvas component inside a layout. Its size is the measured text block (or the component's explicit
- * hitbox); the text wraps to the width the layout gives it, never breaking words (like CSS).
+ * A text node inside a layout (like an HTML {@code <p>} or {@code <span>}). Its size is the measured
+ * text block (or the component's explicit hitbox); the text wraps to the width the layout gives it,
+ * never breaking words (like CSS).
  * <p>
- * Inside its rectangle the text is pinned by {@link #justifySelf} (horizontal) and {@link #alignSelf}
- * (vertical), top-left by default; {@code STRETCH} counts as start. In a row or a column the parent
- * ignores {@code justifySelf} (as CSS flexbox does), but the leaf still uses it for its text. The
- * layout owns the component's position and alignment, so {@code component.align(...)} has no effect.
+ * Inside its rectangle the text is pinned horizontally by {@link #textAlign} (or {@link #justifySelf}
+ * when {@code textAlign} is unset) and vertically by {@link #alignSelf}, top-left by default.
  */
 public final class Leaf extends Box<Leaf> {
 
     private final AbstractCanvasComponent component;
+    private HAlign textAlign;
     // Per-pass caches: the text and its longest word are evaluated once per layout pass.
     private String text;
     private int longestWord = -1;
 
-    Leaf(AbstractCanvasComponent component) {
+    public Leaf(AbstractCanvasComponent component) {
         this.component = component;
+    }
+
+    public Leaf(Player viewer, double heightPx, TextContent content) {
+        this(
+            viewer != null ? CanvasText.fake(viewer, 0, 0, heightPx, content) : new CanvasText(0, 0, heightPx, content)
+        );
+    }
+
+    public Leaf(Player viewer, double heightPx, String miniMessage) {
+        this(viewer, heightPx, TextContent.of(miniMessage));
+    }
+
+    public Leaf(Player viewer, double heightPx, Supplier<String> supplier) {
+        this(viewer, heightPx, TextContent.supplier(supplier));
+    }
+
+    @Override
+    public String tagName() {
+        return "text";
     }
 
     @Override
     public AbstractCanvasComponent component() {
         return component;
+    }
+
+    /** Sets the horizontal text alignment inside this box (CSS {@code text-align}), independent of {@link #justifySelf}. */
+    public Leaf textAlign(HAlign align) {
+        this.textAlign = align;
+        return this;
+    }
+
+    /** Sets the horizontal text alignment inside this box (CSS {@code text-align}), independent of {@link #justifySelf}. */
+    public Leaf textAlign(Align align) {
+        this.textAlign =
+            align == null
+                ? null
+                : switch (align) {
+                      case START, STRETCH -> HAlign.LEFT;
+                      case CENTER -> HAlign.CENTER;
+                      case END -> HAlign.RIGHT;
+                  };
+        return this;
+    }
+
+    public HAlign textAlign() {
+        return textAlign;
+    }
+
+    /** Font size (line height in canvas px, CSS {@code font-size}). */
+    public Leaf fontSize(double heightPx) {
+        component.heightPx(heightPx);
+        invalidate();
+        return this;
+    }
+
+    public double fontSize() {
+        return component.heightPx();
+    }
+
+    /** Updates the text content (MiniMessage). */
+    public Leaf text(String miniMessage) {
+        return text(TextContent.of(miniMessage));
+    }
+
+    /** Updates the dynamic text content supplier. */
+    public Leaf text(Supplier<String> supplier) {
+        return text(TextContent.supplier(supplier));
+    }
+
+    /** Updates the text content. */
+    public Leaf text(TextContent content) {
+        component.content(content);
+        invalidate();
+        return this;
     }
 
     /** The text background, and the text one step above it. */
@@ -106,11 +179,14 @@ public final class Leaf extends Box<Leaf> {
     protected void arrangeContent(Rect content) {
         Align horizontal = justifySelf != null ? justifySelf : Align.START;
         Align vertical = alignSelf != null ? alignSelf : Align.START;
-        HAlign h = switch (horizontal) {
-            case START, STRETCH -> HAlign.LEFT;
-            case CENTER -> HAlign.CENTER;
-            case END -> HAlign.RIGHT;
-        };
+        HAlign h =
+            textAlign != null
+                ? textAlign
+                : switch (horizontal) {
+                      case START, STRETCH -> HAlign.LEFT;
+                      case CENTER -> HAlign.CENTER;
+                      case END -> HAlign.RIGHT;
+                  };
         VAlign v = switch (vertical) {
             case START, STRETCH -> VAlign.TOP;
             case CENTER -> VAlign.MIDDLE;

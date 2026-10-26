@@ -14,6 +14,11 @@ public final class Stack extends Container<Stack> {
     }
 
     @Override
+    public String tagName() {
+        return "stack";
+    }
+
+    @Override
     protected Size measureContent(double maxWidth) {
         double width = 0;
         double height = 0;

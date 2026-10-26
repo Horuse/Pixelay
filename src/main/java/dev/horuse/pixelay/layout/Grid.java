@@ -38,10 +38,19 @@ public final class Grid extends Container<Grid> {
         super(items);
     }
 
+    @Override
+    public String tagName() {
+        return "grid";
+    }
+
     /** Explicit column tracks (CSS {@code grid-template-columns}). */
     public Grid columns(Track... tracks) {
         this.columns = tracks;
         return this;
+    }
+
+    public List<Track> columns() {
+        return List.of(columns);
     }
 
     /** Explicit row tracks (CSS {@code grid-template-rows}). */
@@ -50,10 +59,18 @@ public final class Grid extends Container<Grid> {
         return this;
     }
 
+    public List<Track> rows() {
+        return List.of(rows);
+    }
+
     /** Size of implicitly created columns (CSS {@code grid-auto-columns}). */
     public Grid autoColumns(Track track) {
         this.autoColumns = track;
         return this;
+    }
+
+    public Track autoColumns() {
+        return autoColumns;
     }
 
     /** Size of implicitly created rows (CSS {@code grid-auto-rows}). */
@@ -62,10 +79,18 @@ public final class Grid extends Container<Grid> {
         return this;
     }
 
+    public Track autoRows() {
+        return autoRows;
+    }
+
     /** Direction of auto-placement (CSS {@code grid-auto-flow}); default {@code ROW}. */
     public Grid autoFlow(Flow flow) {
         this.flow = flow;
         return this;
+    }
+
+    public Flow autoFlow() {
+        return flow;
     }
 
     /** Vertical placement of every item inside its area (CSS {@code align-items}); default stretch. */
@@ -74,10 +99,18 @@ public final class Grid extends Container<Grid> {
         return this;
     }
 
+    public Align alignItems() {
+        return alignItems;
+    }
+
     /** Horizontal placement of every item inside its area (CSS {@code justify-items}); default stretch. */
     public Grid justifyItems(Align align) {
         this.justifyItems = align;
         return this;
+    }
+
+    public Align justifyItems() {
+        return justifyItems;
     }
 
     @Override

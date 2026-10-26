@@ -27,6 +27,11 @@ public final class Flex extends Container<Flex> {
         return horizontal;
     }
 
+    @Override
+    public String tagName() {
+        return horizontal ? "row" : "column";
+    }
+
     /** Cross-axis alignment of the children (CSS {@code align-items}). */
     public Flex align(Align align) {
         this.align = align;

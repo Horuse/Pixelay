@@ -4,6 +4,7 @@ import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.debug.Fit;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,10 +19,13 @@ import org.bukkit.entity.Player;
  * (outside, may be negative), grow/shrink factors and self alignment. Layout runs in two passes:
  * {@link #measure(double)} computes the size that fits a width limit bottom-up (cached for one pass),
  * {@link #arrange(Rect)} assigns rectangles top-down. Layout runs on the main server thread.
+ * <p>
+ * May be instantiated directly ({@code new Box<>()} or {@link Layout#box()}) as an empty block element
+ * (like an HTML {@code <div>} with no children, or a geometric panel/divider).
  *
  * @param <S> the concrete box type, so chained setters keep it: {@code column(a, b).padding(32).gap(8)}
  */
-public abstract class Box<S extends Box<S>> implements LayoutItem {
+public class Box<S extends Box<S>> implements LayoutItem {
 
     /** Width limit meaning "no limit" (measure the natural, unwrapped size). */
     static final double UNBOUNDED = -1;
@@ -89,19 +93,34 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
      * texts wrap to it, containers pass it on to their children (like CSS width constraints).
      * Must not change any state: arranging happens in {@link #arrangeContent}.
      */
-    protected abstract Size measureContent(double maxWidth);
+    protected Size measureContent(double maxWidth) {
+        return Size.ZERO;
+    }
 
     /** Places the children inside the content rectangle (the box rectangle minus padding). */
-    protected abstract void arrangeContent(Rect content);
+    protected void arrangeContent(Rect content) {}
 
     /** Adds every canvas component of this subtree to {@code out}. */
-    protected abstract void collectComponents(List<LayoutComponent> out);
+    protected void collectComponents(List<LayoutComponent> out) {}
 
     /**
      * Narrowest content width (without padding) this box can take without breaking words or
      * squeezing fixed sizes — the floor for {@code shrink} (CSS {@code min-content}).
      */
-    protected abstract double minContentWidth();
+    protected double minContentWidth() {
+        return 0;
+    }
+
+    /** Semantic HTML-like tag name of this node for debugging, serialization, and the web editor. */
+    public String tagName() {
+        return "div";
+    }
+
+    /** The single player who sees this box's entities, or {@code null} when visible to everyone or inherited. */
+    public Player viewer() {
+        LayoutComponent comp = component();
+        return comp != null ? comp.viewer() : null;
+    }
 
     /** The component this box draws ({@link Leaf}, {@link ModelLeaf}), or {@code null} for other boxes. */
     LayoutComponent component() {
@@ -223,14 +242,42 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return padding(Insets.all(all));
     }
 
+    public S padding(double vertical, double horizontal) {
+        return padding(Insets.of(vertical, horizontal));
+    }
+
+    public S padding(double top, double right, double bottom, double left) {
+        return padding(new Insets(top, right, bottom, left));
+    }
+
     public S padding(Insets padding) {
-        this.padding = padding;
+        this.padding = padding != null ? padding : Insets.NONE;
         return self();
     }
 
+    public Insets padding() {
+        return padding;
+    }
+
+    public S margin(double all) {
+        return margin(Insets.all(all));
+    }
+
+    public S margin(double vertical, double horizontal) {
+        return margin(Insets.of(vertical, horizontal));
+    }
+
+    public S margin(double top, double right, double bottom, double left) {
+        return margin(new Insets(top, right, bottom, left));
+    }
+
     public S margin(Insets margin) {
-        this.margin = margin;
+        this.margin = margin != null ? margin : Insets.NONE;
         return self();
+    }
+
+    public Insets margin() {
+        return margin;
     }
 
     public S width(double width) {
@@ -238,9 +285,17 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return self();
     }
 
+    public double fixedWidth() {
+        return fixedWidth;
+    }
+
     public S height(double height) {
         this.fixedHeight = height;
         return self();
+    }
+
+    public double fixedHeight() {
+        return fixedHeight;
     }
 
     public S size(double width, double height) {
@@ -256,6 +311,10 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return self();
     }
 
+    public double grow() {
+        return grow;
+    }
+
     /**
      * Share of the missing space a row takes from this box when its children do not fit (CSS
      * {@code flex-shrink}, default 1). Never below {@link #minContentWidth()}: texts wrap, words stay whole.
@@ -263,6 +322,10 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     public S shrink(double shrink) {
         this.shrink = Math.max(0, shrink);
         return self();
+    }
+
+    public double shrink() {
+        return shrink;
     }
 
     /**
@@ -274,6 +337,10 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return self();
     }
 
+    public Align alignSelf() {
+        return alignSelf;
+    }
+
     /**
      * Horizontal placement in a grid or stack area (CSS {@code justify-self}). In a row or a column it
      * does not move the box (as in CSS flexbox); a leaf still uses it to pin its text inside its rectangle.
@@ -283,10 +350,18 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return self();
     }
 
+    public Align justifySelf() {
+        return justifySelf;
+    }
+
     /** Rows this item covers in a grid (CSS {@code grid-row: span n}). */
     public S rowSpan(int span) {
         this.rowSpan = Math.max(1, span);
         return self();
+    }
+
+    public int rowSpan() {
+        return rowSpan;
     }
 
     /** Columns this item covers in a grid (CSS {@code grid-column: span n}). */
@@ -295,16 +370,28 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return self();
     }
 
+    public int columnSpan() {
+        return columnSpan;
+    }
+
     /** Explicit start row line in a grid, 1-based like CSS {@code grid-row-start}; auto-placed otherwise. */
     public S gridRow(int line) {
         this.gridRow = Math.max(0, line);
         return self();
     }
 
+    public int gridRow() {
+        return gridRow;
+    }
+
     /** Explicit start column line in a grid, 1-based like CSS {@code grid-column-start}; auto-placed otherwise. */
     public S gridColumn(int line) {
         this.gridColumn = Math.max(0, line);
         return self();
+    }
+
+    public int gridColumn() {
+        return gridColumn;
     }
 
     /** Tag for hit testing ({@link MountedLayout#idAt}), e.g. to highlight a hovered card. */
@@ -340,10 +427,18 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return self();
     }
 
+    public Overflow overflowX() {
+        return overflowX;
+    }
+
     /** CSS {@code overflow-y}: cut the children at the top and bottom edges. */
     public S overflowY(Overflow overflow) {
         this.overflowY = overflow;
         return self();
+    }
+
+    public Overflow overflowY() {
+        return overflowY;
     }
 
     /**
@@ -354,6 +449,10 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     public S cursor(String name) {
         this.cursor = name;
         return self();
+    }
+
+    public String cursor() {
+        return cursor;
     }
 
     /** The cursor set on this box now (by the active states or the box), or {@code null}. */
@@ -391,11 +490,36 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return self();
     }
 
+    /** Shorthand for {@code state(State.HOVERED, rule)} (CSS {@code :hover}). */
+    public S hover(Consumer<Style> rule) {
+        return state(State.HOVERED, rule);
+    }
+
+    /** Shorthand for {@code state(State.DISABLED, rule)} (CSS {@code :disabled}). */
+    public S disabledStyle(Consumer<Style> rule) {
+        return state(State.DISABLED, rule);
+    }
+
+    /** Shorthand for {@code state(State.SELECTED, rule)} (CSS {@code :checked} / {@code .selected}). */
+    public S selectedStyle(Consumer<Style> rule) {
+        return state(State.SELECTED, rule);
+    }
+
     /** The look of the box in a custom state (switched with {@link #toggle(String, boolean)}). */
     public S state(String name, Consumer<Style> rule) {
         rule.accept(stateStyles.computeIfAbsent(name, key -> new Style()));
         styleStale = true;
         return self();
+    }
+
+    /** Read-only view of all state style rules registered on this box. */
+    public Map<Object, Style> stateStyles() {
+        return Collections.unmodifiableMap(stateStyles);
+    }
+
+    /** Read-only view of active custom state names on this box. */
+    public Set<String> customStates() {
+        return Collections.unmodifiableSet(customStates);
     }
 
     /** Switches a custom state on or off, like {@code classList.toggle(name, on)}. */

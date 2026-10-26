@@ -1,9 +1,7 @@
 package dev.horuse.pixelay.layout;
 
-import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -23,8 +21,8 @@ public class ScrollView extends Container<ScrollView> {
     }
 
     private final Box<?> content;
-    private final ScrollbarElement track = new ScrollbarElement();
-    private final ScrollbarElement thumb = new ScrollbarElement();
+    private final Box<?> track = new Box<>();
+    private final Box<?> thumb = new Box<>();
 
     private double scrollOffset;
     private double targetScrollOffset;
@@ -107,6 +105,11 @@ public class ScrollView extends Container<ScrollView> {
 
     public Box<?> content() {
         return content;
+    }
+
+    @Override
+    public String tagName() {
+        return "scroll-view";
     }
 
     @Override
@@ -434,24 +437,5 @@ public class ScrollView extends Container<ScrollView> {
             track.arrange(new Rect(viewport.right(), viewport.y(), 0, 0), false);
             thumb.arrange(new Rect(viewport.right(), viewport.y(), 0, 0), false);
         }
-    }
-
-    private static final class ScrollbarElement extends Box<ScrollbarElement> {
-
-        @Override
-        protected Size measureContent(double maxWidth) {
-            return Size.ZERO;
-        }
-
-        @Override
-        protected double minContentWidth() {
-            return 0;
-        }
-
-        @Override
-        protected void arrangeContent(Rect content) {}
-
-        @Override
-        protected void collectComponents(List<LayoutComponent> out) {}
     }
 }

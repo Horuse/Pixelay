@@ -22,8 +22,36 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
         return self();
     }
 
+    public double gap() {
+        return gap;
+    }
+
     public List<Box<?>> children() {
         return List.copyOf(children);
+    }
+
+    /** Appends a child item to this container and invalidates cached measurements. */
+    public S addChild(LayoutItem item) {
+        children.add(Layout.box(item));
+        invalidate();
+        return self();
+    }
+
+    /** Removes a child box from this container and invalidates cached measurements. */
+    public S removeChild(Box<?> child) {
+        if (children.remove(child)) {
+            invalidate();
+        }
+        return self();
+    }
+
+    /** Removes all children from this container and invalidates cached measurements. */
+    public S clearChildren() {
+        if (!children.isEmpty()) {
+            children.clear();
+            invalidate();
+        }
+        return self();
     }
 
     @Override

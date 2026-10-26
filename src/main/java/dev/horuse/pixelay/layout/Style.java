@@ -55,23 +55,23 @@ public final class Style {
         return this;
     }
 
-    String cursor() {
+    public String cursor() {
         return cursor;
     }
 
-    Insets padding() {
+    public Insets padding() {
         return padding;
     }
 
-    Insets margin() {
+    public Insets margin() {
         return margin;
     }
 
-    Integer background() {
+    public Integer background() {
         return background;
     }
 
-    TextContent text() {
+    public TextContent text() {
         return text;
     }
 

@@ -19,6 +19,11 @@ public final class ModelLeaf extends Box<ModelLeaf> {
     }
 
     @Override
+    public String tagName() {
+        return "model";
+    }
+
+    @Override
     public CanvasModel<?> component() {
         return model;
     }
