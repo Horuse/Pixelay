@@ -44,12 +44,16 @@ public final class TextBackground {
         if (!drawable.debugBackground()) {
             return 0;
         }
-        return LayoutDebug.background(drawable.overflow(), debugging, Pixelay.settings().text().backgroundArgb());
+        return LayoutDebug.background(drawable.fit(), debugging, Pixelay.settings().text().backgroundArgb());
     }
 
     /** Shows the panel over the element's box ({@code hitbox} as measured), in place when it already exists. */
     void sync(Canvas canvas, CanvasDrawable drawable, Size hitbox, int argb) {
         Rect bounds = hitbox != null ? TextPlacement.bounds(drawable, hitbox) : null;
+        // Cut like the text it is under (CSS overflow).
+        if (bounds != null && drawable.clip() != null) {
+            bounds = bounds.intersect(drawable.clip());
+        }
         sync(canvas, bounds, argb, drawable.textBackgroundDepth());
     }
 

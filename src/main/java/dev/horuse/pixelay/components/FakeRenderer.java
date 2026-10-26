@@ -82,6 +82,8 @@ public class FakeRenderer extends TextRenderer {
                 entityId,
                 List.of(
                     new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, placement.component()),
+                    // Cut codes and their opacity marker travel together (see TextClip).
+                    new EntityData<>(idx.textOpacity(), EntityDataTypes.BYTE, textOpacity()),
                     // The alignment presses multi-line text left/right; it may have changed since the spawn.
                     new EntityData<>(idx.styleFlags(), EntityDataTypes.BYTE, styleFlags(Pixelay.settings().text())),
                     new EntityData<>(
@@ -155,7 +157,7 @@ public class FakeRenderer extends TextRenderer {
         data.add(new EntityData<>(idx.lineWidth(), EntityDataTypes.INT, TextPlacement.CLIENT_LINE_WIDTH));
         // The background is a separate panel (TextBackground), never the client's own one.
         data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, 0));
-        data.add(new EntityData<>(idx.textOpacity(), EntityDataTypes.BYTE, (byte) -1));
+        data.add(new EntityData<>(idx.textOpacity(), EntityDataTypes.BYTE, textOpacity()));
         data.add(
             new EntityData<>(
                 idx.brightnessOverride(),

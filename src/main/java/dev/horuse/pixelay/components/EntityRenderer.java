@@ -36,6 +36,7 @@ public class EntityRenderer extends TextRenderer {
             viewer.showEntity(Pixelay.plugin(), display);
         }
         applyTextStyle(display);
+        display.setTextOpacity(textOpacity());
         DisplayUtils.tag(display);
     }
 
@@ -46,6 +47,7 @@ public class EntityRenderer extends TextRenderer {
         // The alignment presses multi-line text left/right; it may have changed since the spawn.
         display.setAlignment(drawable.hAlign().textAlignment());
         display.text(placement.component());
+        display.setTextOpacity(textOpacity());
     }
 
     @Override

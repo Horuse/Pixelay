@@ -4,8 +4,9 @@ import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.content.TextWrap;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
+import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.VAlign;
-import dev.horuse.pixelay.debug.Overflow;
+import dev.horuse.pixelay.debug.Fit;
 import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
@@ -56,9 +57,17 @@ public interface CanvasDrawable {
         return true;
     }
 
+    /**
+     * @return where the element may draw, in canvas px: whatever lies outside is cut away (CSS {@code overflow}
+     *     of the boxes around it, and always the canvas itself), or {@code null} to draw it whole
+     */
+    default Rect clip() {
+        return null;
+    }
+
     /** @return whether the last layout pass found this element (or its box) bigger than its space */
-    default Overflow overflow() {
-        return Overflow.NONE;
+    default Fit fit() {
+        return Fit.NONE;
     }
 
     /**

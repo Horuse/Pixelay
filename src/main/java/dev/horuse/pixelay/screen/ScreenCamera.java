@@ -13,9 +13,10 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
 /**
- * The locked camera of a {@link ScreenSession}: the spectator player rides an invisible camera entity and
- * looks through it, and a packet-only Interaction around it makes the client send clicks. The session owns
- * it and decides the order things are restored in.
+ * The locked camera of a {@link ScreenSession}: the spectator player rides an invisible entity and looks through
+ * an invisible camera entity, and a packet-only Interaction around the camera makes the client send clicks. The
+ * player rides the camera itself, or a seat above it (see {@link #ScreenCamera}). The session owns it and
+ * decides the order things are restored in.
  */
 final class ScreenCamera {
 
@@ -28,31 +29,49 @@ final class ScreenCamera {
 
     private final Player player;
     private final Location view;
+    private final double seatHeight;
     private final int clickTargetId = FakeEntityIds.next();
     private ArmorStand anchor;
+    /** What the player rides: the camera, or a seat {@link #seatHeight} above it. */
+    private ArmorStand seat;
     private int ticks;
     private boolean removed;
 
-    ScreenCamera(Player player, Location view) {
+    /**
+     * @param seatHeight blocks above the camera the player sits (0 = on the camera): the shader cursor puts
+     *     client-side water at the player's eyes, which must stay far out of the camera's view
+     */
+    ScreenCamera(Player player, Location view, double seatHeight) {
         this.player = player;
         this.view = view;
+        this.seatHeight = seatHeight;
     }
 
     /** Spawns the camera entity and locks the player onto it a few ticks later. */
     void spawn() {
-        // A marker armor stand is a valid camera target with no model and no hitbox.
-        anchor = view.getWorld().spawn(view, ArmorStand.class, stand -> {
+        anchor = spawnStand(view);
+        seat = seatHeight > 0 ? spawnStand(seatLocation()) : anchor;
+        Bukkit.getScheduler().runTaskLater(Pixelay.plugin(), this::mount, MOUNT_DELAY_TICKS);
+    }
+
+    /** Where the player's vehicle stands. */
+    Location seatLocation() {
+        return view.clone().add(0, seatHeight, 0);
+    }
+
+    /** A marker armor stand: a valid camera target and vehicle with no model and no hitbox. */
+    private ArmorStand spawnStand(Location at) {
+        return at.getWorld().spawn(at, ArmorStand.class, stand -> {
             stand.setInvisible(true);
             stand.setMarker(true);
             stand.setGravity(false);
             stand.setRotation(view.getYaw(), 0);
             DisplayUtils.tag(stand);
         });
-        Bukkit.getScheduler().runTaskLater(Pixelay.plugin(), this::mount, MOUNT_DELAY_TICKS);
     }
 
     boolean is(Entity entity) {
-        return anchor != null && anchor.equals(entity);
+        return entity != null && (entity.equals(anchor) || entity.equals(seat));
     }
 
     /** Keeps the player on the camera; called every tick. */
@@ -63,13 +82,13 @@ final class ScreenCamera {
             }
             return;
         }
-        if (player.getVehicle() != anchor) {
-            anchor.addPassenger(player);
+        if (player.getVehicle() != seat) {
+            seat.addPassenger(player);
         }
         // After the switch to spectator the client resets entity tracking and may lose the camera.
         if (ticks++ < RESEND_TICKS) {
             sendClickTarget();
-            PacketUtils.mount(player, anchor);
+            PacketUtils.mount(player, seat);
             PacketUtils.sendCamera(player, anchor);
         }
     }
@@ -79,7 +98,7 @@ final class ScreenCamera {
         if (anchor == null) {
             return;
         }
-        PacketUtils.mount(player, anchor);
+        PacketUtils.mount(player, seat);
         PacketUtils.sendCamera(player, anchor);
         Bukkit.getScheduler().runTask(Pixelay.plugin(), () -> {
             if (!usable()) {
@@ -88,7 +107,7 @@ final class ScreenCamera {
             if (player.getGameMode() == GameMode.SPECTATOR) {
                 player.setSpectatorTarget(anchor);
             }
-            PacketUtils.mount(player, anchor);
+            PacketUtils.mount(player, seat);
             PacketUtils.sendCamera(player, anchor);
         });
     }
@@ -100,6 +119,11 @@ final class ScreenCamera {
             PacketUtils.destroy(player, clickTargetId);
             PacketUtils.sendCamera(player, player);
         }
+        if (seat != null && seat != anchor) {
+            seat.eject();
+            seat.remove();
+        }
+        seat = null;
         if (anchor != null) {
             anchor.eject();
             anchor.remove();
@@ -112,8 +136,8 @@ final class ScreenCamera {
             return;
         }
         // A real server-side ride: Paper drops the client's vehicle look packets from non-passengers.
-        if (player.getVehicle() != anchor && !anchor.addPassenger(player)) {
-            PacketUtils.mount(player, anchor);
+        if (player.getVehicle() != seat && !seat.addPassenger(player)) {
+            PacketUtils.mount(player, seat);
         }
         sendClickTarget();
         PacketUtils.sendCamera(player, anchor);
@@ -123,7 +147,7 @@ final class ScreenCamera {
     }
 
     private boolean usable() {
-        return !removed && player.isOnline() && anchor != null && anchor.isValid();
+        return !removed && player.isOnline() && anchor != null && anchor.isValid() && seat != null && seat.isValid();
     }
 
     /**

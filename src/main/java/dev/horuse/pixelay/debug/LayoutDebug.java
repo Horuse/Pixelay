@@ -65,11 +65,11 @@ public final class LayoutDebug {
     }
 
     /** The background a component should have for a viewer who does ({@code visible}) or does not debug. */
-    public static int background(Overflow overflow, boolean visible, int normal) {
+    public static int background(Fit fit, boolean visible, int normal) {
         if (!visible) {
             return normal;
         }
-        return switch (overflow) {
+        return switch (fit) {
             case NONE -> DEBUG_BACKGROUND;
             case SELF -> OVERFLOW_BACKGROUND;
             case INSIDE -> INSIDE_OVERFLOW_BACKGROUND;

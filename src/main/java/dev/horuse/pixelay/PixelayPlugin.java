@@ -14,9 +14,12 @@ import dev.horuse.pixelay.debug.LayoutDebug;
 import dev.horuse.pixelay.listeners.CanvasPacketClickListener;
 import dev.horuse.pixelay.listeners.ChatSuppression;
 import dev.horuse.pixelay.listeners.PlayerQuitCleanup;
+import dev.horuse.pixelay.pack.PixelayPack;
 import dev.horuse.pixelay.screen.ScreenListener;
 import dev.horuse.pixelay.screen.ScreenLookListener;
 import dev.horuse.pixelay.screen.ScreenSession;
+import dev.horuse.pixelay.screen.ShaderCursorListener;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import org.bukkit.Bukkit;
@@ -62,6 +65,7 @@ public final class PixelayPlugin extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new ScreenListener(), this);
         for (PacketListener listener : List.of(
             new ScreenLookListener(),
+            new ShaderCursorListener(),
             new CanvasPacketClickListener(),
             new ChatSuppression()
         )) {
@@ -105,6 +109,25 @@ public final class PixelayPlugin extends JavaPlugin {
     private void loadSettings() throws ConfigurateException {
         settings = PixelaySettings.load(this);
         FontMetrics.loadOverrides(this);
+        buildResourcePack();
+    }
+
+    /** Builds plugins/Pixelay/pixelay-pack.zip; a failed build only disables the shader features. */
+    private void buildResourcePack() {
+        if (!settings.resourcePack().enabled()) {
+            return;
+        }
+        try {
+            PixelayPack.Built pack = PixelayPack.build(
+                getFile(),
+                getDataFolder().toPath(),
+                settings.resourcePack(),
+                getLogger()
+            );
+            getLogger().info("Resource pack built: " + pack.zip() + " (sha1 " + pack.sha1() + ")");
+        } catch (IOException e) {
+            getLogger().warning("Could not build the resource pack: " + e.getMessage());
+        }
     }
 
     public CanvasManager manager() {

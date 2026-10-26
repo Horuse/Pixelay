@@ -5,6 +5,7 @@ import dev.horuse.pixelay.content.FontMetrics;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
+import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.VAlign;
 import dev.horuse.pixelay.debug.LayoutDebug;
 import dev.horuse.pixelay.utils.PacketUtils;
@@ -116,6 +117,12 @@ public class CanvasCursor extends AbstractCanvasComponent {
     /** The cursor is positioned only by {@link #move}: a refresh must not move it back onto the text plane. */
     @Override
     public void refresh() {}
+
+    /** The cursor is drawn whole, even over the canvas edge (it is clamped to it anyway). */
+    @Override
+    public Rect clip() {
+        return null;
+    }
 
     /** The glyph's text box is not the drawing (the arrow is taller than a line): debug shows a dot instead. */
     @Override

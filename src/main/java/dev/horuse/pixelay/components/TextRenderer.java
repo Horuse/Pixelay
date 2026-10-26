@@ -3,8 +3,10 @@ package dev.horuse.pixelay.components;
 import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.clicks.ClickTarget;
 import dev.horuse.pixelay.data.Canvas;
+import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.debug.LayoutDebug;
+import java.util.Objects;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
@@ -26,6 +28,9 @@ abstract class TextRenderer implements CanvasRenderer {
     private int lastLayoutVersion;
     private int lastLineWidth;
     private float lastDepth;
+    private Rect lastClip;
+    /** Whether the sent text carries cut codes (see {@link TextClip}). */
+    private boolean coded;
 
     TextRenderer(CanvasDrawable drawable, Player viewer) {
         this.drawable = drawable;
@@ -50,7 +55,7 @@ abstract class TextRenderer implements CanvasRenderer {
         }
         this.canvas = canvas;
         String text = drawable.renderText();
-        placement = TextPlacement.place(drawable, text);
+        placement = clipped(TextPlacement.place(drawable, text));
         remember(text);
         spawnEntity(placement, location());
         syncBackground();
@@ -69,7 +74,7 @@ abstract class TextRenderer implements CanvasRenderer {
             syncBackground();
             return;
         }
-        placement = TextPlacement.place(drawable, text);
+        placement = clipped(TextPlacement.place(drawable, text));
         remember(text);
         updateEntity(placement, location());
         syncBackground();
@@ -108,6 +113,27 @@ abstract class TextRenderer implements CanvasRenderer {
         return placement;
     }
 
+    /** Text opacity to send: {@link TextClip#CODED_OPACITY} while the text carries cut codes, opaque otherwise. */
+    protected final byte textOpacity() {
+        return (byte) (coded ? TextClip.CODED_OPACITY : 255);
+    }
+
+    /** The placement with the text cut at the element's clip (CSS {@code overflow}). */
+    private TextPlacement.Placement clipped(TextPlacement.Placement placed) {
+        TextClip.Clipped clipped = TextClip.apply(drawable, placed);
+        coded = clipped.coded();
+        return new TextPlacement.Placement(
+            placed.box(),
+            placed.x(),
+            placed.y(),
+            clipped.component(),
+            placed.laid(),
+            placed.textLeft(),
+            placed.firstLineTop(),
+            placed.fontPx()
+        );
+    }
+
     /** The debug highlight while debugging (by the viewer, or anyone for shared entities), the configured one otherwise. */
     protected final void syncBackground() {
         boolean debugging = viewer != null ? LayoutDebug.isEnabled(viewer) : LayoutDebug.anyEnabled();
@@ -119,7 +145,8 @@ abstract class TextRenderer implements CanvasRenderer {
             text.equals(lastText) &&
             drawable.layoutVersion() == lastLayoutVersion &&
             drawable.lineWidth() == lastLineWidth &&
-            drawable.textDepth() == lastDepth
+            drawable.textDepth() == lastDepth &&
+            Objects.equals(drawable.clip(), lastClip)
         );
     }
 
@@ -128,11 +155,17 @@ abstract class TextRenderer implements CanvasRenderer {
         lastLayoutVersion = drawable.layoutVersion();
         lastLineWidth = drawable.lineWidth();
         lastDepth = drawable.textDepth();
+        lastClip = drawable.clip();
     }
 
     private boolean clickAt(double px, double py, Player player) {
         Size box = measuredHitboxPx();
         if (drawable.onClick() == null || box == null || !TextPlacement.contains(drawable, box, px, py)) {
+            return false;
+        }
+        // Like in CSS, the element can be clicked only where it is drawn.
+        Rect clip = drawable.clip();
+        if (clip != null && !clip.contains(px, py)) {
             return false;
         }
         drawable.onClick().accept(player);

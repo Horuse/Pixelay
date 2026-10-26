@@ -93,6 +93,7 @@ public final class MountedLayout implements CanvasComponent {
         } else {
             arrangeAtPoint(canvas);
         }
+        assignClips(root, new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight()));
         assignSteps();
         int top = 0;
         for (Box<?> box : boxes) {
@@ -136,6 +137,24 @@ public final class MountedLayout implements CanvasComponent {
             painted.add(box);
             if (box.component() != null) {
                 box.component().setLayerStep(base);
+            }
+        }
+    }
+
+    /**
+     * CSS {@code overflow}: every box may draw only inside its ancestors' clip, starting with the canvas; a box
+     * that hides its overflow narrows it for its children. A component is cut by its own box too, when that box
+     * hides its overflow.
+     */
+    private static void assignClips(Box<?> box, Rect clip) {
+        box.clip(clip);
+        if (box.component() != null) {
+            box.component().setClip(box.childClip());
+        }
+        if (box instanceof Container<?> container) {
+            Rect inside = box.childClip();
+            for (Box<?> child : container.children) {
+                assignClips(child, inside);
             }
         }
     }
@@ -218,7 +237,8 @@ public final class MountedLayout implements CanvasComponent {
 
     /**
      * Draws box backgrounds. They are seen by the same player as the components (the first one that has
-     * a single viewer), or by everyone for server components. Deeper boxes sit closer to the text.
+     * a single viewer), or by everyone for server components. Deeper boxes sit closer to the text. A
+     * background is cut by the boxes around it that hide their overflow (and by the canvas).
      */
     private void syncBackgrounds() {
         Player viewer = viewer();
@@ -226,7 +246,12 @@ public final class MountedLayout implements CanvasComponent {
             if (box.effectiveBackground() != 0 || backgrounds.containsKey(box)) {
                 backgrounds
                     .computeIfAbsent(box, key -> new TextBackground(viewer))
-                    .sync(canvas, box.rect(), box.effectiveBackground(), Layers.at(box.paintStep, viewer));
+                    .sync(
+                        canvas,
+                        box.rect().intersect(box.clip()),
+                        box.effectiveBackground(),
+                        Layers.at(box.paintStep, viewer)
+                    );
             }
         }
     }
@@ -257,17 +282,40 @@ public final class MountedLayout implements CanvasComponent {
         return true;
     }
 
-    /** The topmost box (last in painting order) under the point that matches, or {@code null}. */
+    /**
+     * The topmost box (last in painting order) under the point that matches, or {@code null}. Like in CSS, a box
+     * is under the point only where it is drawn: not where a box around it cuts it off ({@code overflow}).
+     */
     private Box<?> topmost(double px, double py, Predicate<Box<?>> filter) {
         double x = clampToCanvas(px, true);
         double y = clampToCanvas(py, false);
         for (int i = boxes.size() - 1; i >= 0; i--) {
             Box<?> box = boxes.get(i);
-            if (filter.test(box) && box.rect().contains(x, y)) {
+            if (filter.test(box) && box.rect().contains(x, y) && (box.clip() == null || box.clip().contains(x, y))) {
                 return box;
             }
         }
         return null;
+    }
+
+    /**
+     * CSS {@code cursor} at a canvas pixel: the cursor of the topmost box under it, or of the nearest box around
+     * it that sets one (it is inherited). A clickable box (not disabled) that sets none shows {@code "pointer"},
+     * like a link in a browser; {@code "default"} when nothing sets one.
+     */
+    public String cursorAt(double px, double py) {
+        Box<?> top = topmost(px, py, box -> true);
+        boolean disabled = insideDisabled(top);
+        for (Box<?> box = top; box != null; box = parents.get(box)) {
+            String cursor = box.effectiveCursor();
+            if (cursor != null && !cursor.equals("auto")) {
+                return cursor;
+            }
+            if (box.effectiveOnClick() != null && !disabled) {
+                return "pointer";
+            }
+        }
+        return "default";
     }
 
     /** Whether the box or any box around it is disabled. */

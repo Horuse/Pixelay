@@ -1,5 +1,6 @@
 package dev.horuse.pixelay.components;
 
+import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.layout.LayoutItem;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.ApiStatus;
@@ -16,4 +17,11 @@ public interface LayoutComponent extends CanvasComponent, LayoutItem {
     /** Set by layouts from their pointer, see {@code MountedLayout.pointerAt}. */
     @ApiStatus.Internal
     void setHovered(boolean hovered);
+
+    /**
+     * Set by layouts: where the element may draw, in canvas px (CSS {@code overflow} of the boxes around it),
+     * or {@code null} for the whole canvas. Whatever lies outside is cut away.
+     */
+    @ApiStatus.Internal
+    void setClip(Rect clip);
 }

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Set;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
 /**
@@ -223,5 +224,86 @@ final class TextLayout {
             children.add(rewrite(child, laid, index));
         }
         return result.children(children);
+    }
+
+    /** Text colour when nothing sets one: TextDisplays draw white. */
+    private static final int DEFAULT_COLOR = 0xFFFFFF;
+
+    /**
+     * Where every glyph is drawn, in font px from the left of the block and the top of its first line, as the
+     * client lays the lines out: each one pressed left, centred or pressed right inside the widest line.
+     * Index-aligned with {@link #glyphs}; {@code null} for glyphs that draw nothing (spaces, line breaks).
+     */
+    static List<GlyphBox> boxes(Lines laid, LineAlign align) {
+        List<GlyphBox> boxes = new ArrayList<>(laid.glyphs().size());
+        for (int i = 0; i < laid.glyphs().size(); i++) {
+            boxes.add(null);
+        }
+        int widest = 0;
+        for (int[] line : laid.lines()) {
+            widest = Math.max(widest, widthOf(laid.glyphs(), line[0], line[1]));
+        }
+        for (int n = 0; n < laid.lines().size(); n++) {
+            int[] line = laid.lines().get(n);
+            int width = widthOf(laid.glyphs(), line[0], line[1]);
+            double pen = switch (align) {
+                case LEFT -> 0;
+                case CENTER -> (widest - width) / 2.0;
+                case RIGHT -> widest - width;
+            };
+            double lineTop = n * FontMetrics.LINE_PITCH_PX;
+            for (int i = line[0]; i < line[1]; i++) {
+                Glyph glyph = laid.glyphs().get(i);
+                // A bitmap glyph draws its advance minus the 1 font px of spacing (bold: one more, its copy).
+                int ink = glyph.advance() - 1;
+                if (!glyph.space() && ink > 0) {
+                    int[] rows = FontMetrics.quadRowsOf(glyph.codePoint());
+                    boxes.set(i, new GlyphBox(pen, lineTop + rows[0], pen + ink, lineTop + rows[1]));
+                }
+                pen += glyph.advance();
+            }
+        }
+        return boxes;
+    }
+
+    /**
+     * The laid-out component (see {@link #apply}) with every glyph in its own colour: the glyph's colour with
+     * its 3 lowest bits of red, green and blue replaced by {@code codes[i]} (9 bits), so that a core shader can
+     * read them. The colours change by at most 7/255.
+     */
+    static Component encode(Component root, Lines laid, int[] codes) {
+        return encode(root, laid, codes, new int[] { 0 }, DEFAULT_COLOR);
+    }
+
+    private static Component encode(Component component, Lines laid, int[] codes, int[] index, int inherited) {
+        int color = component.style().color() != null ? component.style().color().value() : inherited;
+        List<Component> children = new ArrayList<>();
+        Component result = component;
+        if (component instanceof TextComponent text) {
+            String content = text.content();
+            for (int i = 0; i < content.length(); ) {
+                int codePoint = content.codePointAt(i);
+                int at = index[0]++;
+                if (laid.breaksBefore().contains(at)) {
+                    children.add(Component.text("\n"));
+                }
+                String piece = laid.dropped().contains(at) ? "\n" : new String(Character.toChars(codePoint));
+                children.add(Component.text(piece, TextColor.color(withCode(color, codes[at]))));
+                i += Character.charCount(codePoint);
+            }
+            // The text moves into the children, which inherit every other style of the component.
+            result = text.content("");
+        }
+        for (Component child : component.children()) {
+            children.add(encode(child, laid, codes, index, color));
+        }
+        return result.children(children);
+    }
+
+    private static int withCode(int rgb, int code) {
+        int red = ((rgb >> 16) & 0xF8) | (code & 7);
+        int green = ((rgb >> 8) & 0xF8) | ((code >> 3) & 7);
+        int blue = (rgb & 0xF8) | ((code >> 6) & 7);
+        return (red << 16) | (green << 8) | blue;
     }
 }

@@ -9,6 +9,7 @@ import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.layout.MountedLayout;
 import dev.horuse.pixelay.listeners.ChatSuppression;
+import dev.horuse.pixelay.pack.PixelayPack;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -40,14 +41,14 @@ import org.bukkit.util.Vector;
  * ScreenSession.builder(player)
  *     .camera(viewLocation)                 // where the camera stands and which way it looks
  *     .content(canvas -> buildLayout())     // the UI, built for the player's canvas
- *     .calibration(CalibrationScreen.options().build())
  *     .onClose((session, reason) -> ...)
  *     .open();
  * }</pre>
  *
- * The canvas is sized so that it fills a {@code verticalFov} view at scale 1; players with another field
- * of view fix it once on the calibration screen, and the scale is kept by a {@link ScreenScaleStore}.
- * All methods must be called on the main thread.
+ * The canvas is sized so that it fills a {@code verticalFov} view at scale 1. With the shader cursor (the
+ * default) the pack draws it with that field of view, so it fills every player's screen; without it, players
+ * with another field of view need another scale ({@link Builder#scale}, {@link #setScale}), e.g. from a
+ * screen of your own. All methods must be called on the main thread.
  */
 public final class ScreenSession {
 
@@ -63,6 +64,8 @@ public final class ScreenSession {
 
     private static final Map<UUID, ScreenSession> SESSIONS = new ConcurrentHashMap<>();
     private static final int LOAD_RADIUS_CHUNKS = 1;
+    /** Blocks above the camera the player sits with a shader cursor. */
+    private static final double SHADER_SEAT_HEIGHT = 4;
 
     private final Player player;
     private final Options options;
@@ -77,10 +80,13 @@ public final class ScreenSession {
     private ScreenCamera camera;
     private Canvas canvas;
     private MountedLayout content;
-    private MountedLayout calibrationLayout;
-    private CalibrationScreen calibration;
-    private boolean calibrating;
     private CanvasCursor cursor;
+    /** The cursor drawn by the pack's core shader, or {@code null} for the glyph {@link #cursor}. */
+    private ShaderCursor shaderCursor;
+    /** Yaw the player's look is measured from: 0 with a shader cursor (the shader's origin), else the camera's. */
+    private float lookOrigin;
+    /** Tangent of half the canvas height as seen from the camera; looks map to pixels with it. */
+    private volatile double halfHeightTan;
     private CanvasClickCatcher clickCatcher;
     private BukkitTask task;
     private double scale;
@@ -147,10 +153,6 @@ public final class ScreenSession {
         return hovered;
     }
 
-    public boolean isCalibrating() {
-        return calibrating;
-    }
-
     // --- opening -----------------------------------------------------------------------------------------
 
     private void open() {
@@ -161,7 +163,18 @@ public final class ScreenSession {
         }
         World world = view.getWorld();
         forceLoad(world);
-        player.teleport(view);
+        if (options.shaderCursor() && ShaderCursor.available()) {
+            shaderCursor = new ShaderCursor(player);
+        }
+        // The shader measures the look from yaw 0: the player starts there, the camera keeps facing the canvas.
+        lookOrigin = shaderCursor != null ? 0 : facingYaw;
+        Location start = view.clone();
+        start.setYaw(lookOrigin);
+        player.teleport(start);
+        if (shaderCursor != null) {
+            // Before the game mode changes: the tab list must never tell the client it is a spectator.
+            shaderCursor.start();
+        }
         player.setGameMode(GameMode.SPECTATOR);
         if (options.hideOthers()) {
             hideOthers();
@@ -170,19 +183,19 @@ public final class ScreenSession {
             ChatSuppression.suppress(player);
         }
 
-        camera = new ScreenCamera(player, view);
+        // With a shader cursor the player sits high above the camera: the water at their eyes stays out of view.
+        camera = new ScreenCamera(player, view, shaderCursor != null ? SHADER_SEAT_HEIGHT : 0);
         camera.spawn();
-        Double saved = options.scaleStore().load(player.getUniqueId());
-        scale = clampScale(saved != null ? saved : 1.0);
+        if (shaderCursor != null) {
+            shaderCursor.flood(camera.seatLocation());
+        }
+        scale = shaderCursor != null ? shaderScale() : clampScale(options.scale());
         canvas = new Canvas(canvasCenter, canvasYaw(), resolution(scale));
         content = options.content().apply(canvas);
-        if (options.calibration() != null) {
-            calibration = new CalibrationScreen(this, options.calibration());
-        }
-        calibrating = calibration != null && saved == null;
-        currentLayout().spawn(canvas);
+        content.spawn(canvas);
         Pixelay.manager().register(surface);
 
+        halfHeightTan = Math.tan(Math.toRadians(options.verticalFov() / 2)) * scale;
         cursor =
             options.cursorGlyph() != null
                 ? new CanvasCursor(
@@ -195,7 +208,9 @@ public final class ScreenSession {
                 : new CanvasCursor(player);
         cursorX = options.pixelWidth() / 2;
         cursorY = options.pixelHeight() / 2;
-        cursor.spawn(canvas);
+        if (shaderCursor == null) {
+            cursor.spawn(canvas);
+        }
 
         // Spectator clicks arrive as packets on the network thread; the layout is used on the main thread.
         clickCatcher = new CanvasClickCatcher(
@@ -220,6 +235,9 @@ public final class ScreenSession {
         }
         camera.tick();
         updateHover();
+        if (shaderCursor != null) {
+            shaderCursor.tick();
+        }
     }
 
     /** Called with the camera look from the client's movement packets (network thread). */
@@ -233,6 +251,10 @@ public final class ScreenSession {
         }
         cursorX = pixel[0];
         cursorY = pixel[1];
+        if (shaderCursor != null) {
+            // The client draws it there by itself.
+            return;
+        }
         Bukkit.getScheduler().runTask(Pixelay.plugin(), () -> {
             if (!closed && cursor != null) {
                 cursor.move(canvas, cursorX, cursorY);
@@ -240,19 +262,24 @@ public final class ScreenSession {
         });
     }
 
-    /** Where the camera ray (from the camera eye, with this look) hits the canvas, clamped to its edges. */
+    /**
+     * The canvas pixel the look points at (where the camera ray through it hits the canvas), clamped to its
+     * edges. The shader cursor works out the same point on the screen with the same formula, so the pixel
+     * clicked is always the one under the drawn cursor.
+     */
     private double[] lookPixel(float yaw, float pitch) {
-        double y = Math.toRadians(yaw);
+        // Relative to the camera, which faces the canvas centre.
+        double relative = Math.toRadians(((((yaw - lookOrigin + 180) % 360) + 360) % 360) - 180);
         double p = Math.toRadians(pitch);
-        Vector direction = new Vector(-Math.sin(y) * Math.cos(p), -Math.sin(p), Math.cos(y) * Math.cos(p));
-        double[] hit = canvas.rayHit(view.toVector(), direction);
-        if (hit == null) {
-            return null;
-        }
+        double forward = Math.cos(relative);
+        double tangentX = forward > 1.0e-4 ? Math.tan(relative) : Math.signum(relative) * 1.0e4;
+        double tangentY = -Math.tan(p) / Math.max(forward, 1.0e-4);
         CanvasResolution res = canvas.resolution();
+        double aspect = res.pixelWidth() / res.pixelHeight();
+        double t = halfHeightTan;
         return new double[] {
-            Math.max(0, Math.min(res.pixelWidth(), hit[0])),
-            Math.max(0, Math.min(res.pixelHeight(), hit[1])),
+            Math.max(0, Math.min(res.pixelWidth(), ((1 + tangentX / (t * aspect)) * res.pixelWidth()) / 2)),
+            Math.max(0, Math.min(res.pixelHeight(), ((1 - tangentY / t) * res.pixelHeight()) / 2)),
         };
     }
 
@@ -260,10 +287,16 @@ public final class ScreenSession {
         MountedLayout layout = currentLayout();
         // Hover states and styles; the layout refreshes itself when they change.
         layout.pointerAt(cursorX, cursorY, player);
+        if (shaderCursor != null) {
+            // CSS cursor of what is under it; the pixels are then measured with the size the shader uses.
+            PixelayPack.Built pack = PixelayPack.current();
+            int sprite = pack != null ? pack.spriteIndex(layout.cursorAt(cursorX, cursorY)) : 0;
+            halfHeightTan = shaderCursor.show(sprite, exactHalfHeightTan());
+        }
         String id = layout.idAt(cursorX, cursorY);
         if (!Objects.equals(id, hovered)) {
             hovered = id;
-            if (options.onHover() != null && !calibrating) {
+            if (options.onHover() != null) {
                 options.onHover().accept(this, id);
                 // The callback may have changed texts.
                 layout.refresh();
@@ -278,14 +311,7 @@ public final class ScreenSession {
     }
 
     private MountedLayout currentLayout() {
-        return calibrating ? calibrationLayout() : content;
-    }
-
-    private MountedLayout calibrationLayout() {
-        if (calibrationLayout == null) {
-            calibrationLayout = calibration.build();
-        }
-        return calibrationLayout;
+        return content;
     }
 
     /** Re-runs the layout of what is shown (texts changed); the scheduler also does it every refresh period. */
@@ -297,51 +323,24 @@ public final class ScreenSession {
 
     /** Replaces the UI with another layout built for this session's canvas. */
     public void setContent(MountedLayout layout) {
-        if (!calibrating) {
-            content.pointerLeft(player);
-            content.despawn();
-        }
-        content = layout;
-        if (!calibrating) {
-            content.spawn(canvas);
-        }
-    }
-
-    // --- calibration -------------------------------------------------------------------------------------
-
-    /** Shows the calibration screen (if the session has one). */
-    public void calibrate() {
-        if (calibration == null || calibrating) {
-            return;
-        }
         content.pointerLeft(player);
         content.despawn();
-        calibrating = true;
-        calibrationLayout().spawn(canvas);
-    }
-
-    /** Leaves the calibration screen, saving the scale. */
-    public void finishCalibration() {
-        if (!calibrating) {
-            return;
-        }
-        options.scaleStore().save(player.getUniqueId(), scale);
-        if (options.onScaleChanged() != null) {
-            options.onScaleChanged().accept(this, scale);
-        }
-        calibrationLayout.pointerLeft(player);
-        calibrationLayout.despawn();
-        calibrating = false;
+        content = layout;
         content.spawn(canvas);
     }
 
-    /** Changes the screen scale by {@code steps} calibration steps (negative = smaller). */
-    public void stepScale(int steps) {
-        setScale(scale + steps * options.calibration().step());
-    }
+    // --- scale -------------------------------------------------------------------------------------------
 
-    /** Resizes the canvas; everything shown is re-laid out on the new size. */
+    /**
+     * Resizes the canvas (clamped to {@link Builder#scaleRange}); everything shown is re-laid out on the new
+     * size. Without the shader cursor, a player whose field of view is not {@code verticalFov} sees the canvas
+     * fill the screen at another scale. With it the shader fits the canvas to the screen and this does nothing.
+     */
     public void setScale(double value) {
+        if (shaderCursor != null) {
+            // The shader fits the canvas to the screen by itself.
+            return;
+        }
         double next = clampScale(Math.round(value * 1000) / 1000.0);
         if (next == scale) {
             return;
@@ -351,8 +350,25 @@ public final class ScreenSession {
         shown.despawn();
         cursor.despawn();
         canvas = new Canvas(canvasCenter, canvasYaw(), resolution(scale));
+        halfHeightTan = exactHalfHeightTan();
         shown.spawn(canvas);
-        cursor.spawn(canvas);
+        if (shaderCursor == null) {
+            cursor.spawn(canvas);
+        }
+    }
+
+    /** {@code tan} of half the canvas height as the camera sees it, at the current scale. */
+    private double exactHalfHeightTan() {
+        return Math.tan(Math.toRadians(options.verticalFov() / 2)) * scale;
+    }
+
+    /**
+     * With a shader cursor the canvas is drawn with the field of view the state carries (whatever the player's
+     * FOV is), which comes in steps: the scale that makes the canvas exactly that size.
+     */
+    private double shaderScale() {
+        double tan = Math.tan(Math.toRadians(options.verticalFov() / 2));
+        return ShaderCursor.halfHeightTan(ShaderCursor.level(tan)) / tan;
     }
 
     /**
@@ -412,6 +428,10 @@ public final class ScreenSession {
         if (player.isOnline() && options.restore()) {
             player.setGameMode(previousMode);
             player.teleport(previousLocation);
+        }
+        if (shaderCursor != null) {
+            // After the game mode is back: it also sends the real one to the tab list.
+            shaderCursor.stop();
         }
         if (options.onClose() != null) {
             options.onClose().accept(this, reason);
@@ -525,8 +545,8 @@ public final class ScreenSession {
         double cursorHeightPx,
         double hotspotX,
         double hotspotY,
-        CalibrationScreen.Options calibration,
-        ScreenScaleStore scaleStore,
+        boolean shaderCursor,
+        double scale,
         double minScale,
         double maxScale,
         boolean hideOthers,
@@ -534,8 +554,7 @@ public final class ScreenSession {
         boolean restore,
         Consumer<ScreenSession> onOpen,
         BiConsumer<ScreenSession, CloseReason> onClose,
-        BiConsumer<ScreenSession, String> onHover,
-        BiConsumer<ScreenSession, Double> onScaleChanged
+        BiConsumer<ScreenSession, String> onHover
     ) {}
 
     // --- options -----------------------------------------------------------------------------------------
@@ -554,8 +573,8 @@ public final class ScreenSession {
         private double cursorHeightPx;
         private double hotspotX;
         private double hotspotY;
-        private CalibrationScreen.Options calibration;
-        private ScreenScaleStore scaleStore = YamlScaleStore.shared();
+        private boolean shaderCursor = Pixelay.settings().cursor().shader();
+        private double scale = 1.0;
         private double minScale = 0.5;
         private double maxScale = 2.0;
         private boolean hideOthers = true;
@@ -564,7 +583,6 @@ public final class ScreenSession {
         private Consumer<ScreenSession> onOpen;
         private BiConsumer<ScreenSession, CloseReason> onClose;
         private BiConsumer<ScreenSession, String> onHover;
-        private BiConsumer<ScreenSession, Double> onScaleChanged;
 
         private Builder(Player player) {
             this.player = player;
@@ -610,18 +628,26 @@ public final class ScreenSession {
             return this;
         }
 
-        /** Adds a calibration screen, shown first to players with no saved scale. */
-        public Builder calibration(CalibrationScreen.Options options) {
-            this.calibration = options;
+        /**
+         * Draw the cursor with the core shader of Pixelay's pack: smooth as the camera, and its sprite follows
+         * CSS {@code cursor} of the boxes under it (default: {@code cursor.shader} in config.yml). The player
+         * needs the pack; without the shader the glyph cursor ({@link #cursor}) is moved by the server.
+         */
+        public Builder shaderCursor(boolean shader) {
+            this.shaderCursor = shader;
             return this;
         }
 
-        /** Where screen scales are kept (default: {@code plugins/Pixelay/screen-scales.yml}). */
-        public Builder scaleStore(ScreenScaleStore store) {
-            this.scaleStore = store;
+        /**
+         * The scale the screen opens with (default 1: the canvas fills a {@code verticalFov} view). Only without
+         * the shader cursor: e.g. a scale the player picked on a screen of your own (see {@link ScreenSession#setScale}).
+         */
+        public Builder scale(double scale) {
+            this.scale = scale;
             return this;
         }
 
+        /** Limits of {@link #scale} and {@link ScreenSession#setScale} (default 0.5 to 2). */
         public Builder scaleRange(double min, double max) {
             this.minScale = min;
             this.maxScale = max;
@@ -663,12 +689,6 @@ public final class ScreenSession {
             return this;
         }
 
-        /** Called when the player finishes calibrating, after the scale is saved. */
-        public Builder onScaleChanged(BiConsumer<ScreenSession, Double> callback) {
-            this.onScaleChanged = callback;
-            return this;
-        }
-
         private Options snapshot() {
             return new Options(
                 camera.clone(),
@@ -681,8 +701,8 @@ public final class ScreenSession {
                 cursorHeightPx,
                 hotspotX,
                 hotspotY,
-                calibration,
-                scaleStore,
+                shaderCursor,
+                scale,
                 minScale,
                 maxScale,
                 hideOthers,
@@ -690,8 +710,7 @@ public final class ScreenSession {
                 restore,
                 onOpen,
                 onClose,
-                onHover,
-                onScaleChanged
+                onHover
             );
         }
 

@@ -3,7 +3,7 @@ package dev.horuse.pixelay.layout;
 import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
-import dev.horuse.pixelay.debug.Overflow;
+import dev.horuse.pixelay.debug.Fit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +42,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     int rowSpan = 1;
     int columnSpan = 1;
     /** Result of the last arrange: does this box (or an ancestor) not fit its space. */
-    protected Overflow overflow = Overflow.NONE;
+    protected Fit fit = Fit.NONE;
     private String id;
     private Consumer<Player> onClick;
     private int background;
@@ -50,6 +50,12 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     int paintStep = 1;
     int paintEnd;
     private boolean anchor;
+    private Overflow overflowX = Overflow.VISIBLE;
+    private Overflow overflowY = Overflow.VISIBLE;
+    /** CSS {@code cursor}: a sprite name of the screen cursor, or {@code null} to inherit it. */
+    private String cursor;
+    /** Where this box may draw and be pointed at (canvas px), from the last layout pass: its ancestors' clip. */
+    private Rect clip;
     /** Styles of states, by {@link State} or custom name, in declaration order. */
     private final LinkedHashMap<Object, Style> stateStyles = new LinkedHashMap<>();
     private final Set<String> customStates = ConcurrentHashMap.newKeySet();
@@ -166,18 +172,18 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         Size natural = measure(rect.width());
         boolean selfOverflow =
             natural.width() > rect.width() + OVERFLOW_EPSILON || natural.height() > rect.height() + OVERFLOW_EPSILON;
-        overflow = selfOverflow ? Overflow.SELF : insideOverflow ? Overflow.INSIDE : Overflow.NONE;
+        fit = selfOverflow ? Fit.SELF : insideOverflow ? Fit.INSIDE : Fit.NONE;
         arrangeContent(effectivePadding().shrink(rect));
     }
 
     /** Whether the last layout pass found this box bigger than its space, or inside one that is. */
-    public Overflow overflow() {
-        return overflow;
+    public Fit fit() {
+        return fit;
     }
 
     /** For children: does anything at or above this box overflow. */
     boolean overflowsHere() {
-        return overflow != Overflow.NONE;
+        return fit != Fit.NONE;
     }
 
     /** The rectangle assigned by the last layout pass. */
@@ -311,6 +317,61 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
 
     public int background() {
         return background;
+    }
+
+    /**
+     * CSS {@code overflow} on both axes: with {@link Overflow#HIDDEN} the children are cut at this box's edges
+     * (padding included) and can be hovered and clicked only inside it.
+     */
+    public S overflow(Overflow overflow) {
+        return overflowX(overflow).overflowY(overflow);
+    }
+
+    /** CSS {@code overflow-x}: cut the children at the left and right edges. */
+    public S overflowX(Overflow overflow) {
+        this.overflowX = overflow;
+        return self();
+    }
+
+    /** CSS {@code overflow-y}: cut the children at the top and bottom edges. */
+    public S overflowY(Overflow overflow) {
+        this.overflowY = overflow;
+        return self();
+    }
+
+    /**
+     * CSS {@code cursor}: the sprite the screen cursor shows over this box and the boxes inside it that set none,
+     * e.g. {@code "pointer"} or {@code "text"} (names from {@code generated-pack.cursor.sprites} in config.yml).
+     * Without one, the cursor is {@code "pointer"} over clickable boxes and {@code "default"} elsewhere.
+     */
+    public S cursor(String name) {
+        this.cursor = name;
+        return self();
+    }
+
+    /** The cursor set on this box now (by the active states or the box), or {@code null}. */
+    String effectiveCursor() {
+        Style style = activeStyle();
+        return style != null && style.cursor() != null ? style.cursor() : cursor;
+    }
+
+    /** Where this box may draw, from the last layout pass (the canvas when nothing around it clips). */
+    Rect clip() {
+        return clip;
+    }
+
+    void clip(Rect clip) {
+        this.clip = clip;
+    }
+
+    /** Where the children may draw: this box's clip, cut at its own edges on the axes it hides. */
+    Rect childClip() {
+        Rect own = rect;
+        double left = overflowX.clips() ? Math.max(clip.x(), own.x()) : clip.x();
+        double right = overflowX.clips() ? Math.min(clip.right(), own.right()) : clip.right();
+        double top = overflowY.clips() ? Math.max(clip.y(), own.y()) : clip.y();
+        double bottom = overflowY.clips() ? Math.min(clip.bottom(), own.bottom()) : clip.bottom();
+        return new Rect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
     }
 
     /**
