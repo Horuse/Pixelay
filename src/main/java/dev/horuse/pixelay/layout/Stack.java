@@ -22,7 +22,7 @@ public final class Stack extends Container<Stack> {
     protected Size measureContent(double maxWidth) {
         double width = 0;
         double height = 0;
-        for (Box<?> child : children) {
+        for (Box<?> child : flowChildren()) {
             Size size = child.outer(maxWidth);
             width = Math.max(width, size.width());
             height = Math.max(height, size.height());
@@ -37,7 +37,7 @@ public final class Stack extends Container<Stack> {
 
     @Override
     protected void arrangeContent(Rect content) {
-        for (Box<?> child : children) {
+        for (Box<?> child : flowChildren()) {
             Align horizontal = child.justifySelf != null ? child.justifySelf : Align.STRETCH;
             Align vertical = child.alignSelf != null ? child.alignSelf : Align.STRETCH;
             Rect area = Align.place(

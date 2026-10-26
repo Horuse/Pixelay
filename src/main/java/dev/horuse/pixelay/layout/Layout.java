@@ -157,13 +157,23 @@ public final class Layout {
     }
 
     /** Creates an HTML {@code <canvas>}-like 2D pixel grid and interactive drawing surface for {@code viewer}. */
-    public static PixelCanvas pixelCanvas(Player viewer, int gridWidth, int gridHeight) {
-        return new PixelCanvas(viewer, gridWidth, gridHeight);
+    public static Canvas canvas(Player viewer, int gridWidth, int gridHeight) {
+        return new Canvas(viewer, gridWidth, gridHeight);
     }
 
-    /** Creates a public server {@link PixelCanvas} visible to all players. */
-    public static PixelCanvas pixelCanvas(int gridWidth, int gridHeight) {
-        return new PixelCanvas(gridWidth, gridHeight);
+    /** Creates a public server {@link Canvas} visible to all players. */
+    public static Canvas canvas(int gridWidth, int gridHeight) {
+        return new Canvas(gridWidth, gridHeight);
+    }
+
+    /** Alias for {@link #canvas(Player, int, int)}. */
+    public static Canvas pixelCanvas(Player viewer, int gridWidth, int gridHeight) {
+        return new Canvas(viewer, gridWidth, gridHeight);
+    }
+
+    /** Alias for {@link #canvas(int, int)}. */
+    public static Canvas pixelCanvas(int gridWidth, int gridHeight) {
+        return new Canvas(gridWidth, gridHeight);
     }
 
     // --- 3D Models (Items & Blocks) ----------------------------------------------------------------------

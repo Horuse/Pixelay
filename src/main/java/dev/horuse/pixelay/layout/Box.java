@@ -45,6 +45,13 @@ public class Box<S extends Box<S>> implements LayoutItem {
     int gridColumn;
     int rowSpan = 1;
     int columnSpan = 1;
+    /** CSS positioning scheme ({@code static}, {@code relative}, {@code absolute}) and edge offsets. */
+    protected Position position = Position.STATIC;
+    protected double left = Double.NaN;
+    protected double top = Double.NaN;
+    protected double right = Double.NaN;
+    protected double bottom = Double.NaN;
+    protected int zIndex;
     /** Result of the last arrange: does this box (or an ancestor) not fit its space. */
     protected Fit fit = Fit.NONE;
     private String id;
@@ -194,13 +201,24 @@ public class Box<S extends Box<S>> implements LayoutItem {
 
     /** @param insideOverflow an ancestor already does not fit its space */
     final void arrange(Rect rect, boolean insideOverflow) {
+        if (position == Position.RELATIVE) {
+            double dx = !Double.isNaN(left) ? left : !Double.isNaN(right) ? -right : 0;
+            double dy = !Double.isNaN(top) ? top : !Double.isNaN(bottom) ? -bottom : 0;
+            if (dx != 0 || dy != 0) {
+                rect = new Rect(rect.x() + dx, rect.y() + dy, rect.width(), rect.height());
+            }
+        }
         this.rect = rect;
         Size natural = measure(rect.width());
         boolean selfOverflow =
             natural.width() > rect.width() + OVERFLOW_EPSILON || natural.height() > rect.height() + OVERFLOW_EPSILON;
         fit = selfOverflow ? Fit.SELF : insideOverflow ? Fit.INSIDE : Fit.NONE;
         arrangeContent(effectivePadding().shrink(rect));
+        arrangeAbsoluteChildren(rect);
     }
+
+    /** Hook overridden by {@link Container} to arrange any {@link Position#ABSOLUTE} children inside {@code bounds}. */
+    void arrangeAbsoluteChildren(Rect bounds) {}
 
     /** Whether the last layout pass found this box bigger than its space, or inside one that is. */
     public Fit fit() {
@@ -392,6 +410,97 @@ public class Box<S extends Box<S>> implements LayoutItem {
 
     public int gridColumn() {
         return gridColumn;
+    }
+
+    /** CSS {@code position}: {@link Position#STATIC} (default), {@link Position#RELATIVE}, or {@link Position#ABSOLUTE}. */
+    public S position(Position position) {
+        this.position = position != null ? position : Position.STATIC;
+        return self();
+    }
+
+    public Position position() {
+        return position;
+    }
+
+    public boolean isAbsolute() {
+        return position == Position.ABSOLUTE;
+    }
+
+    /** Shorthand for {@code position(Position.ABSOLUTE).left(left).top(top)}. */
+    public S absolute(double left, double top) {
+        this.position = Position.ABSOLUTE;
+        this.left = left;
+        this.top = top;
+        return self();
+    }
+
+    /** CSS {@code left} offset in canvas px (used when {@code position} is {@code ABSOLUTE} or {@code RELATIVE}). */
+    public S left(double px) {
+        this.left = px;
+        return self();
+    }
+
+    public double left() {
+        return left;
+    }
+
+    /** CSS {@code top} offset in canvas px (used when {@code position} is {@code ABSOLUTE} or {@code RELATIVE}). */
+    public S top(double px) {
+        this.top = px;
+        return self();
+    }
+
+    public double top() {
+        return top;
+    }
+
+    /** CSS {@code right} offset in canvas px (used when {@code position} is {@code ABSOLUTE} or {@code RELATIVE}). */
+    public S right(double px) {
+        this.right = px;
+        return self();
+    }
+
+    public double right() {
+        return right;
+    }
+
+    /** CSS {@code bottom} offset in canvas px (used when {@code position} is {@code ABSOLUTE} or {@code RELATIVE}). */
+    public S bottom(double px) {
+        this.bottom = px;
+        return self();
+    }
+
+    public double bottom() {
+        return bottom;
+    }
+
+    /** CSS {@code inset} shorthand setting {@code top}, {@code right}, {@code bottom}, and {@code left}. */
+    public S inset(double all) {
+        return inset(all, all, all, all);
+    }
+
+    /** CSS {@code inset} shorthand setting vertical ({@code top}/{@code bottom}) and horizontal ({@code left}/{@code right}) offsets. */
+    public S inset(double vertical, double horizontal) {
+        return inset(vertical, horizontal, vertical, horizontal);
+    }
+
+    /** CSS {@code inset} shorthand setting {@code top}, {@code right}, {@code bottom}, and {@code left}. */
+    public S inset(double top, double right, double bottom, double left) {
+        this.top = top;
+        this.right = right;
+        this.bottom = bottom;
+        this.left = left;
+        return self();
+    }
+
+    /** CSS {@code z-index}: controls stacking order for both depth layers and pointer hit-testing (default 0). */
+    public S zIndex(int zIndex) {
+        this.zIndex = zIndex;
+        return self();
+    }
+
+    public int zIndex() {
+        return zIndex;
     }
 
     /** Tag for hit testing ({@link MountedLayout#idAt}), e.g. to highlight a hovered card. */

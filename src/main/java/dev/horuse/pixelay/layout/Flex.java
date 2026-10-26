@@ -2,6 +2,7 @@ package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
+import java.util.List;
 
 /**
  * A row or a column (CSS flexbox): children are laid out along the main axis with {@link #gap}.
@@ -54,8 +55,9 @@ public final class Flex extends Container<Flex> {
 
     @Override
     protected Size measureContent(double maxWidth) {
-        Size[] sizes = childSizes(maxWidth);
-        double main = gaps();
+        List<Box<?>> flow = flowChildren();
+        Size[] sizes = childSizes(flow, maxWidth);
+        double main = gaps(flow.size());
         double cross = 0;
         for (Size size : sizes) {
             main += size.main(horizontal);
@@ -69,15 +71,16 @@ public final class Flex extends Container<Flex> {
         if (!horizontal) {
             return widestChildMinWidth();
         }
-        double width = gaps();
-        for (Box<?> child : children) {
+        List<Box<?>> flow = flowChildren();
+        double width = gaps(flow.size());
+        for (Box<?> child : flow) {
             width += child instanceof Spacer spacer ? spacer.mainLength() : child.minOuterWidth();
         }
         return width;
     }
 
-    private double gaps() {
-        return gap * Math.max(0, children.size() - 1);
+    private double gaps(int count) {
+        return gap * Math.max(0, count - 1);
     }
 
     /** Child size with margin; a spacer only has its length along the main axis. */
@@ -96,33 +99,33 @@ public final class Flex extends Container<Flex> {
      * starts from natural widths, shrinks them when they do not fit and gives growing children what
      * is left; the returned width is the space assigned to the child, the height what it needs there.
      */
-    private Size[] childSizes(double maxWidth) {
-        Size[] sizes = new Size[children.size()];
+    private Size[] childSizes(List<Box<?>> flow, double maxWidth) {
+        Size[] sizes = new Size[flow.size()];
         if (!horizontal || maxWidth < 0) {
             for (int i = 0; i < sizes.length; i++) {
-                sizes[i] = childSize(children.get(i), maxWidth);
+                sizes[i] = childSize(flow.get(i), maxWidth);
             }
             return sizes;
         }
 
         // flex-basis: auto — every child starts at its natural width (CSS flex-grow / flex-shrink).
         double[] widths = new double[sizes.length];
-        double used = gaps();
+        double used = gaps(flow.size());
         for (int i = 0; i < sizes.length; i++) {
-            widths[i] = childSize(children.get(i), Box.UNBOUNDED).width();
+            widths[i] = childSize(flow.get(i), Box.UNBOUNDED).width();
             used += widths[i];
         }
 
         if (used > maxWidth) {
-            shrink(widths, used - maxWidth);
+            shrink(flow, widths, used - maxWidth);
         } else {
             double totalGrow = 0;
-            for (Box<?> child : children) {
+            for (Box<?> child : flow) {
                 totalGrow += child.grow;
             }
             double free = maxWidth - used;
             for (int i = 0; i < sizes.length; i++) {
-                Box<?> child = children.get(i);
+                Box<?> child = flow.get(i);
                 if (child.grow > 0) {
                     widths[i] += (free * child.grow) / totalGrow;
                 }
@@ -130,19 +133,19 @@ public final class Flex extends Container<Flex> {
         }
 
         for (int i = 0; i < sizes.length; i++) {
-            Size size = childSize(children.get(i), widths[i]);
+            Size size = childSize(flow.get(i), widths[i]);
             sizes[i] = new Size(Math.max(widths[i], size.width()), size.height());
         }
         return sizes;
     }
 
     /** Takes {@code deficit} px from the widths, by shrink x width, never below min-content (CSS flex-shrink). */
-    private void shrink(double[] widths, double deficit) {
+    private void shrink(List<Box<?>> flow, double[] widths, double deficit) {
         boolean[] frozen = new boolean[widths.length];
         for (int round = 0; round < widths.length && deficit > 0.01; round++) {
             double weight = 0;
             for (int i = 0; i < widths.length; i++) {
-                Box<?> child = children.get(i);
+                Box<?> child = flow.get(i);
                 if (!frozen[i] && child.shrink > 0 && !child.hasFixedWidth() && !(child instanceof Spacer)) {
                     weight += child.shrink * widths[i];
                 }
@@ -153,7 +156,7 @@ public final class Flex extends Container<Flex> {
 
             double taken = 0;
             for (int i = 0; i < widths.length; i++) {
-                Box<?> child = children.get(i);
+                Box<?> child = flow.get(i);
                 if (frozen[i] || child.shrink <= 0 || child.hasFixedWidth() || child instanceof Spacer) {
                     continue;
                 }
@@ -172,12 +175,13 @@ public final class Flex extends Container<Flex> {
 
     @Override
     protected void arrangeContent(Rect content) {
-        Size[] sizes = childSizes(content.width());
-        double used = gaps();
+        List<Box<?>> flow = flowChildren();
+        Size[] sizes = childSizes(flow, content.width());
+        double used = gaps(flow.size());
         double totalGrow = 0;
         for (int i = 0; i < sizes.length; i++) {
             used += sizes[i].main(horizontal);
-            totalGrow += children.get(i).grow;
+            totalGrow += flow.get(i).grow;
         }
 
         // A row already gave growing children their share of the width; a column grows here.
@@ -185,18 +189,18 @@ public final class Flex extends Container<Flex> {
         boolean distributeGrow = !horizontal && totalGrow > 0;
         double cursor = 0;
         double between = gap;
-        if (totalGrow == 0 && !children.isEmpty()) {
+        if (totalGrow == 0 && !flow.isEmpty()) {
             switch (justify) {
                 case CENTER -> cursor = free / 2;
                 case END -> cursor = free;
-                case SPACE_BETWEEN -> between += children.size() > 1 ? free / (children.size() - 1) : 0;
+                case SPACE_BETWEEN -> between += flow.size() > 1 ? free / (flow.size() - 1) : 0;
                 case SPACE_AROUND -> {
-                    double unit = free / children.size();
+                    double unit = free / flow.size();
                     cursor = unit / 2;
                     between += unit;
                 }
                 case SPACE_EVENLY -> {
-                    double unit = free / (children.size() + 1);
+                    double unit = free / (flow.size() + 1);
                     cursor = unit;
                     between += unit;
                 }
@@ -207,7 +211,7 @@ public final class Flex extends Container<Flex> {
 
         double crossSpace = horizontal ? content.height() : content.width();
         for (int i = 0; i < sizes.length; i++) {
-            Box<?> child = children.get(i);
+            Box<?> child = flow.get(i);
             Size outer = sizes[i];
             double mainSize = outer.main(horizontal) + (distributeGrow ? (free * child.grow) / totalGrow : 0);
             Align crossAlign = child.alignSelf != null ? child.alignSelf : align;

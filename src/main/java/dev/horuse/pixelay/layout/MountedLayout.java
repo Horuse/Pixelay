@@ -7,7 +7,6 @@ import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.components.CanvasComponent;
 import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.components.TextBackground;
-import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.Rect;
@@ -17,6 +16,7 @@ import dev.horuse.pixelay.screen.ScreenSession;
 import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +39,7 @@ public final class MountedLayout implements CanvasComponent {
     private final Box<?> root;
     private final List<LayoutComponent> components = new ArrayList<>();
     private final List<Box<?>> boxes = new ArrayList<>();
-    private Canvas canvas;
+    private dev.horuse.pixelay.data.Canvas canvas;
     private final DebugOverlay debugOverlay = new DebugOverlay();
     private BukkitTask transitionTask;
     /** Panels of boxes with a {@link Box#background}, by box. */
@@ -95,8 +95,13 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /** Runs measure + arrange over the whole canvas, or at the mount point (see {@link Layout#mountAt}). */
-    public void layout(Canvas canvas) {
+    public void layout(dev.horuse.pixelay.data.Canvas canvas) {
         this.canvas = canvas;
+        boxes.clear();
+        root.collectBoxes(boxes);
+        boxes.sort(Comparator.comparingInt(Box::zIndex));
+        parents.clear();
+        mapParents(root);
         // States may change texts (state styles), and so sizes: they go before measuring.
         updateStates();
         // Texts may have changed since the last pass: measure everything once more, then reuse.
@@ -177,7 +182,7 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /** Places a {@link Layout#mountAt} tree: shrink-to-fit within the canvas width, aligned to the point. */
-    private void arrangeAtPoint(Canvas canvas) {
+    private void arrangeAtPoint(dev.horuse.pixelay.data.Canvas canvas) {
         // Like CSS absolute positioning: natural width, but never wider than the canvas (texts wrap).
         Size size = root.measure(canvas.resolution().pixelWidth());
         root.arrange(new Rect(0, 0, size.width(), size.height()));
@@ -208,7 +213,7 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     @Override
-    public void spawn(Canvas canvas) {
+    public void spawn(dev.horuse.pixelay.data.Canvas canvas) {
         layout(canvas);
         components.forEach(component -> component.spawn(canvas));
         clickViewer = viewer();
@@ -228,7 +233,7 @@ public final class MountedLayout implements CanvasComponent {
         }
         components.forEach(CanvasComponent::despawn);
         for (Box<?> box : boxes) {
-            if (box instanceof PixelCanvas pixelCanvas) {
+            if (box instanceof Canvas pixelCanvas) {
                 pixelCanvas.clearQuads();
             }
         }
@@ -285,7 +290,7 @@ public final class MountedLayout implements CanvasComponent {
                     .computeIfAbsent(box, key -> new TextBackground(viewer))
                     .sync(canvas, box.rect().intersect(box.clip()), bg, Layers.at(box.paintStep, viewer));
             }
-            if (box instanceof PixelCanvas pixelCanvas) {
+            if (box instanceof Canvas pixelCanvas) {
                 pixelCanvas.sync(canvas, viewer, bg, Layers.at(box.paintStep + 1, viewer));
             }
         }
@@ -580,10 +585,10 @@ public final class MountedLayout implements CanvasComponent {
         return null;
     }
 
-    /** Any {@link PixelCanvas} where the player is currently dragging the brush. */
-    public PixelCanvas activeDrawingCanvas() {
+    /** Any {@link Canvas} where the player is currently dragging the brush. */
+    public Canvas activeDrawingCanvas() {
         for (Box<?> box : boxes) {
-            if (box instanceof PixelCanvas pixelCanvas && pixelCanvas.isDrawing()) {
+            if (box instanceof Canvas pixelCanvas && pixelCanvas.isDrawing()) {
                 return pixelCanvas;
             }
         }

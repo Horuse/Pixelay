@@ -1,7 +1,6 @@
 package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.components.TextBackground;
-import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.screen.ScreenSession;
@@ -20,7 +19,7 @@ import org.bukkit.entity.Player;
  * Adjacent pixels of the same colour are automatically merged into minimal rectangles via 2D greedy
  * meshing and rendered using pooled {@link TextBackground} panels.
  */
-public final class PixelCanvas extends Box<PixelCanvas> {
+public class Canvas extends Box<Canvas> {
 
     @FunctionalInterface
     public interface DrawListener {
@@ -42,7 +41,7 @@ public final class PixelCanvas extends Box<PixelCanvas> {
     private int lastDrawX = -1;
     private int lastDrawY = -1;
 
-    public PixelCanvas(Player viewer, int gridWidth, int gridHeight) {
+    public Canvas(Player viewer, int gridWidth, int gridHeight) {
         if (gridWidth <= 0 || gridHeight <= 0) {
             throw new IllegalArgumentException("gridWidth and gridHeight must be positive");
         }
@@ -52,7 +51,7 @@ public final class PixelCanvas extends Box<PixelCanvas> {
         this.pixels = new int[gridWidth * gridHeight];
     }
 
-    public PixelCanvas(int gridWidth, int gridHeight) {
+    public Canvas(int gridWidth, int gridHeight) {
         this(null, gridWidth, gridHeight);
     }
 
@@ -88,7 +87,7 @@ public final class PixelCanvas extends Box<PixelCanvas> {
     // --- 2D Drawing API ----------------------------------------------------------------------------------
 
     /** Sets the ARGB colour of a single grid pixel {@code (x, y)}. Out-of-bounds coordinates are ignored. */
-    public PixelCanvas setPixel(int x, int y, int argb) {
+    public Canvas setPixel(int x, int y, int argb) {
         if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
             pixels[y * gridWidth + x] = argb;
         }
@@ -104,18 +103,18 @@ public final class PixelCanvas extends Box<PixelCanvas> {
     }
 
     /** Clears all pixels to transparent ({@code 0x00000000}). */
-    public PixelCanvas clear() {
+    public Canvas clear() {
         return fill(0);
     }
 
     /** Fills the entire pixel grid with {@code argb}. */
-    public PixelCanvas fill(int argb) {
+    public Canvas fill(int argb) {
         Arrays.fill(pixels, argb);
         return this;
     }
 
     /** Fills a rectangle {@code (x, y, w, h)} in grid coordinates with {@code argb}. */
-    public PixelCanvas fillRect(int x, int y, int w, int h, int argb) {
+    public Canvas fillRect(int x, int y, int w, int h, int argb) {
         int x0 = Math.max(0, x);
         int y0 = Math.max(0, y);
         int x1 = Math.min(gridWidth, x + w);
@@ -130,7 +129,7 @@ public final class PixelCanvas extends Box<PixelCanvas> {
     }
 
     /** Draws a 1px outline rectangle {@code (x, y, w, h)} in grid coordinates with {@code argb}. */
-    public PixelCanvas strokeRect(int x, int y, int w, int h, int argb) {
+    public Canvas strokeRect(int x, int y, int w, int h, int argb) {
         if (w <= 0 || h <= 0) {
             return this;
         }
@@ -142,12 +141,12 @@ public final class PixelCanvas extends Box<PixelCanvas> {
     }
 
     /** Draws a 1px line between {@code (x0, y0)} and {@code (x1, y1)} using Bresenham's algorithm. */
-    public PixelCanvas drawLine(int x0, int y0, int x1, int y1, int argb) {
+    public Canvas drawLine(int x0, int y0, int x1, int y1, int argb) {
         return drawLine(x0, y0, x1, y1, 1, argb);
     }
 
     /** Draws a line with brush thickness {@code brushSize} (1 = 1px, 2 = 3x3 circle, etc.). */
-    public PixelCanvas drawLine(int x0, int y0, int x1, int y1, int brushSize, int argb) {
+    public Canvas drawLine(int x0, int y0, int x1, int y1, int brushSize, int argb) {
         int dx = Math.abs(x1 - x0);
         int dy = -Math.abs(y1 - y0);
         int sx = x0 < x1 ? 1 : -1;
@@ -174,7 +173,7 @@ public final class PixelCanvas extends Box<PixelCanvas> {
     }
 
     /** Draws a circle outline centred at {@code (cx, cy)} with {@code radius}. */
-    public PixelCanvas drawCircle(int cx, int cy, int radius, int argb) {
+    public Canvas drawCircle(int cx, int cy, int radius, int argb) {
         if (radius <= 0) {
             return setPixel(cx, cy, argb);
         }
@@ -202,7 +201,7 @@ public final class PixelCanvas extends Box<PixelCanvas> {
     }
 
     /** Fills a circle centred at {@code (cx, cy)} with {@code radius}. */
-    public PixelCanvas fillCircle(int cx, int cy, int radius, int argb) {
+    public Canvas fillCircle(int cx, int cy, int radius, int argb) {
         if (radius <= 0) {
             return setPixel(cx, cy, argb);
         }
@@ -228,7 +227,7 @@ public final class PixelCanvas extends Box<PixelCanvas> {
     // --- Interactive Painting API ------------------------------------------------------------------------
 
     /** Enables or disables interactive player painting with the cursor. */
-    public PixelCanvas drawable(boolean drawable) {
+    public Canvas drawable(boolean drawable) {
         this.drawable = drawable;
         if (drawable && cursor() == null) {
             cursor("crosshair");
@@ -241,7 +240,7 @@ public final class PixelCanvas extends Box<PixelCanvas> {
     }
 
     /** Sets the active brush colour (ARGB) for interactive player painting. */
-    public PixelCanvas brushColor(int argb) {
+    public Canvas brushColor(int argb) {
         this.brushColor = argb;
         return this;
     }
@@ -251,7 +250,7 @@ public final class PixelCanvas extends Box<PixelCanvas> {
     }
 
     /** Sets the active brush size (1 = 1px, 2 = 3px circle, 3 = 5px circle, etc.). */
-    public PixelCanvas brushSize(int size) {
+    public Canvas brushSize(int size) {
         this.brushSize = Math.max(1, size);
         return this;
     }
@@ -261,7 +260,7 @@ public final class PixelCanvas extends Box<PixelCanvas> {
     }
 
     /** Listener called whenever a player paints on the canvas. */
-    public PixelCanvas onDraw(DrawListener listener) {
+    public Canvas onDraw(DrawListener listener) {
         this.onDraw = listener;
         return this;
     }
@@ -375,9 +374,9 @@ public final class PixelCanvas extends Box<PixelCanvas> {
 
     /**
      * Greedily merges contiguous same-colour pixels into minimal rectangles and syncs them to
-     * {@link TextBackground} panels on the canvas.
+     * {@link TextBackground} panels on the world surface.
      */
-    void sync(Canvas canvas, Player fallbackViewer, int baseBg, float depth) {
+    void sync(dev.horuse.pixelay.data.Canvas surface, Player fallbackViewer, int baseBg, float depth) {
         Player effectiveViewer = viewer != null ? viewer : fallbackViewer;
         Rect content = effectivePadding().shrink(rect());
         Rect clipRect = childClip();
@@ -455,7 +454,7 @@ public final class PixelCanvas extends Box<PixelCanvas> {
                     panel = new TextBackground(effectiveViewer);
                     quadPool.add(panel);
                 }
-                panel.sync(canvas, quadBounds, composited, depth);
+                panel.sync(surface, quadBounds, composited, depth);
                 usedQuads++;
             }
         }

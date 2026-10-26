@@ -8,7 +8,6 @@ import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.layout.MountedLayout;
-import dev.horuse.pixelay.layout.PixelCanvas;
 import dev.horuse.pixelay.layout.ScrollView;
 import dev.horuse.pixelay.listeners.ChatSuppression;
 import dev.horuse.pixelay.pack.PixelayPack;
@@ -265,7 +264,7 @@ public final class ScreenSession {
             dragging.dragTo(cursorY);
         }
 
-        PixelCanvas drawingCanvas = layout.activeDrawingCanvas();
+        dev.horuse.pixelay.layout.Canvas drawingCanvas = layout.activeDrawingCanvas();
         boolean painted = drawingCanvas != null && drawingCanvas.dragTo(cursorX, cursorY, player);
 
         boolean animatedScroll = layout.tickScroll();
