@@ -1,6 +1,8 @@
 package dev.horuse.pixelay.layout;
 
+import dev.horuse.pixelay.components.CanvasComponent;
 import dev.horuse.pixelay.components.LayoutComponent;
+import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.debug.Fit;
@@ -25,7 +27,7 @@ import org.bukkit.entity.Player;
  *
  * @param <S> the concrete box type, so chained setters keep it: {@code column(a, b).padding(32).gap(8)}
  */
-public class Box<S extends Box<S>> implements LayoutItem {
+public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
 
     /** Width limit meaning "no limit" (measure the natural, unwrapped size). */
     static final double UNBOUNDED = -1;
@@ -51,7 +53,12 @@ public class Box<S extends Box<S>> implements LayoutItem {
     protected double top = Double.NaN;
     protected double right = Double.NaN;
     protected double bottom = Double.NaN;
+    protected double translateX;
+    protected double translateY;
+    protected double translatePxX;
+    protected double translatePxY;
     protected int zIndex;
+    private MountedLayout directMount;
     /** Result of the last arrange: does this box (or an ancestor) not fit its space. */
     protected Fit fit = Fit.NONE;
     private String id;
@@ -66,7 +73,6 @@ public class Box<S extends Box<S>> implements LayoutItem {
     /** Depth steps from the last layout pass (see {@link dev.horuse.pixelay.data.Layers}): first and last used. */
     int paintStep = 1;
     int paintEnd;
-    private boolean anchor;
     private Overflow overflowX = Overflow.VISIBLE;
     private Overflow overflowY = Overflow.VISIBLE;
     /** CSS {@code cursor}: a sprite name of the screen cursor, or {@code null} to inherit it. */
@@ -129,7 +135,10 @@ public class Box<S extends Box<S>> implements LayoutItem {
         return comp != null ? comp.viewer() : null;
     }
 
-    /** The component this box draws ({@link Leaf}, {@link ModelLeaf}), or {@code null} for other boxes. */
+    /** Binds this box's underlying component to packet-only rendering for {@code viewer} if unset. */
+    void bindViewer(Player viewer) {}
+
+    /** The component this box draws ({@link Text}, {@link Item}, {@link Block}), or {@code null} for other boxes. */
     LayoutComponent component() {
         return null;
     }
@@ -201,12 +210,14 @@ public class Box<S extends Box<S>> implements LayoutItem {
 
     /** @param insideOverflow an ancestor already does not fit its space */
     final void arrange(Rect rect, boolean insideOverflow) {
+        double dx = translateX * rect.width() + translatePxX;
+        double dy = translateY * rect.height() + translatePxY;
         if (position == Position.RELATIVE) {
-            double dx = !Double.isNaN(left) ? left : !Double.isNaN(right) ? -right : 0;
-            double dy = !Double.isNaN(top) ? top : !Double.isNaN(bottom) ? -bottom : 0;
-            if (dx != 0 || dy != 0) {
-                rect = new Rect(rect.x() + dx, rect.y() + dy, rect.width(), rect.height());
-            }
+            dx += !Double.isNaN(left) ? left : !Double.isNaN(right) ? -right : 0;
+            dy += !Double.isNaN(top) ? top : !Double.isNaN(bottom) ? -bottom : 0;
+        }
+        if (dx != 0 || dy != 0) {
+            rect = new Rect(rect.x() + dx, rect.y() + dy, rect.width(), rect.height());
         }
         this.rect = rect;
         Size natural = measure(rect.width());
@@ -493,6 +504,39 @@ public class Box<S extends Box<S>> implements LayoutItem {
         return self();
     }
 
+    /**
+     * CSS {@code transform: translate(percentX, percentY)} relative to this box's own width and height
+     * (e.g. {@code translate(-0.5, -0.5)} shifts by {@code -50%} on both axes to center on {@code left}/{@code top}).
+     */
+    public S translate(double percentX, double percentY) {
+        this.translateX = percentX;
+        this.translateY = percentY;
+        return self();
+    }
+
+    public double translateX() {
+        return translateX;
+    }
+
+    public double translateY() {
+        return translateY;
+    }
+
+    /** CSS {@code transform: translate(dxPx, dyPx)} offset in canvas pixels. */
+    public S translatePx(double dxPx, double dyPx) {
+        this.translatePxX = dxPx;
+        this.translatePxY = dyPx;
+        return self();
+    }
+
+    public double translatePxX() {
+        return translatePxX;
+    }
+
+    public double translatePxY() {
+        return translatePxY;
+    }
+
     /** CSS {@code z-index}: controls stacking order for both depth layers and pointer hit-testing (default 0). */
     public S zIndex(int zIndex) {
         this.zIndex = zIndex;
@@ -597,21 +641,6 @@ public class Box<S extends Box<S>> implements LayoutItem {
         rule.accept(stateStyles.computeIfAbsent(state, key -> new Style()));
         styleStale = true;
         return self();
-    }
-
-    /** Shorthand for {@code state(State.HOVERED, rule)} (CSS {@code :hover}). */
-    public S hover(Consumer<Style> rule) {
-        return state(State.HOVERED, rule);
-    }
-
-    /** Shorthand for {@code state(State.DISABLED, rule)} (CSS {@code :disabled}). */
-    public S disabledStyle(Consumer<Style> rule) {
-        return state(State.DISABLED, rule);
-    }
-
-    /** Shorthand for {@code state(State.SELECTED, rule)} (CSS {@code :checked} / {@code .selected}). */
-    public S selectedStyle(Consumer<Style> rule) {
-        return state(State.SELECTED, rule);
     }
 
     /** The look of the box in a custom state (switched with {@link #toggle(String, boolean)}). */
@@ -817,20 +846,6 @@ public class Box<S extends Box<S>> implements LayoutItem {
         return true;
     }
 
-    /**
-     * Pins this box to the point of a layout mounted with {@link Layout#mountAt}: the layout is moved so
-     * that this box (not the whole tree) sits on the point, aligned as the mount says. E.g. an icon centred
-     * on a map position with its label hanging below it. Only the first anchored box counts.
-     */
-    public S anchor() {
-        this.anchor = true;
-        return self();
-    }
-
-    boolean isAnchor() {
-        return anchor;
-    }
-
     /** What a click on this box runs: its own {@link #onClick}, or {@code null}. */
     ClickHandler effectiveOnClick() {
         return onClick;
@@ -846,5 +861,36 @@ public class Box<S extends Box<S>> implements LayoutItem {
     public S onClick(Consumer<Player> onClick) {
         this.onClick = onClick != null ? (player, x, y) -> onClick.accept(player) : null;
         return self();
+    }
+
+    // --- Direct CanvasComponent Lifecycle ----------------------------------------------------------------
+
+    @Override
+    public void spawn(Canvas canvas) {
+        if (directMount != null) {
+            directMount.despawn();
+        }
+        directMount = new MountedLayout(this);
+        directMount.spawn(canvas);
+    }
+
+    @Override
+    public void despawn() {
+        if (directMount != null) {
+            directMount.despawn();
+            directMount = null;
+        }
+    }
+
+    @Override
+    public boolean isValid() {
+        return directMount != null && directMount.isValid();
+    }
+
+    @Override
+    public void refresh() {
+        if (directMount != null) {
+            directMount.refresh();
+        }
     }
 }

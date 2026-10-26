@@ -48,6 +48,13 @@ public class CanvasText extends AbstractCanvasComponent {
         return new CanvasText(pixelX, pixelY, heightPx, content, drawable -> new FakeRenderer(viewer, drawable));
     }
 
+    /** Switches this text to packet-only rendering for {@code viewer} if it currently has no viewer. */
+    public void bindViewer(Player viewer) {
+        if (viewer != null && renderer.viewer() == null) {
+            renderer = new FakeRenderer(viewer, this);
+        }
+    }
+
     @Override
     public void setContent(TextContent content) {
         if (content != null) {

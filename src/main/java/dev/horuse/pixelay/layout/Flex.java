@@ -12,15 +12,19 @@ import java.util.List;
  * Each child is placed on the cross axis by {@link #align} or its own {@code alignSelf}; {@code STRETCH}
  * (the default) fills it, except for children with a fixed size on that axis.
  */
-public final class Flex extends Container<Flex> {
+public class Flex extends Container<Flex> {
 
     private final boolean horizontal;
     private Align align = Align.STRETCH;
     private Justify justify = Justify.START;
 
-    Flex(boolean horizontal, LayoutItem... items) {
+    public Flex(boolean horizontal, LayoutItem... items) {
         super(items);
         this.horizontal = horizontal;
+    }
+
+    public Flex(LayoutItem... items) {
+        this(false, items);
     }
 
     /** @return whether this is a row (else a column) */

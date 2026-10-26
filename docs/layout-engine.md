@@ -108,10 +108,11 @@ stack(
 
 - **`Position.STATIC`** (default): Normal flow inside `Flex`, `Grid`, or `Stack`.
 - **`Position.RELATIVE`**: Laid out in normal flow, then shifted by `.left(px)` / `.right(px)` and `.top(px)` / `.bottom(px)`.
-- **`Position.ABSOLUTE`**: Removed from normal flow (`Flex`, `Grid`, and `Stack` ignore it when measuring and arranging in-flow children) and positioned relative to its parent container's box:
+- **`Position.ABSOLUTE`**: Removed from normal flow (`Flex`, `Grid`, and `Stack` ignore it when measuring and arranging in-flow children) and positioned relative to its parent container's box (or directly on the canvas if used on a root `Box`):
   - `.left(px)`, `.right(px)`, `.top(px)`, `.bottom(px)`
   - `.absolute(left, top)` — shorthand for `.position(Position.ABSOLUTE).left(left).top(top)`.
   - `.inset(all)` / `.inset(v, h)` / `.inset(t, r, b, l)` — sets all four edge offsets; if both `left` and `right` (or `top` and `bottom`) are set without a fixed width/height, the box stretches between those edges!
+  - `.translate(percentX, percentY)` / `.translatePx(dx, dy)` — CSS `transform: translate(...)`, e.g. `.translate(-0.5, -0.5)` for `transform: translate(-50%, -50%)` to center a marker on `(left, top)`.
 - **`.zIndex(int)`**: Controls stacking order for both depth layers and pointer hit-testing.
 
 ---

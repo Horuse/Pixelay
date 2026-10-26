@@ -16,7 +16,7 @@ public final class Checkbox extends Container<Checkbox> {
     private final Player viewer;
     private final Box<?> outerBox = new Box<>();
     private final Box<?> innerCheck = new Box<>();
-    private Leaf labelLeaf;
+    private Text labelText;
 
     private boolean checked;
     private BooleanSupplier checkedWhen;
@@ -39,13 +39,17 @@ public final class Checkbox extends Container<Checkbox> {
         children.add(outerBox);
         children.add(innerCheck);
         if (label != null && !label.isEmpty()) {
-            this.labelLeaf = new Leaf(viewer, fontSize, formatLabel(label));
-            children.add(labelLeaf);
+            this.labelText = new Text(viewer, fontSize, formatLabel(label));
+            children.add(labelText);
         }
         outerBox.transition(140, Easing.EASE_OUT);
         innerCheck.transition(140, Easing.EASE_OUT);
         syncVisuals();
         onClick((player, x, y) -> toggle(player));
+    }
+
+    public Checkbox(String label, boolean checked, BiConsumer<Player, Boolean> onChange) {
+        this(null, label, checked, onChange);
     }
 
     public Checkbox(boolean checked, BiConsumer<Player, Boolean> onChange) {
@@ -147,8 +151,8 @@ public final class Checkbox extends Container<Checkbox> {
 
     public Checkbox fontSize(double heightPx) {
         this.fontSize = heightPx;
-        if (labelLeaf != null) {
-            labelLeaf.fontSize(heightPx);
+        if (labelText != null) {
+            labelText.fontSize(heightPx);
             invalidate();
         }
         return this;
@@ -159,18 +163,18 @@ public final class Checkbox extends Container<Checkbox> {
     }
 
     public Checkbox label(String text) {
-        if (labelLeaf != null) {
-            labelLeaf.text(TextContent.of(formatLabel(text)));
+        if (labelText != null) {
+            labelText.text(TextContent.of(formatLabel(text)));
         } else if (text != null && !text.isEmpty()) {
-            labelLeaf = new Leaf(viewer, fontSize, formatLabel(text));
-            children.add(labelLeaf);
+            labelText = new Text(viewer, fontSize, formatLabel(text));
+            children.add(labelText);
         }
         invalidate();
         return this;
     }
 
-    public Leaf labelLeaf() {
-        return labelLeaf;
+    public Text labelText() {
+        return labelText;
     }
 
     private void syncVisuals() {
@@ -207,20 +211,20 @@ public final class Checkbox extends Container<Checkbox> {
 
     @Override
     protected Size measureContent(double maxWidth) {
-        if (labelLeaf == null) {
+        if (labelText == null) {
             return new Size(boxSize, boxSize);
         }
         double labelLimit = maxWidth < 0 ? UNBOUNDED : Math.max(0, maxWidth - boxSize - gap);
-        Size labelSize = labelLeaf.outer(labelLimit);
+        Size labelSize = labelText.outer(labelLimit);
         return new Size(boxSize + gap + labelSize.width(), Math.max(boxSize, labelSize.height()));
     }
 
     @Override
     protected double minContentWidth() {
-        if (labelLeaf == null) {
+        if (labelText == null) {
             return boxSize;
         }
-        return boxSize + gap + labelLeaf.minOuterWidth();
+        return boxSize + gap + labelText.minOuterWidth();
     }
 
     @Override
@@ -236,12 +240,12 @@ public final class Checkbox extends Container<Checkbox> {
             : new Rect(content.x() + boxSize / 2.0, boxY + boxSize / 2.0, 0, 0);
         innerCheck.arrange(innerRect, false);
 
-        if (labelLeaf != null) {
+        if (labelText != null) {
             double labelX = content.x() + boxSize + gap;
             double labelW = Math.max(0, content.width() - boxSize - gap);
-            Size labelSize = labelLeaf.outer(labelW);
+            Size labelSize = labelText.outer(labelW);
             double labelY = content.y() + Math.max(0, (content.height() - labelSize.height()) / 2.0);
-            labelLeaf.arrange(new Rect(labelX, labelY, labelW, labelSize.height()), overflowsHere());
+            labelText.arrange(new Rect(labelX, labelY, labelW, labelSize.height()), overflowsHere());
         }
     }
 }

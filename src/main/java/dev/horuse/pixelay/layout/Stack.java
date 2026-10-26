@@ -9,7 +9,7 @@ import dev.horuse.pixelay.data.Size;
  */
 public final class Stack extends Container<Stack> {
 
-    Stack(LayoutItem... items) {
+    public Stack(LayoutItem... items) {
         super(items);
     }
 

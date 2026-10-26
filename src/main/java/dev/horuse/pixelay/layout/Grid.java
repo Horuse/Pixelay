@@ -34,7 +34,7 @@ public final class Grid extends Container<Grid> {
     /** {@code {row, column}} (0-based) per child, computed once per layout pass. */
     private int[][] placements;
 
-    Grid(LayoutItem... items) {
+    public Grid(LayoutItem... items) {
         super(items);
     }
 

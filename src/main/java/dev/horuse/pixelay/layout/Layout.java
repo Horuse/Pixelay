@@ -3,10 +3,7 @@ package dev.horuse.pixelay.layout;
 import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.components.CanvasBlock;
 import dev.horuse.pixelay.components.CanvasItem;
-import dev.horuse.pixelay.components.CanvasModel;
 import dev.horuse.pixelay.content.TextContent;
-import dev.horuse.pixelay.data.HAlign;
-import dev.horuse.pixelay.data.VAlign;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -18,23 +15,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * Entry point of the HTML/CSS-like layout DSL. Import statically and nest:
- * <pre>{@code
- * import static dev.horuse.pixelay.layout.Layout.*;
- *
- * MountedLayout ui = mount(
- *     column(
- *         row(text(viewer, 28, "<gold><b>Title"), spacer(), text(viewer, 20, "<green>$1,250")),
- *         spacer(),
- *         row(
- *             grid(cards).columns(repeat(3, px(220))).rows(repeat(3, px(136))),
- *             spacer(),
- *             button(viewer, 22, "<white><b>Continue", player -> {})
- *         ).align(Align.END)
- *     ).padding(32)
- * );
- * ui.spawn(canvas);
- * }</pre>
+ * Static factory helpers and CSS unit builders ({@link #px}, {@link #fr}, {@link #auto}, {@link #repeat})
+ * for the HTML/CSS-like layout engine.
+ * <p>
+ * Every element is also a first-class Java class that can be instantiated directly with {@code new}:
+ * {@link Box}, {@link Row}, {@link Column}, {@link Flex}, {@link Grid}, {@link Stack}, {@link ScrollView},
+ * {@link Text}, {@link Button}, {@link Checkbox}, {@link Toggle}, {@link ProgressBar}, {@link Canvas},
+ * {@link Item}, {@link Block}, and {@link Spacer}.
  */
 public final class Layout {
 
@@ -48,16 +35,16 @@ public final class Layout {
     }
 
     /** A vertical block container (HTML {@code <div>} / CSS {@code display: flex; flex-direction: column}). */
-    public static Flex div(LayoutItem... children) {
-        return new Flex(false, children);
+    public static Column div(LayoutItem... children) {
+        return new Column(children);
     }
 
-    public static Flex row(LayoutItem... children) {
-        return new Flex(true, children);
+    public static Row row(LayoutItem... children) {
+        return new Row(children);
     }
 
-    public static Flex column(LayoutItem... children) {
-        return new Flex(false, children);
+    public static Column column(LayoutItem... children) {
+        return new Column(children);
     }
 
     public static Stack stack(LayoutItem... children) {
@@ -80,24 +67,24 @@ public final class Layout {
 
     // --- Text Nodes (HTML <p> / <span>) ------------------------------------------------------------------
 
-    /** Creates a text leaf node for {@code viewer} (or a public server text when {@code viewer == null}). */
-    public static Leaf text(Player viewer, double heightPx, String miniMessage) {
-        return new Leaf(viewer, heightPx, miniMessage);
+    /** Creates a text node for {@code viewer} (or a public server text when {@code viewer == null}). */
+    public static Text text(Player viewer, double heightPx, String miniMessage) {
+        return new Text(viewer, heightPx, miniMessage);
     }
 
-    /** Creates a text leaf node with custom or dynamic {@link TextContent} (e.g. {@code () -> "..."}). */
-    public static Leaf text(Player viewer, double heightPx, TextContent content) {
-        return new Leaf(viewer, heightPx, content);
+    /** Creates a text node with custom or dynamic {@link TextContent} (e.g. {@code () -> "..."}). */
+    public static Text text(Player viewer, double heightPx, TextContent content) {
+        return new Text(viewer, heightPx, content);
     }
 
-    /** Creates a public server text leaf node visible to all players. */
-    public static Leaf text(double heightPx, String miniMessage) {
-        return new Leaf(null, heightPx, miniMessage);
+    /** Creates a text node (auto-binds to session viewer when inside a {@code ScreenSession}, or public on world canvases). */
+    public static Text text(double heightPx, String miniMessage) {
+        return new Text(heightPx, miniMessage);
     }
 
-    /** Creates a public server text leaf node with custom or dynamic {@link TextContent}. */
-    public static Leaf text(double heightPx, TextContent content) {
-        return new Leaf(null, heightPx, content);
+    /** Creates a text node with custom or dynamic {@link TextContent}. */
+    public static Text text(double heightPx, TextContent content) {
+        return new Text(heightPx, content);
     }
 
     // --- Interactive Controls (HTML <button>, <input>, <progress>, <canvas>) -----------------------------
@@ -117,9 +104,14 @@ public final class Layout {
         return new Button(viewer, 20, miniMessage, onClick);
     }
 
-    /** Creates a public server {@link Button} visible to all players. */
+    /** Creates an interactive {@link Button} (auto-binds to session viewer when inside a {@code ScreenSession}). */
     public static Button button(double heightPx, String miniMessage, Consumer<Player> onClick) {
-        return new Button(null, heightPx, miniMessage, onClick);
+        return new Button(heightPx, miniMessage, onClick);
+    }
+
+    /** Creates an interactive {@link Button} with dynamic {@link TextContent}. */
+    public static Button button(double heightPx, TextContent content, Consumer<Player> onClick) {
+        return new Button(heightPx, content, onClick);
     }
 
     /** Creates an interactive {@link Checkbox} with a geometric indicator and optional text label. */
@@ -132,6 +124,11 @@ public final class Layout {
         return new Checkbox(viewer, label, checked, onChange);
     }
 
+    /** Creates an interactive {@link Checkbox} with a text label. */
+    public static Checkbox checkbox(String label, boolean checked, BiConsumer<Player, Boolean> onChange) {
+        return new Checkbox(label, checked, onChange);
+    }
+
     /** Creates an interactive {@link Checkbox} without a text label. */
     public static Checkbox checkbox(boolean checked, BiConsumer<Player, Boolean> onChange) {
         return new Checkbox(checked, onChange);
@@ -140,6 +137,11 @@ public final class Layout {
     /** Creates an interactive pill {@link Toggle} switch with a sliding thumb and optional text label. */
     public static Toggle toggle(Player viewer, String label, boolean checked, BiConsumer<Player, Boolean> onChange) {
         return new Toggle(viewer, label, checked, onChange);
+    }
+
+    /** Creates an interactive pill {@link Toggle} switch with a text label. */
+    public static Toggle toggle(String label, boolean checked, BiConsumer<Player, Boolean> onChange) {
+        return new Toggle(label, checked, onChange);
     }
 
     /** Creates an interactive pill {@link Toggle} switch without a text label. */
@@ -162,67 +164,76 @@ public final class Layout {
         return new Canvas(viewer, gridWidth, gridHeight);
     }
 
-    /** Creates a public server {@link Canvas} visible to all players. */
+    /** Creates an HTML {@code <canvas>}-like 2D pixel grid and interactive drawing surface. */
     public static Canvas canvas(int gridWidth, int gridHeight) {
-        return new Canvas(gridWidth, gridHeight);
-    }
-
-    /** Alias for {@link #canvas(Player, int, int)}. */
-    public static Canvas pixelCanvas(Player viewer, int gridWidth, int gridHeight) {
-        return new Canvas(viewer, gridWidth, gridHeight);
-    }
-
-    /** Alias for {@link #canvas(int, int)}. */
-    public static Canvas pixelCanvas(int gridWidth, int gridHeight) {
         return new Canvas(gridWidth, gridHeight);
     }
 
     // --- 3D Models (Items & Blocks) ----------------------------------------------------------------------
 
     /** Creates a 3D item display node inside a layout from a {@link Material}. */
-    public static ModelLeaf item(Player viewer, Material material, double sizePx) {
-        return item(viewer, new ItemStack(material), sizePx);
+    public static Item item(Player viewer, Material material, double sizePx) {
+        return new Item(viewer, material, sizePx);
     }
 
     /** Creates a 3D item display node inside a layout. */
-    public static ModelLeaf item(Player viewer, ItemStack stack, double sizePx) {
-        return item(viewer, () -> stack, sizePx);
+    public static Item item(Player viewer, ItemStack stack, double sizePx) {
+        return new Item(viewer, stack, sizePx);
     }
 
     /** Creates a dynamic 3D item display node inside a layout. */
-    public static ModelLeaf item(Player viewer, Supplier<ItemStack> stack, double sizePx) {
-        return new ModelLeaf(
-            viewer != null ? CanvasItem.fake(viewer, 0, 0, sizePx, stack) : new CanvasItem(0, 0, sizePx, stack)
-        );
+    public static Item item(Player viewer, Supplier<ItemStack> stack, double sizePx) {
+        return new Item(viewer, stack, sizePx);
+    }
+
+    /** Creates a 3D item display node inside a layout from a {@link Material}. */
+    public static Item item(Material material, double sizePx) {
+        return new Item(material, sizePx);
+    }
+
+    /** Creates a 3D item display node inside a layout. */
+    public static Item item(ItemStack stack, double sizePx) {
+        return new Item(stack, sizePx);
+    }
+
+    /** Creates a dynamic 3D item display node inside a layout. */
+    public static Item item(Supplier<ItemStack> stack, double sizePx) {
+        return new Item(stack, sizePx);
     }
 
     /** Creates a 3D block display node inside a layout from a {@link Material}. */
-    public static ModelLeaf block(Player viewer, Material material, double sizePx) {
-        return block(viewer, material.createBlockData(), sizePx, sizePx);
+    public static Block block(Player viewer, Material material, double sizePx) {
+        return new Block(viewer, material, sizePx);
     }
 
     /** Creates a 3D block display node with explicit width and height inside a layout from a {@link Material}. */
-    public static ModelLeaf block(Player viewer, Material material, double widthPx, double heightPx) {
-        return block(viewer, material.createBlockData(), widthPx, heightPx);
+    public static Block block(Player viewer, Material material, double widthPx, double heightPx) {
+        return new Block(viewer, material, widthPx, heightPx);
     }
 
     /** Creates a 3D block display node inside a layout. */
-    public static ModelLeaf block(Player viewer, BlockData block, double sizePx) {
-        return block(viewer, () -> block, sizePx, sizePx);
+    public static Block block(Player viewer, BlockData block, double sizePx) {
+        return new Block(viewer, block, sizePx);
     }
 
     /** Creates a 3D block display node with explicit width and height inside a layout. */
-    public static ModelLeaf block(Player viewer, BlockData block, double widthPx, double heightPx) {
-        return block(viewer, () -> block, widthPx, heightPx);
+    public static Block block(Player viewer, BlockData block, double widthPx, double heightPx) {
+        return new Block(viewer, block, widthPx, heightPx);
     }
 
     /** Creates a dynamic 3D block display node with explicit width and height inside a layout. */
-    public static ModelLeaf block(Player viewer, Supplier<BlockData> block, double widthPx, double heightPx) {
-        return new ModelLeaf(
-            viewer != null
-                ? CanvasBlock.fake(viewer, 0, 0, widthPx, heightPx, block)
-                : new CanvasBlock(0, 0, widthPx, heightPx, block)
-        );
+    public static Block block(Player viewer, Supplier<BlockData> block, double widthPx, double heightPx) {
+        return new Block(viewer, block, widthPx, heightPx);
+    }
+
+    /** Creates a 3D block display node inside a layout from a {@link Material}. */
+    public static Block block(Material material, double sizePx) {
+        return new Block(material, sizePx);
+    }
+
+    /** Creates a 3D block display node with explicit width and height inside a layout from a {@link Material}. */
+    public static Block block(Material material, double widthPx, double heightPx) {
+        return new Block(material, widthPx, heightPx);
     }
 
     // --- Grid Tracks, Spacers & Transitions --------------------------------------------------------------
@@ -251,7 +262,7 @@ public final class Layout {
 
     /** Takes all free space along the parent's main axis. */
     public static Spacer spacer() {
-        return new Spacer(-1);
+        return new Spacer();
     }
 
     /** Fixed empty space of {@code size} px. */
@@ -274,24 +285,9 @@ public final class Layout {
         return new Transition(property, durationMs, easing);
     }
 
-    // --- Legacy Node Wrappers & Mounting -----------------------------------------------------------------
+    // --- Mounting ----------------------------------------------------------------------------------------
 
-    /** Identity pass-through so {@code node(box)} works seamlessly when migrating to box-based factories. */
-    public static <B extends Box<B>> B node(B box) {
-        return box;
-    }
-
-    /** A component as a leaf, to set its box properties or its alignment inside its rectangle. */
-    public static Leaf node(AbstractCanvasComponent component) {
-        return new Leaf(component);
-    }
-
-    /** An item or a block as a leaf, to set its box properties or its alignment inside its rectangle. */
-    public static ModelLeaf node(CanvasModel<?> model) {
-        return new ModelLeaf(model);
-    }
-
-    /** Wraps a layout tree for spawning on a canvas; it fills the whole canvas. */
+    /** Wraps a layout tree for spawning on a canvas. Note: {@link Box} also implements {@code CanvasComponent} directly. */
     public static MountedLayout mount(LayoutItem root) {
         return new MountedLayout(box(root));
     }
@@ -301,27 +297,21 @@ public final class Layout {
         return new MountedLayout(box(root)).viewer(viewer);
     }
 
-    /**
-     * Wraps a layout tree placed at a canvas point instead of filling the canvas: the tree gets its natural
-     * size and is aligned to {@code (x, y)} like a single component ({@code CENTER}/{@code MIDDLE} centres
-     * it on the point). If a box in the tree is marked {@link Box#anchor()}, that box is aligned to the
-     * point instead and the rest of the tree follows it.
-     */
-    public static MountedLayout mountAt(double x, double y, HAlign h, VAlign v, LayoutItem root) {
-        return new MountedLayout(box(root), new MountedLayout.Placement(x, y, h, v));
-    }
-
     static Box<?> box(LayoutItem item) {
         if (item instanceof Box<?> box) {
             return box;
         }
 
         if (item instanceof AbstractCanvasComponent component) {
-            return new Leaf(component);
+            return new Text(component);
         }
 
-        if (item instanceof CanvasModel<?> model) {
-            return new ModelLeaf(model);
+        if (item instanceof CanvasItem itemModel) {
+            return new Item(itemModel);
+        }
+
+        if (item instanceof CanvasBlock blockModel) {
+            return new Block(blockModel);
         }
 
         throw new IllegalArgumentException("Unsupported layout item: " + item);

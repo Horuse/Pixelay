@@ -706,9 +706,18 @@ public final class ScreenSession {
             return this;
         }
 
-        /** The UI, built once for the session's canvas (use fake components for {@code player}). */
-        public Builder content(Function<Canvas, MountedLayout> factory) {
-            this.content = factory;
+        /** The UI, built once for the session's canvas (accepts any {@link dev.horuse.pixelay.layout.Box} or {@link MountedLayout}). */
+        public Builder content(Function<Canvas, ? extends dev.horuse.pixelay.components.CanvasComponent> factory) {
+            this.content = canvas -> {
+                dev.horuse.pixelay.components.CanvasComponent comp = factory.apply(canvas);
+                if (comp instanceof MountedLayout mounted) {
+                    return mounted;
+                }
+                if (comp instanceof dev.horuse.pixelay.layout.Box<?> box) {
+                    return dev.horuse.pixelay.layout.Layout.mount(box);
+                }
+                throw new IllegalArgumentException("Unsupported ScreenSession content: " + comp);
+            };
             return this;
         }
 

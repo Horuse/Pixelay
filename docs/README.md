@@ -21,11 +21,11 @@
    - `Stack` & `ScrollView` (smooth inertial scrolling, scrollbar track/thumb dragging)
 
 3. [**UI Components & State Styling**](./components.md)
-   - Structural elements: `Box` (`box()` / `div()`), `Leaf` (`text()`), `Spacer` (`spacer()` / `space()`)
-   - Interactive controls: `Button` (`button()`), `Checkbox` (`checkbox()`), `Toggle` (`toggle()`), `ProgressBar` (`progressBar()`)
-   - 2D Drawing & Pixel Art: `Canvas` (`canvas(viewer, gridW, gridH)`) — programmatic 2D drawing API + interactive player brush painting with 2D greedy meshing
-   - 3D Models: `ModelLeaf` (`item()` and `block()`)
-   - Pseudo-states (`:hover`, `:disabled`, `:selected`, custom states) & CSS `Transition` / `Easing`
+   - Structural elements: `Box`, `Row`, `Column`, `Grid`, `Stack`, `Text`, `Spacer`
+   - Interactive controls: `Button`, `Checkbox`, `Toggle`, `ProgressBar`
+   - 2D Drawing & Pixel Art: `Canvas` — programmatic 2D drawing API + interactive player brush painting with 2D greedy meshing
+   - 3D Models: `Item` and `Block`
+   - Pseudo-states (`State.HOVERED`, `State.DISABLED`, `State.SELECTED`, custom states) & CSS `Transition` / `Easing`
 
 4. [**Web Editor & DOM Serialization Specification**](./web-editor-spec.md)
    - SOLID introspection & live mutation API across all `Box` and `Container` subclasses
@@ -37,49 +37,50 @@
 ## Quick Start
 
 ```java
-import static dev.horuse.pixelay.layout.Layout.*;
-
 import dev.horuse.pixelay.layout.Align;
+import dev.horuse.pixelay.layout.Box;
+import dev.horuse.pixelay.layout.Button;
 import dev.horuse.pixelay.layout.Canvas;
+import dev.horuse.pixelay.layout.Column;
 import dev.horuse.pixelay.layout.Easing;
-import dev.horuse.pixelay.layout.Justify;
-import dev.horuse.pixelay.layout.MountedLayout;
 import dev.horuse.pixelay.layout.Position;
+import dev.horuse.pixelay.layout.Row;
+import dev.horuse.pixelay.layout.Spacer;
+import dev.horuse.pixelay.layout.State;
+import dev.horuse.pixelay.layout.Text;
+import dev.horuse.pixelay.layout.Toggle;
 import org.bukkit.entity.Player;
 
 public final class QuickExample {
 
-    public static MountedLayout createHud(Player viewer) {
-        Canvas miniPad = canvas(viewer, 32, 16)
+    public static Box<?> createHud(Player viewer) {
+        Canvas miniPad = new Canvas(viewer, 32, 16)
             .size(320, 160)
             .background(0xFF1E293B)
             .drawable(true)
             .brushColor(0xFF38BDF8);
 
-        return mount(
-            viewer,
-            column(
-                row(
-                    text(viewer, 28, "<gradient:#38BDF8:#818CF8><b>PIXELAY STUDIO</b></gradient>"),
-                    spacer(),
-                    button(viewer, 20, "<white><b>Close ✕</b>", p -> p.closeInventory())
-                        .background(0xFFE11D48)
-                        .hover(s -> s.background(0xFFBE123C))
-                        .transition(150, Easing.EASE_OUT)
-                ).align(Align.CENTER),
-                space(16),
-                toggle(viewer, "Enable Live Brush Preview", true, (p, on) -> miniPad.drawable(on)),
-                space(12),
-                miniPad,
-                // Floating badge pinned to the bottom-right corner via CSS position: absolute
-                text(viewer, 14, "<#94A3B8>v1.0 • CSS Absolute")
-                    .position(Position.ABSOLUTE)
-                    .right(24)
-                    .bottom(16)
-            )
-                .padding(24)
-                .background(0xFF0F172A)
-        );
+        return new Column(
+            new Row(
+                new Text(viewer, 28, "<gradient:#38BDF8:#818CF8><b>PIXELAY STUDIO</b></gradient>"),
+                new Spacer(),
+                new Button(viewer, 20, "<white><b>Close ✕</b>", p -> p.closeInventory())
+                    .background(0xFFE11D48)
+                    .state(State.HOVERED, s -> s.background(0xFFBE123C))
+                    .transition(150, Easing.EASE_OUT)
+            ).align(Align.CENTER),
+            new Spacer(16),
+            new Toggle(viewer, "Enable Live Brush Preview", true, (p, on) -> miniPad.drawable(on)),
+            new Spacer(12),
+            miniPad,
+            // Floating badge pinned to the bottom-right corner via CSS position: absolute
+            new Text(viewer, 14, "<#94A3B8>v1.0 • CSS Absolute")
+                .position(Position.ABSOLUTE)
+                .right(24)
+                .bottom(16)
+        )
+            .padding(24)
+            .background(0xFF0F172A);
     }
 }
 ```

@@ -31,8 +31,8 @@ Minecraft's OpenGL renderer sorts translucent `TextDisplay` entities by camera d
 Pixelay solves this deterministically in `MountedLayout.assignSteps()`:
 1. Every `Box` in the tree is collected in DOM painting order (parents before children, earlier siblings before later siblings) and stably sorted by `Box.zIndex()`.
 2. Each box declares how many depth steps it requires (`layerSteps()`):
-   - Standard `Box` / `Container` / `ModelLeaf`: `1` step (its background or 3D model).
-   - `Leaf` / `Button`: `2` steps (step `N` for its background panel, step `N + 1` for the `TextDisplay` glyph above it).
+   - Standard `Box` / `Container` / `Item` / `Block`: `1` step (its background or 3D model).
+   - `Text` / `Button`: `2` steps (step `N` for its background panel, step `N + 1` for the `TextDisplay` glyph above it).
    - `layout.Canvas`: `2` steps (step `N` for its background panel, step `N + 1` for its greedy-meshed pixel quads).
 3. If a box's rectangle overlaps any earlier painted box, its `paintStep` is placed strictly above `earlier.paintEnd + 1`.
 

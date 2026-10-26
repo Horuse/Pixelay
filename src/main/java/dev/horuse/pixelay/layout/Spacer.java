@@ -9,7 +9,13 @@ public final class Spacer extends Box<Spacer> {
 
     private final double length;
 
-    Spacer(double length) {
+    /** Creates a flexible spacer that takes all free space along the parent's main axis (CSS {@code flex: 1}). */
+    public Spacer() {
+        this(-1);
+    }
+
+    /** Creates a fixed spacer of {@code length} px along the parent's main axis. */
+    public Spacer(double length) {
         this.length = length;
         if (length < 0) {
             grow = 1;

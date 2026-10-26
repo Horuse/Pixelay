@@ -16,7 +16,7 @@ public final class Toggle extends Container<Toggle> {
     private final Player viewer;
     private final Box<?> trackBox = new Box<>();
     private final Box<?> knobBox = new Box<>();
-    private Leaf labelLeaf;
+    private Text labelText;
 
     private boolean checked;
     private BooleanSupplier checkedWhen;
@@ -41,12 +41,16 @@ public final class Toggle extends Container<Toggle> {
         children.add(trackBox);
         children.add(knobBox);
         if (label != null && !label.isEmpty()) {
-            this.labelLeaf = new Leaf(viewer, fontSize, formatLabel(label));
-            children.add(labelLeaf);
+            this.labelText = new Text(viewer, fontSize, formatLabel(label));
+            children.add(labelText);
         }
         trackBox.transition(150, Easing.EASE_OUT);
         syncVisuals();
         onClick((player, x, y) -> toggle(player));
+    }
+
+    public Toggle(String label, boolean checked, BiConsumer<Player, Boolean> onChange) {
+        this(null, label, checked, onChange);
     }
 
     public Toggle(boolean checked, BiConsumer<Player, Boolean> onChange) {
@@ -153,8 +157,8 @@ public final class Toggle extends Container<Toggle> {
 
     public Toggle fontSize(double heightPx) {
         this.fontSize = heightPx;
-        if (labelLeaf != null) {
-            labelLeaf.fontSize(heightPx);
+        if (labelText != null) {
+            labelText.fontSize(heightPx);
             invalidate();
         }
         return this;
@@ -165,18 +169,18 @@ public final class Toggle extends Container<Toggle> {
     }
 
     public Toggle label(String text) {
-        if (labelLeaf != null) {
-            labelLeaf.text(TextContent.of(formatLabel(text)));
+        if (labelText != null) {
+            labelText.text(TextContent.of(formatLabel(text)));
         } else if (text != null && !text.isEmpty()) {
-            labelLeaf = new Leaf(viewer, fontSize, formatLabel(text));
-            children.add(labelLeaf);
+            labelText = new Text(viewer, fontSize, formatLabel(text));
+            children.add(labelText);
         }
         invalidate();
         return this;
     }
 
-    public Leaf labelLeaf() {
-        return labelLeaf;
+    public Text labelText() {
+        return labelText;
     }
 
     private void syncVisuals() {
@@ -213,20 +217,20 @@ public final class Toggle extends Container<Toggle> {
 
     @Override
     protected Size measureContent(double maxWidth) {
-        if (labelLeaf == null) {
+        if (labelText == null) {
             return new Size(trackWidth, trackHeight);
         }
         double labelLimit = maxWidth < 0 ? UNBOUNDED : Math.max(0, maxWidth - trackWidth - gap);
-        Size labelSize = labelLeaf.outer(labelLimit);
+        Size labelSize = labelText.outer(labelLimit);
         return new Size(trackWidth + gap + labelSize.width(), Math.max(trackHeight, labelSize.height()));
     }
 
     @Override
     protected double minContentWidth() {
-        if (labelLeaf == null) {
+        if (labelText == null) {
             return trackWidth;
         }
-        return trackWidth + gap + labelLeaf.minOuterWidth();
+        return trackWidth + gap + labelText.minOuterWidth();
     }
 
     @Override
@@ -240,12 +244,12 @@ public final class Toggle extends Container<Toggle> {
         double knobY = trackY + knobInset;
         knobBox.arrange(new Rect(knobX, knobY, knobSize, knobSize), false);
 
-        if (labelLeaf != null) {
+        if (labelText != null) {
             double labelX = content.x() + trackWidth + gap;
             double labelW = Math.max(0, content.width() - trackWidth - gap);
-            Size labelSize = labelLeaf.outer(labelW);
+            Size labelSize = labelText.outer(labelW);
             double labelY = content.y() + Math.max(0, (content.height() - labelSize.height()) / 2.0);
-            labelLeaf.arrange(new Rect(labelX, labelY, labelW, labelSize.height()), overflowsHere());
+            labelText.arrange(new Rect(labelX, labelY, labelW, labelSize.height()), overflowsHere());
         }
     }
 }

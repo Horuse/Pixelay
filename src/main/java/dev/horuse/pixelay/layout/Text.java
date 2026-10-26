@@ -17,14 +17,14 @@ import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 
 /**
- * A text node inside a layout (like an HTML {@code <p>} or {@code <span>}). Its size is the measured
+ * A text element inside a layout (like an HTML {@code <p>} or {@code <span>}). Its size is the measured
  * text block (or the component's explicit hitbox); the text wraps to the width the layout gives it,
  * never breaking words (like CSS).
  * <p>
  * Inside its rectangle the text is pinned horizontally by {@link #textAlign} (or {@link #justifySelf}
  * when {@code textAlign} is unset) and vertically by {@link #alignSelf}, top-left by default.
  */
-public final class Leaf extends Box<Leaf> {
+public final class Text extends Box<Text> {
 
     private final AbstractCanvasComponent component;
     private HAlign textAlign;
@@ -32,18 +32,26 @@ public final class Leaf extends Box<Leaf> {
     private String text;
     private int longestWord = -1;
 
-    public Leaf(AbstractCanvasComponent component) {
+    public Text(AbstractCanvasComponent component) {
         this.component = component;
     }
 
-    public Leaf(Player viewer, double heightPx, TextContent content) {
+    public Text(Player viewer, double heightPx, TextContent content) {
         this(
             viewer != null ? CanvasText.fake(viewer, 0, 0, heightPx, content) : new CanvasText(0, 0, heightPx, content)
         );
     }
 
-    public Leaf(Player viewer, double heightPx, String miniMessage) {
+    public Text(Player viewer, double heightPx, String miniMessage) {
         this(viewer, heightPx, TextContent.of(miniMessage));
+    }
+
+    public Text(double heightPx, TextContent content) {
+        this(null, heightPx, content);
+    }
+
+    public Text(double heightPx, String miniMessage) {
+        this(null, heightPx, TextContent.of(miniMessage));
     }
 
     @Override
@@ -56,14 +64,21 @@ public final class Leaf extends Box<Leaf> {
         return component;
     }
 
+    @Override
+    void bindViewer(Player viewer) {
+        if (component instanceof CanvasText canvasText) {
+            canvasText.bindViewer(viewer);
+        }
+    }
+
     /** Sets the horizontal text alignment inside this box (CSS {@code text-align}), independent of {@link #justifySelf}. */
-    public Leaf textAlign(HAlign align) {
+    public Text textAlign(HAlign align) {
         this.textAlign = align;
         return this;
     }
 
     /** Sets the horizontal text alignment inside this box (CSS {@code text-align}), independent of {@link #justifySelf}. */
-    public Leaf textAlign(Align align) {
+    public Text textAlign(Align align) {
         this.textAlign =
             align == null
                 ? null
@@ -80,7 +95,7 @@ public final class Leaf extends Box<Leaf> {
     }
 
     /** Font size (line height in canvas px, CSS {@code font-size}). */
-    public Leaf fontSize(double heightPx) {
+    public Text fontSize(double heightPx) {
         component.setHeightPx(heightPx);
         invalidate();
         return this;
@@ -91,12 +106,12 @@ public final class Leaf extends Box<Leaf> {
     }
 
     /** Updates the text content (MiniMessage). */
-    public Leaf text(String miniMessage) {
+    public Text text(String miniMessage) {
         return text(TextContent.of(miniMessage));
     }
 
     /** Updates the text content (or dynamic {@code () -> "..."} lambda). */
-    public Leaf text(TextContent content) {
+    public Text text(TextContent content) {
         component.setContent(content);
         invalidate();
         return this;
@@ -115,7 +130,7 @@ public final class Leaf extends Box<Leaf> {
         longestWord = -1;
     }
 
-    private String text() {
+    private String renderText() {
         if (text == null) {
             text = component.renderText();
         }
@@ -125,7 +140,7 @@ public final class Leaf extends Box<Leaf> {
     /** The widest piece of the text that can not break (CSS min-content), in font px. */
     private int longestWord() {
         if (longestWord < 0) {
-            longestWord = FontMetrics.minContentWidth(text(), component.textWrap());
+            longestWord = FontMetrics.minContentWidth(renderText(), component.textWrap());
         }
         return longestWord;
     }
@@ -151,7 +166,7 @@ public final class Leaf extends Box<Leaf> {
 
     @Override
     protected Size measureContent(double maxWidth) {
-        return TextPlacement.boxSizePx(component, text(), lineWidthFor(maxWidth));
+        return TextPlacement.boxSizePx(component, renderText(), lineWidthFor(maxWidth));
     }
 
     @Override
@@ -210,14 +225,14 @@ public final class Leaf extends Box<Leaf> {
     }
 
     /** CSS {@code white-space} of the text. */
-    public Leaf whiteSpace(TextWrap.WhiteSpace value) {
+    public Text whiteSpace(TextWrap.WhiteSpace value) {
         component.whiteSpace(value);
         invalidate();
         return this;
     }
 
     /** CSS {@code word-break} / {@code overflow-wrap} of the text. */
-    public Leaf wordBreak(TextWrap.WordBreak value) {
+    public Text wordBreak(TextWrap.WordBreak value) {
         component.wordBreak(value);
         invalidate();
         return this;

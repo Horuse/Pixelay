@@ -7,11 +7,9 @@ import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.components.CanvasComponent;
 import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.components.TextBackground;
-import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
-import dev.horuse.pixelay.data.VAlign;
 import dev.horuse.pixelay.screen.ScreenSession;
 import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
@@ -49,23 +47,12 @@ public final class MountedLayout implements CanvasComponent {
     private Player explicitViewer;
     private Player clickViewer;
     private boolean stepsWarned;
-    private boolean anchorsWarned;
     private boolean textWithoutTextWarned;
     /** Parent of every box, to give :hover to the ancestors of the hovered box. */
     private final Map<Box<?>, Box<?>> parents = new IdentityHashMap<>();
 
-    /** Where a layout mounted with {@link Layout#mountAt} is pinned; {@code null} = fill the canvas. */
-    record Placement(double x, double y, HAlign h, VAlign v) {}
-
-    private final Placement placement;
-
-    MountedLayout(Box<?> root) {
-        this(root, null);
-    }
-
-    MountedLayout(Box<?> root, Placement placement) {
+    public MountedLayout(Box<?> root) {
         this.root = root;
-        this.placement = placement;
         root.collectComponents(components);
         root.collectBoxes(boxes);
         mapParents(root);
@@ -87,6 +74,11 @@ public final class MountedLayout implements CanvasComponent {
     /** Explicitly binds this mounted layout to a single viewer player (used when the tree has no text leaves). */
     public MountedLayout viewer(Player viewer) {
         this.explicitViewer = viewer;
+        if (viewer != null) {
+            for (Box<?> box : boxes) {
+                box.bindViewer(viewer);
+            }
+        }
         return this;
     }
 
@@ -99,6 +91,12 @@ public final class MountedLayout implements CanvasComponent {
         this.canvas = canvas;
         boxes.clear();
         root.collectBoxes(boxes);
+        Player v = explicitViewer != null ? explicitViewer : viewer();
+        if (v != null) {
+            for (Box<?> box : boxes) {
+                box.bindViewer(v);
+            }
+        }
         boxes.sort(Comparator.comparingInt(Box::zIndex));
         parents.clear();
         mapParents(root);
@@ -106,10 +104,10 @@ public final class MountedLayout implements CanvasComponent {
         updateStates();
         // Texts may have changed since the last pass: measure everything once more, then reuse.
         root.invalidate();
-        if (placement == null) {
-            root.arrange(new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight()));
+        if (root.isAbsolute()) {
+            arrangeAbsoluteRoot(canvas);
         } else {
-            arrangeAtPoint(canvas);
+            root.arrange(new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight()));
         }
         assignClips(root, new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight()));
         assignSteps();
@@ -118,6 +116,50 @@ public final class MountedLayout implements CanvasComponent {
             top = Math.max(top, box.paintEnd);
         }
         Layers.reportTopStep(canvas, this, top);
+    }
+
+    /** Places an absolutely positioned root box inside the canvas bounds using its CSS left/top/right/bottom offsets. */
+    private void arrangeAbsoluteRoot(dev.horuse.pixelay.data.Canvas canvas) {
+        Rect bounds = new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight());
+        Insets m = root.effectiveMargin();
+        boolean hasL = !Double.isNaN(root.left);
+        boolean hasR = !Double.isNaN(root.right);
+        boolean hasT = !Double.isNaN(root.top);
+        boolean hasB = !Double.isNaN(root.bottom);
+
+        double availW =
+            hasL && hasR
+                ? Math.max(0, bounds.width() - root.left - root.right - m.horizontal())
+                : Math.max(0, bounds.width() - m.horizontal());
+        Size natural = root.measure(availW);
+
+        double w = hasL && hasR && !root.hasFixedWidth() ? availW : natural.width();
+        double h =
+            hasT && hasB && !root.hasFixedHeight()
+                ? Math.max(0, bounds.height() - root.top - root.bottom - m.vertical())
+                : natural.height();
+
+        double x;
+        if (hasL) {
+            x = bounds.x() + root.left + m.left();
+        } else if (hasR) {
+            x = bounds.right() - root.right - m.right() - w;
+        } else {
+            Align hAlign = root.justifySelf != null ? root.justifySelf : Align.START;
+            x = bounds.x() + m.left() + hAlign.offset(Math.max(0, bounds.width() - m.horizontal()), w);
+        }
+
+        double y;
+        if (hasT) {
+            y = bounds.y() + root.top + m.top();
+        } else if (hasB) {
+            y = bounds.bottom() - root.bottom - m.bottom() - h;
+        } else {
+            Align vAlign = root.alignSelf != null ? root.alignSelf : Align.START;
+            y = bounds.y() + m.top() + vAlign.offset(Math.max(0, bounds.height() - m.vertical()), h);
+        }
+
+        root.arrange(new Rect(x, y, w, h));
     }
 
     /**
@@ -179,37 +221,6 @@ public final class MountedLayout implements CanvasComponent {
 
     private static boolean overlaps(Rect a, Rect b) {
         return a.x() < b.right() && b.x() < a.right() && a.y() < b.bottom() && b.y() < a.bottom();
-    }
-
-    /** Places a {@link Layout#mountAt} tree: shrink-to-fit within the canvas width, aligned to the point. */
-    private void arrangeAtPoint(dev.horuse.pixelay.data.Canvas canvas) {
-        // Like CSS absolute positioning: natural width, but never wider than the canvas (texts wrap).
-        Size size = root.measure(canvas.resolution().pixelWidth());
-        root.arrange(new Rect(0, 0, size.width(), size.height()));
-        // Align the anchored box (or the whole tree) to the point, then place the tree there.
-        Rect pinned = anchorBox().rect();
-        // The anchor point of a box: its left/centre/right and top/middle/bottom, as for components.
-        double dx = placement.x() - (pinned.centerX() - placement.h().horizontalOffset(pinned.width()));
-        double dy = placement.y() - (pinned.bottom() - placement.v().bottomOffset(pinned.height()));
-        root.arrange(new Rect(dx, dy, size.width(), size.height()));
-    }
-
-    /** The box marked {@link Box#anchor()} (the first in painting order if several, with a warning), or the root. */
-    private Box<?> anchorBox() {
-        Box<?> found = null;
-        for (Box<?> box : boxes) {
-            if (box.isAnchor()) {
-                if (found == null) {
-                    found = box;
-                } else if (!anchorsWarned) {
-                    anchorsWarned = true;
-                    Pixelay.plugin()
-                        .getLogger()
-                        .warning("A mountAt layout has several anchor() boxes: only the first one is used");
-                }
-            }
-        }
-        return found != null ? found : root;
     }
 
     @Override

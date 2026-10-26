@@ -48,8 +48,8 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     private static final int NO_BRIGHTNESS_OVERRIDE = -1;
     private static final byte BILLBOARD_FIXED = 0;
 
-    private final Player viewer;
-    private final boolean fake;
+    private Player viewer;
+    private boolean fake;
     private final Supplier<T> content;
     private final double naturalWidthPx;
     private final double naturalHeightPx;
@@ -212,6 +212,14 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     public boolean isValid() {
         // Fake entities have no server state; valid until explicitly despawned.
         return fake ? fakeId != 0 : display != null && display.isValid();
+    }
+
+    /** Switches this model to packet-only rendering for {@code viewer} if it currently has no viewer. */
+    public void bindViewer(Player viewer) {
+        if (viewer != null && this.viewer == null) {
+            this.viewer = viewer;
+            this.fake = true;
+        }
     }
 
     @Override

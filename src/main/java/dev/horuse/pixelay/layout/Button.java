@@ -50,6 +50,29 @@ public final class Button extends Box<Button> {
         this(viewer, heightPx, TextContent.of(miniMessage), onClick);
     }
 
+    public Button(double heightPx, TextContent content, Consumer<Player> onClick) {
+        this(null, heightPx, content, onClick);
+    }
+
+    public Button(double heightPx, String miniMessage, Consumer<Player> onClick) {
+        this(null, heightPx, TextContent.of(miniMessage), onClick);
+    }
+
+    public Button(Player viewer, String miniMessage, Consumer<Player> onClick) {
+        this(viewer, 20, TextContent.of(miniMessage), onClick);
+    }
+
+    public Button(String miniMessage, Consumer<Player> onClick) {
+        this(null, 20, TextContent.of(miniMessage), onClick);
+    }
+
+    @Override
+    void bindViewer(Player viewer) {
+        if (component instanceof CanvasText canvasText) {
+            canvasText.bindViewer(viewer);
+        }
+    }
+
     @Override
     public String tagName() {
         return "button";
