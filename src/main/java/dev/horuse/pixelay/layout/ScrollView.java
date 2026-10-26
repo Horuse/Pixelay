@@ -296,7 +296,7 @@ public class ScrollView extends Container<ScrollView> {
             }
             return false;
         }
-        scrollOffset += (targetScrollOffset - scrollOffset) * 0.45;
+        scrollOffset += (targetScrollOffset - scrollOffset) * 0.75;
         if (Math.abs(scrollOffset - targetScrollOffset) < 0.25) {
             scrollOffset = targetScrollOffset;
         }
