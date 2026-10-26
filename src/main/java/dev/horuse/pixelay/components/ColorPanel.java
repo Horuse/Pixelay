@@ -80,6 +80,18 @@ public final class ColorPanel {
         return id;
     }
 
+    /** Updates the background colour of an existing panel without moving or recreating it. */
+    public static void updateColor(Player viewer, int id, int argb) {
+        PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
+        PacketUtils.send(
+            viewer,
+            new WrapperPlayServerEntityMetadata(
+                id,
+                List.of(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, argb))
+            )
+        );
+    }
+
     /** Moves and resizes an existing panel to a new rectangle via translation (no teleport lerp lag). */
     public static void update(
         Player viewer,

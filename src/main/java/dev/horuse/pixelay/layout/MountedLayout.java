@@ -22,7 +22,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
 /**
  * A layout tree attached to a canvas. It is itself a {@link CanvasComponent}: spawning lays the tree
@@ -38,6 +40,7 @@ public final class MountedLayout implements CanvasComponent {
     private final List<Box<?>> boxes = new ArrayList<>();
     private Canvas canvas;
     private final DebugOverlay debugOverlay = new DebugOverlay();
+    private BukkitTask transitionTask;
     /** Panels of boxes with a {@link Box#background}, by box. */
     private final Map<Box<?>, TextBackground> backgrounds = new IdentityHashMap<>();
     private final Map<Box<?>, Integer> compositedColors = new IdentityHashMap<>();
@@ -209,6 +212,7 @@ public final class MountedLayout implements CanvasComponent {
 
     @Override
     public void despawn() {
+        cancelTransitionTask();
         if (canvas != null) {
             CanvasClicks.unregister(canvas, clickViewer, clickTarget);
             Layers.forgetTopStep(canvas, this);
@@ -492,6 +496,51 @@ public final class MountedLayout implements CanvasComponent {
         return changed;
     }
 
+    /**
+     * Advances smooth transitions of any box in this layout.
+     *
+     * @return whether any transition is actively animating
+     */
+    public boolean tickTransitions() {
+        boolean active = false;
+        long now = System.currentTimeMillis();
+        for (Box<?> box : boxes) {
+            if (box.tickTransitions(now)) {
+                active = true;
+            }
+        }
+        return active;
+    }
+
+    void ensureTransitionTicking() {
+        if (transitionTask != null || canvas == null || viewer() != null) {
+            return;
+        }
+        transitionTask = Bukkit.getScheduler().runTaskTimer(
+            Pixelay.plugin(),
+            () -> {
+                if (canvas == null || !isValid()) {
+                    cancelTransitionTask();
+                    return;
+                }
+                if (tickTransitions()) {
+                    refresh();
+                } else {
+                    cancelTransitionTask();
+                }
+            },
+            1,
+            1
+        );
+    }
+
+    private void cancelTransitionTask() {
+        if (transitionTask != null) {
+            transitionTask.cancel();
+            transitionTask = null;
+        }
+    }
+
     /** Any {@link ScrollView} whose scrollbar thumb is currently being dragged. */
     public ScrollView activeDraggingScrollView() {
         for (Box<?> box : boxes) {
@@ -530,6 +579,9 @@ public final class MountedLayout implements CanvasComponent {
         }
         if (changed) {
             applyStyle(box);
+            if (box.hasTransitions()) {
+                ensureTransitionTicking();
+            }
         }
         return changed;
     }

@@ -263,8 +263,9 @@ public final class ScreenSession {
             dragging.dragTo(cursorY);
         }
 
-        boolean animated = layout.tickScroll();
-        if (animated || scroll != 0 || dragging != null) {
+        boolean animatedScroll = layout.tickScroll();
+        boolean animatedTransition = layout.tickTransitions();
+        if (animatedScroll || animatedTransition || scroll != 0 || dragging != null) {
             layout.refresh();
         }
 

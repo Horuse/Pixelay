@@ -69,7 +69,15 @@ public final class TextBackground {
             remove();
             return;
         }
-        if (exists() && argb == color && bounds.equals(box) && depth == lastDepth) {
+        if (exists() && bounds.equals(box) && depth == lastDepth) {
+            if (argb != color) {
+                if (viewer != null) {
+                    ColorPanel.updateColor(viewer, fakeId, argb);
+                } else if (entity != null) {
+                    entity.setBackgroundColor(Color.fromARGB(argb));
+                }
+                color = argb;
+            }
             return;
         }
         if (exists() && argb != color) {

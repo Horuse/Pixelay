@@ -86,6 +86,21 @@ public final class Layout {
         return new Spacer(size);
     }
 
+    /** Creates a transition definition with the given duration in milliseconds and easing timing function. */
+    public static Transition transition(long durationMs, Easing easing) {
+        return Transition.all(durationMs, easing);
+    }
+
+    /** Creates a transition definition with the given duration in milliseconds and standard {@link Easing#EASE}. */
+    public static Transition transition(long durationMs) {
+        return Transition.all(durationMs, Easing.EASE);
+    }
+
+    /** Creates a transition definition for a specific property. */
+    public static Transition transition(Transition.Property property, long durationMs, Easing easing) {
+        return new Transition(property, durationMs, easing);
+    }
+
     /** A component as a leaf, to set its box properties or its alignment inside its rectangle. */
     public static Leaf node(AbstractCanvasComponent component) {
         return new Leaf(component);
