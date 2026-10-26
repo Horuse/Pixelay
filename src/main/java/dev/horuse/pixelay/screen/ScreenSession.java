@@ -97,6 +97,8 @@ public final class ScreenSession {
     private String hovered;
     private boolean closed;
     private int lastHeldSlot = -1;
+    private int lastScrollDirection;
+    private long lastScrollTime;
     private final AtomicInteger pendingScroll = new AtomicInteger();
 
     private ScreenSession(Player player, Options options) {
@@ -342,19 +344,45 @@ public final class ScreenSession {
         }
     }
 
-    void heldItemChange(int slot) {
+    synchronized void heldItemChange(int slot) {
         int previous = lastHeldSlot;
         lastHeldSlot = slot;
-        if (previous >= 0) {
-            int diff = slot - previous;
-            if (diff > 4) {
-                diff -= 9;
-            } else if (diff < -4) {
-                diff += 9;
+        if (previous < 0 || previous == slot) {
+            return;
+        }
+
+        // Exact single-step notches: (8 -> 0 is forward, 0 -> 8 is backward)
+        if (slot == (previous + 1) % 9) {
+            lastScrollDirection = 1;
+            lastScrollTime = System.currentTimeMillis();
+            scroll(1);
+            return;
+        }
+        if (previous == (slot + 1) % 9) {
+            lastScrollDirection = -1;
+            lastScrollTime = System.currentTimeMillis();
+            scroll(-1);
+            return;
+        }
+
+        // Fast multi-notch jump: if user scrolled in a direction within 300ms, preserve that momentum
+        long now = System.currentTimeMillis();
+        int delta;
+        if (now - lastScrollTime < 300 && lastScrollDirection != 0) {
+            if (lastScrollDirection > 0) {
+                delta = (slot - previous + 9) % 9;
+            } else {
+                delta = -((previous - slot + 9) % 9);
             }
-            if (diff != 0) {
-                scroll(diff);
-            }
+        } else {
+            int forward = (slot - previous + 9) % 9;
+            int backward = (previous - slot + 9) % 9;
+            delta = forward <= backward ? forward : -backward;
+            lastScrollDirection = Integer.signum(delta);
+        }
+        lastScrollTime = now;
+        if (delta != 0) {
+            scroll(delta);
         }
     }
 
