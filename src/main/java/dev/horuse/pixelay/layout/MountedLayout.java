@@ -12,6 +12,7 @@ import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.data.VAlign;
+import dev.horuse.pixelay.screen.ScreenSession;
 import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -275,7 +276,15 @@ public final class MountedLayout implements CanvasComponent {
      * @return whether anything handled the click
      */
     public boolean click(double px, double py, Player player) {
-        pointerAt(px, py, player);
+        if (ScreenSession.isInSession(player)) {
+            pointerAt(px, py, player);
+        } else {
+            for (Box<?> box : boxes) {
+                if (box instanceof ScrollView scrollView) {
+                    scrollView.updatePointer(px, py);
+                }
+            }
+        }
         Box<?> target = topmost(px, py, box -> box.effectiveOnClick() != null || box.is(State.DISABLED));
         if (target == null) {
             return false;
