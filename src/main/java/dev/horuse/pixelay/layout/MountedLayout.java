@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 import org.bukkit.entity.Player;
 
@@ -276,17 +275,19 @@ public final class MountedLayout implements CanvasComponent {
      * @return whether anything handled the click
      */
     public boolean click(double px, double py, Player player) {
+        pointerAt(px, py, player);
         Box<?> target = topmost(px, py, box -> box.effectiveOnClick() != null || box.is(State.DISABLED));
         if (target == null) {
             return false;
         }
         // A disabled box (or one inside it) swallows the click, like CSS :disabled.
         if (!insideDisabled(target)) {
-            Consumer<Player> onClick = target.effectiveOnClick();
+            Box.ClickHandler onClick = target.effectiveOnClick();
             if (onClick != null) {
-                onClick.accept(player);
+                onClick.onClick(player, px, py);
             }
         }
+        refresh();
         return true;
     }
 

@@ -44,7 +44,13 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     /** Result of the last arrange: does this box (or an ancestor) not fit its space. */
     protected Fit fit = Fit.NONE;
     private String id;
-    private Consumer<Player> onClick;
+
+    @FunctionalInterface
+    public interface ClickHandler {
+        void onClick(Player player, double x, double y);
+    }
+
+    private ClickHandler onClick;
     private int background;
     /** Depth steps from the last layout pass (see {@link dev.horuse.pixelay.data.Layers}): first and last used. */
     int paintStep = 1;
@@ -195,7 +201,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return id;
     }
 
-    public Consumer<Player> onClick() {
+    public ClickHandler onClick() {
         return onClick;
     }
 
@@ -535,13 +541,19 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     }
 
     /** What a click on this box runs: its own {@link #onClick}, or {@code null}. */
-    Consumer<Player> effectiveOnClick() {
+    ClickHandler effectiveOnClick() {
         return onClick;
+    }
+
+    /** Makes the whole box clickable via {@link MountedLayout#click} with pixel coordinates. */
+    public S onClick(ClickHandler onClick) {
+        this.onClick = onClick;
+        return self();
     }
 
     /** Makes the whole box clickable via {@link MountedLayout#click}. */
     public S onClick(Consumer<Player> onClick) {
-        this.onClick = onClick;
+        this.onClick = onClick != null ? (player, x, y) -> onClick.accept(player) : null;
         return self();
     }
 }

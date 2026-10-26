@@ -69,7 +69,7 @@ public class ScrollView extends Container<ScrollView> {
     private void setupScrollbar() {
         track.cursor("default");
         track.background(trackColor);
-        track.onClick(player -> {
+        track.onClick((player, clickX, clickY) -> {
             if (maxScrollY <= 0) {
                 return;
             }
@@ -79,20 +79,28 @@ public class ScrollView extends Container<ScrollView> {
             if (travel <= 0) {
                 return;
             }
-            double targetThumbY = lastPointerY - track.rect().y() - thumbH / 2.0;
+            double targetThumbY = clickY - track.rect().y() - thumbH / 2.0;
             double pct = Math.max(0, Math.min(1.0, targetThumbY / travel));
-            scrollTo(pct * maxScrollY);
-            startDragging(lastPointerY);
+            double targetOffset = pct * maxScrollY;
+            boolean inSession = dev.horuse.pixelay.screen.ScreenSession.isInSession(player);
+            if (inSession) {
+                scrollTo(targetOffset);
+                startDragging(clickY);
+            } else {
+                scrollTo(targetOffset, true);
+            }
         });
 
         thumb.cursor("pointer");
         thumb.background(thumbColor);
         thumb.state(State.HOVERED, s -> s.background(thumbHoverColor));
-        thumb.onClick(player -> {
-            if (dragging) {
-                stopDragging();
-            } else {
-                startDragging(lastPointerY);
+        thumb.onClick((player, clickX, clickY) -> {
+            if (dev.horuse.pixelay.screen.ScreenSession.isInSession(player)) {
+                if (dragging) {
+                    stopDragging();
+                } else {
+                    startDragging(clickY);
+                }
             }
         });
     }
@@ -195,8 +203,12 @@ public class ScrollView extends Container<ScrollView> {
     }
 
     public ScrollView scrollTo(double offset) {
+        return scrollTo(offset, false);
+    }
+
+    public ScrollView scrollTo(double offset, boolean immediate) {
         this.targetScrollOffset = Math.max(0, Math.min(maxScrollY, offset));
-        if (!smooth) {
+        if (immediate || !smooth) {
             this.scrollOffset = this.targetScrollOffset;
         }
         notifyScroll();
