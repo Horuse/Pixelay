@@ -81,6 +81,8 @@ public class FakeRenderer extends TextRenderer {
             new WrapperPlayServerEntityMetadata(
                 entityId,
                 List.of(
+                    new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0),
+                    new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0),
                     new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, placement.component()),
                     // Cut codes and their opacity marker travel together (see TextClip).
                     new EntityData<>(idx.textOpacity(), EntityDataTypes.BYTE, textOpacity()),

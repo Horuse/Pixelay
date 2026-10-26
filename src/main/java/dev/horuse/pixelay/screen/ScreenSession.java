@@ -8,8 +8,10 @@ import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.layout.MountedLayout;
+import dev.horuse.pixelay.layout.ScrollView;
 import dev.horuse.pixelay.listeners.ChatSuppression;
 import dev.horuse.pixelay.pack.PixelayPack;
+import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -19,6 +21,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -94,6 +97,10 @@ public final class ScreenSession {
     private volatile double cursorY;
     private String hovered;
     private boolean closed;
+    private int lastHeldSlot = -1;
+    private int lastScrollDirection;
+    private long lastScrollTime;
+    private final AtomicInteger pendingScroll = new AtomicInteger();
 
     private ScreenSession(Player player, Options options) {
         this.player = player;
@@ -153,6 +160,10 @@ public final class ScreenSession {
         return hovered;
     }
 
+    public boolean isClosed() {
+        return closed;
+    }
+
     // --- opening -----------------------------------------------------------------------------------------
 
     private void open() {
@@ -170,7 +181,10 @@ public final class ScreenSession {
         lookOrigin = shaderCursor != null ? 0 : facingYaw;
         Location start = view.clone();
         start.setYaw(lookOrigin);
+        start.setPitch(0f);
         player.teleport(start);
+        PacketUtils.sendLook(player, lookOrigin, 0f);
+        lastHeldSlot = player.getInventory().getHeldItemSlot();
         if (shaderCursor != null) {
             // Before the game mode changes: the tab list must never tell the client it is a spectator.
             shaderCursor.start();
@@ -184,7 +198,7 @@ public final class ScreenSession {
         }
 
         // With a shader cursor the player sits high above the camera: the water at their eyes stays out of view.
-        camera = new ScreenCamera(player, view, shaderCursor != null ? SHADER_SEAT_HEIGHT : 0);
+        camera = new ScreenCamera(player, view, shaderCursor != null ? SHADER_SEAT_HEIGHT : 0, lookOrigin);
         camera.spawn();
         if (shaderCursor != null) {
             shaderCursor.flood(camera.seatLocation());
@@ -234,6 +248,27 @@ public final class ScreenSession {
             return;
         }
         camera.tick();
+
+        int scroll = pendingScroll.getAndSet(0);
+        MountedLayout layout = currentLayout();
+        if (scroll != 0) {
+            ScrollView target = layout.scrollableAt(cursorX, cursorY);
+            if (target != null) {
+                target.scrollBy(scroll * target.scrollStep());
+            }
+        }
+
+        ScrollView dragging = layout.activeDraggingScrollView();
+        if (dragging != null) {
+            dragging.dragTo(cursorY);
+        }
+
+        boolean animatedScroll = layout.tickScroll();
+        boolean animatedTransition = layout.tickTransitions();
+        if (animatedScroll || animatedTransition || scroll != 0 || dragging != null) {
+            layout.refresh();
+        }
+
         updateHover();
         if (shaderCursor != null) {
             shaderCursor.tick();
@@ -306,8 +341,61 @@ public final class ScreenSession {
 
     private void click(Player clicker) {
         if (!closed && clicker.isOnline()) {
-            currentLayout().click(cursorX, cursorY, clicker);
+            MountedLayout layout = currentLayout();
+            ScrollView dragging = layout.activeDraggingScrollView();
+            if (dragging != null) {
+                dragging.stopDragging();
+                layout.refresh();
+                return;
+            }
+            layout.click(cursorX, cursorY, clicker);
         }
+    }
+
+    synchronized void heldItemChange(int slot) {
+        int previous = lastHeldSlot;
+        lastHeldSlot = slot;
+        if (previous < 0 || previous == slot) {
+            return;
+        }
+
+        // Exact single-step notches: (8 -> 0 is forward, 0 -> 8 is backward)
+        if (slot == (previous + 1) % 9) {
+            lastScrollDirection = 1;
+            lastScrollTime = System.currentTimeMillis();
+            scroll(1);
+            return;
+        }
+        if (previous == (slot + 1) % 9) {
+            lastScrollDirection = -1;
+            lastScrollTime = System.currentTimeMillis();
+            scroll(-1);
+            return;
+        }
+
+        // Fast multi-notch jump: if user scrolled in a direction within 300ms, preserve that momentum
+        long now = System.currentTimeMillis();
+        int delta;
+        if (now - lastScrollTime < 300 && lastScrollDirection != 0) {
+            if (lastScrollDirection > 0) {
+                delta = (slot - previous + 9) % 9;
+            } else {
+                delta = -((previous - slot + 9) % 9);
+            }
+        } else {
+            int forward = (slot - previous + 9) % 9;
+            int backward = (previous - slot + 9) % 9;
+            delta = forward <= backward ? forward : -backward;
+            lastScrollDirection = Integer.signum(delta);
+        }
+        lastScrollTime = now;
+        if (delta != 0) {
+            scroll(delta);
+        }
+    }
+
+    void scroll(int notches) {
+        pendingScroll.addAndGet(notches);
     }
 
     private MountedLayout currentLayout() {

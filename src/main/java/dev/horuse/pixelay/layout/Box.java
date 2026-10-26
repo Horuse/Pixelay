@@ -44,7 +44,13 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     /** Result of the last arrange: does this box (or an ancestor) not fit its space. */
     protected Fit fit = Fit.NONE;
     private String id;
-    private Consumer<Player> onClick;
+
+    @FunctionalInterface
+    public interface ClickHandler {
+        void onClick(Player player, double x, double y);
+    }
+
+    private ClickHandler onClick;
     private int background;
     /** Depth steps from the last layout pass (see {@link dev.horuse.pixelay.data.Layers}): first and last used. */
     int paintStep = 1;
@@ -68,6 +74,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     private BooleanSupplier disabledWhen;
     private Consumer<Player> onHoverEnter;
     private Consumer<Player> onHoverLeave;
+    private TransitionState backgroundTransition;
     /** Under the pointer (itself or a descendant), from the last {@link MountedLayout#pointerAt} — CSS {@code :hover}. */
     private volatile boolean hovered;
     private Rect rect = new Rect(0, 0, 0, 0);
@@ -195,7 +202,7 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return id;
     }
 
-    public Consumer<Player> onClick() {
+    public ClickHandler onClick() {
         return onClick;
     }
 
@@ -500,10 +507,67 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
         return self();
     }
 
+    /**
+     * Configures CSS-style property transitions (e.g. background color smoothing on hover).
+     */
+    public S transition(Transition... transitions) {
+        for (Transition t : transitions) {
+            if (t.property() == Transition.Property.ALL || t.property() == Transition.Property.BACKGROUND) {
+                this.backgroundTransition = new TransitionState(t);
+            }
+        }
+        return self();
+    }
+
+    /**
+     * Configures a smooth transition for all properties with the given duration in milliseconds and easing timing function.
+     */
+    public S transition(long durationMs, Easing easing) {
+        return transition(Transition.all(durationMs, easing));
+    }
+
+    /**
+     * Configures a smooth transition for all properties with the given duration in milliseconds and standard {@link Easing#EASE}.
+     */
+    public S transition(long durationMs) {
+        return transition(Transition.all(durationMs, Easing.EASE));
+    }
+
+    /**
+     * Configures a smooth transition for a specific property.
+     */
+    public S transition(Transition.Property property, long durationMs, Easing easing) {
+        return transition(new Transition(property, durationMs, easing));
+    }
+
+    boolean hasTransitions() {
+        return backgroundTransition != null;
+    }
+
+    boolean isTransitioning() {
+        return backgroundTransition != null && backgroundTransition.isAnimating();
+    }
+
+    boolean tickTransitions(long now) {
+        if (backgroundTransition != null) {
+            effectiveBackground(now);
+            return backgroundTransition.isAnimating();
+        }
+        return false;
+    }
+
     /** The background to draw now: from the active states, if they set one. */
     int effectiveBackground() {
+        return effectiveBackground(System.currentTimeMillis());
+    }
+
+    int effectiveBackground(long now) {
         Style style = activeStyle();
-        return style != null && style.background() != null ? style.background() : background;
+        int target = style != null && style.background() != null ? style.background() : background;
+        if (backgroundTransition != null) {
+            return backgroundTransition.update(target, now);
+        }
+        return target;
     }
 
     /** @return whether the state changed (the enter/leave handler has run then) */
@@ -535,13 +599,19 @@ public abstract class Box<S extends Box<S>> implements LayoutItem {
     }
 
     /** What a click on this box runs: its own {@link #onClick}, or {@code null}. */
-    Consumer<Player> effectiveOnClick() {
+    ClickHandler effectiveOnClick() {
         return onClick;
+    }
+
+    /** Makes the whole box clickable via {@link MountedLayout#click} with pixel coordinates. */
+    public S onClick(ClickHandler onClick) {
+        this.onClick = onClick;
+        return self();
     }
 
     /** Makes the whole box clickable via {@link MountedLayout#click}. */
     public S onClick(Consumer<Player> onClick) {
-        this.onClick = onClick;
+        this.onClick = onClick != null ? (player, x, y) -> onClick.accept(player) : null;
         return self();
     }
 }

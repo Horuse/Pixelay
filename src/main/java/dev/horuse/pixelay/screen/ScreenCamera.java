@@ -30,6 +30,7 @@ final class ScreenCamera {
     private final Player player;
     private final Location view;
     private final double seatHeight;
+    private final float lookYaw;
     private final int clickTargetId = FakeEntityIds.next();
     private ArmorStand anchor;
     /** What the player rides: the camera, or a seat {@link #seatHeight} above it. */
@@ -40,11 +41,13 @@ final class ScreenCamera {
     /**
      * @param seatHeight blocks above the camera the player sits (0 = on the camera): the shader cursor puts
      *     client-side water at the player's eyes, which must stay far out of the camera's view
+     * @param lookYaw yaw angle the player's view starts facing
      */
-    ScreenCamera(Player player, Location view, double seatHeight) {
+    ScreenCamera(Player player, Location view, double seatHeight, float lookYaw) {
         this.player = player;
         this.view = view;
         this.seatHeight = seatHeight;
+        this.lookYaw = lookYaw;
     }
 
     /** Spawns the camera entity and locks the player onto it a few ticks later. */
@@ -144,6 +147,7 @@ final class ScreenCamera {
         if (player.getGameMode() == GameMode.SPECTATOR) {
             player.setSpectatorTarget(anchor);
         }
+        PacketUtils.sendLook(player, lookYaw, 0f);
     }
 
     private boolean usable() {

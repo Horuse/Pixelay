@@ -44,6 +44,16 @@ public final class Layout {
         return new Grid(children);
     }
 
+    /** A scrollable vertical container with an optional scrollbar. */
+    public static ScrollView scrollView(LayoutItem... children) {
+        return new ScrollView(children);
+    }
+
+    /** A scrollable container wrapping {@code content}. */
+    public static ScrollView scrollView(Box<?> content) {
+        return new ScrollView(content);
+    }
+
     /** Grid track of a fixed size in canvas px. */
     public static Track px(double size) {
         return new Track(Track.Kind.PX, size);
@@ -74,6 +84,21 @@ public final class Layout {
     /** Fixed empty space of {@code size} px. */
     public static Spacer space(double size) {
         return new Spacer(size);
+    }
+
+    /** Creates a transition definition with the given duration in milliseconds and easing timing function. */
+    public static Transition transition(long durationMs, Easing easing) {
+        return Transition.all(durationMs, easing);
+    }
+
+    /** Creates a transition definition with the given duration in milliseconds and standard {@link Easing#EASE}. */
+    public static Transition transition(long durationMs) {
+        return Transition.all(durationMs, Easing.EASE);
+    }
+
+    /** Creates a transition definition for a specific property. */
+    public static Transition transition(Transition.Property property, long durationMs, Easing easing) {
+        return new Transition(property, durationMs, easing);
     }
 
     /** A component as a leaf, to set its box properties or its alignment inside its rectangle. */

@@ -57,6 +57,11 @@ public final class ColorPanel {
         Quaternionf rotation = canvas.contentRotation();
         PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
         List<EntityData<?>> data = new ArrayList<>();
+        data.add(new EntityData<>(0, EntityDataTypes.BYTE, (byte) 0));
+        data.add(new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0));
+        data.add(new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0));
+        data.add(new EntityData<>(idx.positionInterpolationDuration(), EntityDataTypes.INT, 0));
+        data.add(new EntityData<>(idx.translation(), EntityDataTypes.VECTOR3F, new Vector3f(0f, 0f, 0f)));
         data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)));
         data.add(
             new EntityData<>(
@@ -65,12 +70,54 @@ public final class ColorPanel {
                 new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
             )
         );
+        data.add(new EntityData<>(idx.rightRotation(), EntityDataTypes.QUATERNION, new Quaternion4f(0f, 0f, 0f, 1f)));
+        data.add(new EntityData<>(idx.billboard(), EntityDataTypes.BYTE, (byte) 0));
         data.add(new EntityData<>(idx.brightnessOverride(), EntityDataTypes.INT, FULL_BRIGHTNESS));
         data.add(new EntityData<>(idx.viewRange(), EntityDataTypes.FLOAT, Pixelay.settings().text().viewRange()));
         data.add(new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, Component.text(" ")));
         data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, argb));
         PacketUtils.send(viewer, new WrapperPlayServerEntityMetadata(id, data));
         return id;
+    }
+
+    /** Updates the background colour of an existing panel without moving or recreating it. */
+    public static void updateColor(Player viewer, int id, int argb) {
+        PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
+        PacketUtils.send(
+            viewer,
+            new WrapperPlayServerEntityMetadata(
+                id,
+                List.of(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, argb))
+            )
+        );
+    }
+
+    /** Moves and resizes an existing panel to a new rectangle via translation (no teleport lerp lag). */
+    public static void update(
+        Player viewer,
+        int id,
+        Canvas canvas,
+        double width,
+        double height,
+        org.bukkit.util.Vector translation
+    ) {
+        PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
+        PacketUtils.send(
+            viewer,
+            new WrapperPlayServerEntityMetadata(
+                id,
+                List.of(
+                    new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0),
+                    new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0),
+                    new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)),
+                    new EntityData<>(
+                        idx.translation(),
+                        EntityDataTypes.VECTOR3F,
+                        new Vector3f((float) translation.getX(), (float) translation.getY(), (float) translation.getZ())
+                    )
+                )
+            )
+        );
     }
 
     /** Moves and resizes an existing panel to a new rectangle. */
@@ -84,7 +131,6 @@ public final class ColorPanel {
         double height,
         float depth
     ) {
-        // Scale first: a teleport arriving alone would show the old size at the new position.
         PacketUtils.send(
             viewer,
             new WrapperPlayServerEntityMetadata(

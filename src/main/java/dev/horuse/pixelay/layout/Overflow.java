@@ -10,10 +10,18 @@ public enum Overflow {
     VISIBLE,
     /** Children are cut at the box's edges (padding included), and are not hovered or clicked outside it. */
     HIDDEN,
-    /** The same as {@link #HIDDEN}: there is no scrolling to tell them apart. */
-    CLIP;
+    /** The same as {@link #HIDDEN}: cuts children without scrollbar. */
+    CLIP,
+    /** Content is clipped and scrollable (with scrollbar). */
+    SCROLL,
+    /** Content is clipped and scrollable only when content overflows. */
+    AUTO;
 
-    boolean clips() {
+    public boolean clips() {
         return this != VISIBLE;
+    }
+
+    public boolean scrolls() {
+        return this == SCROLL || this == AUTO;
     }
 }

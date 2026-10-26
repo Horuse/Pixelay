@@ -77,11 +77,11 @@ final class TextClip {
             return HIDDEN;
         }
         if (min > from) {
-            int dropped = (int) Math.round(((min - from) / size) * STEPS);
+            int dropped = (int) Math.ceil(((min - from) / size) * STEPS);
             return dropped >= STEPS ? HIDDEN : dropped;
         }
         if (max < to) {
-            int kept = (int) Math.round(((max - from) / size) * STEPS);
+            int kept = (int) Math.floor(((max - from) / size) * STEPS);
             return kept <= 0 ? HIDDEN : kept >= STEPS ? 0 : STEPS + kept;
         }
         return 0;

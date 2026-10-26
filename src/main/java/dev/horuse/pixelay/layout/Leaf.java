@@ -134,9 +134,13 @@ public final class Leaf extends Box<Leaf> {
 
     /** A clickable component (a button) is clicked on its whole box, padding included, not just its text. */
     @Override
-    Consumer<Player> effectiveOnClick() {
-        Consumer<Player> own = super.effectiveOnClick();
-        return own != null ? own : component.onClick();
+    ClickHandler effectiveOnClick() {
+        ClickHandler own = super.effectiveOnClick();
+        if (own != null) {
+            return own;
+        }
+        Consumer<Player> compClick = component.onClick();
+        return compClick != null ? (player, x, y) -> compClick.accept(player) : null;
     }
 
     /** CSS {@code white-space} of the text. */

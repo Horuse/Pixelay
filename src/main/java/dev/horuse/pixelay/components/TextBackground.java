@@ -29,6 +29,7 @@ public final class TextBackground {
 
     private final Player viewer;
     private int fakeId;
+    private org.bukkit.util.Vector fakeOrigin;
     private TextDisplay entity;
     private int color;
     private Rect box;
@@ -68,7 +69,15 @@ public final class TextBackground {
             remove();
             return;
         }
-        if (exists() && argb == color && bounds.equals(box) && depth == lastDepth) {
+        if (exists() && bounds.equals(box) && depth == lastDepth) {
+            if (argb != color) {
+                if (viewer != null) {
+                    ColorPanel.updateColor(viewer, fakeId, argb);
+                } else if (entity != null) {
+                    entity.setBackgroundColor(Color.fromARGB(argb));
+                }
+                color = argb;
+            }
             return;
         }
         if (exists() && argb != color) {
@@ -78,14 +87,16 @@ public final class TextBackground {
         double y = bounds.y();
         double width = bounds.width();
         double height = bounds.height();
+        Location origin = ColorPanel.origin(canvas, x, y, width, height, depth);
         if (viewer != null) {
             if (fakeId == 0) {
+                fakeOrigin = origin.toVector();
                 fakeId = ColorPanel.spawn(viewer, canvas, x, y, width, height, argb, depth);
             } else {
-                ColorPanel.update(viewer, fakeId, canvas, x, y, width, height, depth);
+                org.bukkit.util.Vector translation = origin.toVector().subtract(fakeOrigin);
+                ColorPanel.update(viewer, fakeId, canvas, width, height, translation);
             }
         } else {
-            Location origin = ColorPanel.origin(canvas, x, y, width, height, depth);
             Vector3f scale = toJoml(ColorPanel.scale(canvas, width, height));
             if (entity == null) {
                 entity = DisplayUtils.spawnText(origin, Component.text(" "), canvas.contentRotation(), 1f);
@@ -109,6 +120,7 @@ public final class TextBackground {
         if (fakeId != 0) {
             PacketUtils.destroy(viewer, fakeId);
             fakeId = 0;
+            fakeOrigin = null;
         }
         if (entity != null) {
             entity.remove();

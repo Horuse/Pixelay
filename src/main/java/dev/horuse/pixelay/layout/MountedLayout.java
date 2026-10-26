@@ -12,6 +12,8 @@ import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.data.VAlign;
+import dev.horuse.pixelay.screen.ScreenSession;
+import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -19,9 +21,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
 /**
  * A layout tree attached to a canvas. It is itself a {@link CanvasComponent}: spawning lays the tree
@@ -37,8 +40,10 @@ public final class MountedLayout implements CanvasComponent {
     private final List<Box<?>> boxes = new ArrayList<>();
     private Canvas canvas;
     private final DebugOverlay debugOverlay = new DebugOverlay();
+    private BukkitTask transitionTask;
     /** Panels of boxes with a {@link Box#background}, by box. */
     private final Map<Box<?>, TextBackground> backgrounds = new IdentityHashMap<>();
+    private final Map<Box<?>, Integer> compositedColors = new IdentityHashMap<>();
     private final ClickTarget clickTarget = this::click;
     private Player clickViewer;
     private boolean stepsWarned;
@@ -207,13 +212,16 @@ public final class MountedLayout implements CanvasComponent {
 
     @Override
     public void despawn() {
+        cancelTransitionTask();
         if (canvas != null) {
             CanvasClicks.unregister(canvas, clickViewer, clickTarget);
             Layers.forgetTopStep(canvas, this);
+            this.canvas = null;
         }
         components.forEach(CanvasComponent::despawn);
         backgrounds.values().forEach(TextBackground::remove);
         backgrounds.clear();
+        compositedColors.clear();
         debugOverlay.clear();
     }
 
@@ -228,10 +236,17 @@ public final class MountedLayout implements CanvasComponent {
         if (canvas != null) {
             layout(canvas);
         }
+        Player viewer = viewer();
+        if (viewer != null) {
+            PacketUtils.sendBundle(viewer);
+        }
         components.forEach(CanvasComponent::refresh);
         if (canvas != null) {
             syncBackgrounds();
             debugOverlay.update(root, canvas);
+        }
+        if (viewer != null) {
+            PacketUtils.sendBundle(viewer);
         }
     }
 
@@ -239,21 +254,109 @@ public final class MountedLayout implements CanvasComponent {
      * Draws box backgrounds. They are seen by the same player as the components (the first one that has
      * a single viewer), or by everyone for server components. Deeper boxes sit closer to the text. A
      * background is cut by the boxes around it that hide their overflow (and by the canvas).
+     * <p>
+     * Overlapping backgrounds are automatically alpha-composited with their ancestors' backgrounds so that
+     * semi-transparent child containers (e.g. scrollviews, hovered items) do not cause depth buffer occlusion
+     * holes through their parent backgrounds in the Minecraft renderer.
      */
     private void syncBackgrounds() {
         Player viewer = viewer();
+        compositedColors.clear();
         for (Box<?> box : boxes) {
-            if (box.effectiveBackground() != 0 || backgrounds.containsKey(box)) {
+            int bg = compositedBackground(box);
+            if (bg != 0) {
+                compositedColors.put(box, bg);
+            }
+            if (bg != 0 || backgrounds.containsKey(box)) {
                 backgrounds
                     .computeIfAbsent(box, key -> new TextBackground(viewer))
-                    .sync(
-                        canvas,
-                        box.rect().intersect(box.clip()),
-                        box.effectiveBackground(),
-                        Layers.at(box.paintStep, viewer)
-                    );
+                    .sync(canvas, box.rect().intersect(box.clip()), bg, Layers.at(box.paintStep, viewer));
             }
         }
+    }
+
+    private int compositedBackground(Box<?> box) {
+        int own = box.effectiveBackground();
+        if (own == 0 || own >>> 24 == 255) {
+            return own;
+        }
+        int bgUnder = 0;
+        // 1. Ancestors first (standard nested CSS containers: scrollviews, items, cards)
+        for (Box<?> p = parents.get(box); p != null; p = parents.get(p)) {
+            int pBg = compositedColors.getOrDefault(p, 0);
+            if (pBg == 0) {
+                pBg = p.effectiveBackground();
+            }
+            if (pBg != 0 && p.rect() != null && box.rect() != null && !p.rect().intersect(box.rect()).isEmpty()) {
+                bgUnder = pBg;
+                break;
+            }
+        }
+        // 2. Fallback to earlier overlapping boxes (e.g. stack sibling layers)
+        if (bgUnder == 0 && box.rect() != null) {
+            int topStep = -1;
+            for (Box<?> earlier : boxes) {
+                if (earlier == box) {
+                    break;
+                }
+                int eBg = compositedColors.getOrDefault(earlier, 0);
+                if (eBg == 0) {
+                    eBg = earlier.effectiveBackground();
+                }
+                if (eBg != 0 && earlier.rect() != null && overlaps(earlier.rect(), box.rect())) {
+                    if (earlier.paintStep > topStep) {
+                        topStep = earlier.paintStep;
+                        bgUnder = eBg;
+                    }
+                }
+            }
+        }
+        if (bgUnder == 0) {
+            return own;
+        }
+        return composite(bgUnder, own);
+    }
+
+    /**
+     * Standard Porter-Duff 'Source Over' alpha blending of two ARGB colors.
+     * When bgUnder is opaque (alpha 255), the result is guaranteed to be 100% opaque (alpha 255),
+     * preventing Minecraft translucent TextDisplay depth-buffer occlusion artifacts.
+     */
+    public static int composite(int bgUnder, int bgOver) {
+        int aOver = (bgOver >>> 24) & 0xFF;
+        if (aOver == 0) {
+            return bgUnder;
+        }
+        if (aOver == 255) {
+            return bgOver;
+        }
+        int aUnder = (bgUnder >>> 24) & 0xFF;
+        if (aUnder == 0) {
+            return bgOver;
+        }
+
+        float alphaOver = aOver / 255.0f;
+        float alphaUnder = (aUnder / 255.0f) * (1.0f - alphaOver);
+        float alphaOut = alphaOver + alphaUnder;
+
+        if (alphaOut <= 0.001f) {
+            return 0;
+        }
+
+        int rOver = (bgOver >>> 16) & 0xFF;
+        int gOver = (bgOver >>> 8) & 0xFF;
+        int bOver = bgOver & 0xFF;
+
+        int rUnder = (bgUnder >>> 16) & 0xFF;
+        int gUnder = (bgUnder >>> 8) & 0xFF;
+        int bUnder = bgUnder & 0xFF;
+
+        int rOut = Math.min(255, Math.max(0, Math.round((rOver * alphaOver + rUnder * alphaUnder) / alphaOut)));
+        int gOut = Math.min(255, Math.max(0, Math.round((gOver * alphaOver + gUnder * alphaUnder) / alphaOut)));
+        int bOut = Math.min(255, Math.max(0, Math.round((bOver * alphaOver + bUnder * alphaUnder) / alphaOut)));
+        int aOutInt = Math.min(255, Math.max(0, Math.round(alphaOut * 255.0f)));
+
+        return (aOutInt << 24) | (rOut << 16) | (gOut << 8) | bOut;
     }
 
     /** The only player who sees this layout (the first component with a single viewer), or {@code null}. */
@@ -268,16 +371,28 @@ public final class MountedLayout implements CanvasComponent {
      * @return whether anything handled the click
      */
     public boolean click(double px, double py, Player player) {
+        if (ScreenSession.isInSession(player)) {
+            pointerAt(px, py, player);
+        } else {
+            for (Box<?> box : boxes) {
+                if (box instanceof ScrollView scrollView) {
+                    scrollView.updatePointer(px, py);
+                }
+            }
+        }
         Box<?> target = topmost(px, py, box -> box.effectiveOnClick() != null || box.is(State.DISABLED));
         if (target == null) {
             return false;
         }
         // A disabled box (or one inside it) swallows the click, like CSS :disabled.
         if (!insideDisabled(target)) {
-            Consumer<Player> onClick = target.effectiveOnClick();
+            Box.ClickHandler onClick = target.effectiveOnClick();
             if (onClick != null) {
-                onClick.accept(player);
+                onClick.onClick(player, px, py);
             }
+        }
+        if (canvas != null) {
+            refresh();
         }
         return true;
     }
@@ -337,7 +452,103 @@ public final class MountedLayout implements CanvasComponent {
      * @return whether any box changed its hover state
      */
     public boolean pointerAt(double px, double py, Player player) {
+        for (Box<?> box : boxes) {
+            if (box instanceof ScrollView scrollView) {
+                scrollView.updatePointer(px, py);
+            }
+        }
         return hover(topmost(px, py, box -> true), player);
+    }
+
+    /**
+     * The innermost scrollable container under the given canvas pixel, or any scrollable container in this
+     * layout if none is directly under the pointer.
+     */
+    public ScrollView scrollableAt(double px, double py) {
+        Box<?> top = topmost(px, py, box -> true);
+        for (Box<?> at = top; at != null; at = parents.get(at)) {
+            if (at instanceof ScrollView scrollView && scrollView.canScroll()) {
+                return scrollView;
+            }
+        }
+        for (Box<?> box : boxes) {
+            if (box instanceof ScrollView scrollView && scrollView.canScroll()) {
+                return scrollView;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Advances smooth scroll animations of any {@link ScrollView} in this layout.
+     *
+     * @return whether any scroll offset changed
+     */
+    public boolean tickScroll() {
+        boolean changed = false;
+        for (Box<?> box : boxes) {
+            if (box instanceof ScrollView scrollView) {
+                if (scrollView.tick()) {
+                    changed = true;
+                }
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * Advances smooth transitions of any box in this layout.
+     *
+     * @return whether any transition is actively animating
+     */
+    public boolean tickTransitions() {
+        boolean active = false;
+        long now = System.currentTimeMillis();
+        for (Box<?> box : boxes) {
+            if (box.tickTransitions(now)) {
+                active = true;
+            }
+        }
+        return active;
+    }
+
+    void ensureTransitionTicking() {
+        if (transitionTask != null || canvas == null || viewer() != null) {
+            return;
+        }
+        transitionTask = Bukkit.getScheduler().runTaskTimer(
+            Pixelay.plugin(),
+            () -> {
+                if (canvas == null || !isValid()) {
+                    cancelTransitionTask();
+                    return;
+                }
+                if (tickTransitions()) {
+                    refresh();
+                } else {
+                    cancelTransitionTask();
+                }
+            },
+            1,
+            1
+        );
+    }
+
+    private void cancelTransitionTask() {
+        if (transitionTask != null) {
+            transitionTask.cancel();
+            transitionTask = null;
+        }
+    }
+
+    /** Any {@link ScrollView} whose scrollbar thumb is currently being dragged. */
+    public ScrollView activeDraggingScrollView() {
+        for (Box<?> box : boxes) {
+            if (box instanceof ScrollView scrollView && scrollView.isDragging()) {
+                return scrollView;
+            }
+        }
+        return null;
     }
 
     /** The pointer left the layout: nothing is hovered any more. */
@@ -368,6 +579,9 @@ public final class MountedLayout implements CanvasComponent {
         }
         if (changed) {
             applyStyle(box);
+            if (box.hasTransitions()) {
+                ensureTransitionTicking();
+            }
         }
         return changed;
     }
