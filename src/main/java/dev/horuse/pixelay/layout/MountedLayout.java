@@ -211,6 +211,7 @@ public final class MountedLayout implements CanvasComponent {
         if (canvas != null) {
             CanvasClicks.unregister(canvas, clickViewer, clickTarget);
             Layers.forgetTopStep(canvas, this);
+            this.canvas = null;
         }
         components.forEach(CanvasComponent::despawn);
         backgrounds.values().forEach(TextBackground::remove);
@@ -296,7 +297,9 @@ public final class MountedLayout implements CanvasComponent {
                 onClick.onClick(player, px, py);
             }
         }
-        refresh();
+        if (canvas != null) {
+            refresh();
+        }
         return true;
     }
 

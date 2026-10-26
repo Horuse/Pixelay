@@ -160,6 +160,10 @@ public final class ScreenSession {
         return hovered;
     }
 
+    public boolean isClosed() {
+        return closed;
+    }
+
     // --- opening -----------------------------------------------------------------------------------------
 
     private void open() {
