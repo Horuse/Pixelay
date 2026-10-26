@@ -12,7 +12,7 @@ import org.bukkit.entity.Player;
  */
 public class CanvasText extends AbstractCanvasComponent {
 
-    private final TextContent content;
+    private volatile TextContent content;
 
     /** A label drawn with real entities seen by everyone. */
     public CanvasText(double pixelX, double pixelY, double heightPx, TextContent content) {
@@ -46,6 +46,13 @@ public class CanvasText extends AbstractCanvasComponent {
     /** A label made of packets only, for {@code viewer}: nothing is spawned on the server. */
     public static CanvasText fake(Player viewer, double pixelX, double pixelY, double heightPx, TextContent content) {
         return new CanvasText(pixelX, pixelY, heightPx, content, drawable -> new FakeRenderer(viewer, drawable));
+    }
+
+    @Override
+    public void setContent(TextContent content) {
+        if (content != null) {
+            this.content = content;
+        }
     }
 
     @Override

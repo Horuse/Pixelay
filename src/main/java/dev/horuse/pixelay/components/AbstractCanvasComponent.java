@@ -261,6 +261,17 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         return heightPx;
     }
 
+    /** Updates the rendered font height in canvas pixels (CSS {@code font-size}). */
+    public void setHeightPx(double heightPx) {
+        if (this.heightPx != heightPx) {
+            this.heightPx = heightPx;
+            layoutVersion++;
+        }
+    }
+
+    /** Updates the primary text content of this component. */
+    public void setContent(TextContent content) {}
+
     @Override
     public HAlign hAlign() {
         return hAlign;

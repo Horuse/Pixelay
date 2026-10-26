@@ -8,6 +8,7 @@ import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.layout.MountedLayout;
+import dev.horuse.pixelay.layout.PixelCanvas;
 import dev.horuse.pixelay.layout.ScrollView;
 import dev.horuse.pixelay.listeners.ChatSuppression;
 import dev.horuse.pixelay.pack.PixelayPack;
@@ -206,6 +207,7 @@ public final class ScreenSession {
         scale = shaderCursor != null ? shaderScale() : clampScale(options.scale());
         canvas = new Canvas(canvasCenter, canvasYaw(), resolution(scale));
         content = options.content().apply(canvas);
+        content.viewer(player);
         content.spawn(canvas);
         Pixelay.manager().register(surface);
 
@@ -263,9 +265,12 @@ public final class ScreenSession {
             dragging.dragTo(cursorY);
         }
 
+        PixelCanvas drawingCanvas = layout.activeDrawingCanvas();
+        boolean painted = drawingCanvas != null && drawingCanvas.dragTo(cursorX, cursorY, player);
+
         boolean animatedScroll = layout.tickScroll();
         boolean animatedTransition = layout.tickTransitions();
-        if (animatedScroll || animatedTransition || scroll != 0 || dragging != null) {
+        if (animatedScroll || animatedTransition || scroll != 0 || dragging != null || painted) {
             layout.refresh();
         }
 
@@ -414,6 +419,7 @@ public final class ScreenSession {
         content.pointerLeft(player);
         content.despawn();
         content = layout;
+        content.viewer(player);
         content.spawn(canvas);
     }
 

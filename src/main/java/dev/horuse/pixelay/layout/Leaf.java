@@ -14,7 +14,6 @@ import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.data.VAlign;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import org.bukkit.entity.Player;
 
 /**
@@ -45,10 +44,6 @@ public final class Leaf extends Box<Leaf> {
 
     public Leaf(Player viewer, double heightPx, String miniMessage) {
         this(viewer, heightPx, TextContent.of(miniMessage));
-    }
-
-    public Leaf(Player viewer, double heightPx, Supplier<String> supplier) {
-        this(viewer, heightPx, TextContent.supplier(supplier));
     }
 
     @Override
@@ -86,7 +81,7 @@ public final class Leaf extends Box<Leaf> {
 
     /** Font size (line height in canvas px, CSS {@code font-size}). */
     public Leaf fontSize(double heightPx) {
-        component.heightPx(heightPx);
+        component.setHeightPx(heightPx);
         invalidate();
         return this;
     }
@@ -100,14 +95,9 @@ public final class Leaf extends Box<Leaf> {
         return text(TextContent.of(miniMessage));
     }
 
-    /** Updates the dynamic text content supplier. */
-    public Leaf text(Supplier<String> supplier) {
-        return text(TextContent.supplier(supplier));
-    }
-
-    /** Updates the text content. */
+    /** Updates the text content (or dynamic {@code () -> "..."} lambda). */
     public Leaf text(TextContent content) {
-        component.content(content);
+        component.setContent(content);
         invalidate();
         return this;
     }

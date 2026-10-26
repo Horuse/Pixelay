@@ -3,6 +3,7 @@ package dev.horuse.pixelay.layout;
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.clicks.ClickTarget;
+import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.components.CanvasComponent;
 import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.components.TextBackground;
@@ -45,6 +46,7 @@ public final class MountedLayout implements CanvasComponent {
     private final Map<Box<?>, TextBackground> backgrounds = new IdentityHashMap<>();
     private final Map<Box<?>, Integer> compositedColors = new IdentityHashMap<>();
     private final ClickTarget clickTarget = this::click;
+    private Player explicitViewer;
     private Player clickViewer;
     private boolean stepsWarned;
     private boolean anchorsWarned;
@@ -80,6 +82,12 @@ public final class MountedLayout implements CanvasComponent {
 
     public Box<?> root() {
         return root;
+    }
+
+    /** Explicitly binds this mounted layout to a single viewer player (used when the tree has no text leaves). */
+    public MountedLayout viewer(Player viewer) {
+        this.explicitViewer = viewer;
+        return this;
     }
 
     public List<LayoutComponent> components() {
@@ -219,6 +227,11 @@ public final class MountedLayout implements CanvasComponent {
             this.canvas = null;
         }
         components.forEach(CanvasComponent::despawn);
+        for (Box<?> box : boxes) {
+            if (box instanceof PixelCanvas pixelCanvas) {
+                pixelCanvas.clearQuads();
+            }
+        }
         backgrounds.values().forEach(TextBackground::remove);
         backgrounds.clear();
         compositedColors.clear();
@@ -271,6 +284,9 @@ public final class MountedLayout implements CanvasComponent {
                 backgrounds
                     .computeIfAbsent(box, key -> new TextBackground(viewer))
                     .sync(canvas, box.rect().intersect(box.clip()), bg, Layers.at(box.paintStep, viewer));
+            }
+            if (box instanceof PixelCanvas pixelCanvas) {
+                pixelCanvas.sync(canvas, viewer, bg, Layers.at(box.paintStep + 1, viewer));
             }
         }
     }
@@ -359,9 +375,21 @@ public final class MountedLayout implements CanvasComponent {
         return (aOutInt << 24) | (rOut << 16) | (gOut << 8) | bOut;
     }
 
-    /** The only player who sees this layout (the first component with a single viewer), or {@code null}. */
+    /** The only player who sees this layout (explicit viewer or first component/box with a viewer), or {@code null}. */
     private Player viewer() {
-        return components.stream().map(LayoutComponent::viewer).filter(Objects::nonNull).findFirst().orElse(null);
+        if (explicitViewer != null) {
+            return explicitViewer;
+        }
+        Player compViewer = components
+            .stream()
+            .map(LayoutComponent::viewer)
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
+        if (compViewer != null) {
+            return compViewer;
+        }
+        return boxes.stream().map(Box::viewer).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     /**
@@ -513,7 +541,8 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     void ensureTransitionTicking() {
-        if (transitionTask != null || canvas == null || viewer() != null) {
+        Player v = viewer();
+        if (transitionTask != null || canvas == null || (v != null && ScreenSession.isInSession(v))) {
             return;
         }
         transitionTask = Bukkit.getScheduler().runTaskTimer(
@@ -546,6 +575,16 @@ public final class MountedLayout implements CanvasComponent {
         for (Box<?> box : boxes) {
             if (box instanceof ScrollView scrollView && scrollView.isDragging()) {
                 return scrollView;
+            }
+        }
+        return null;
+    }
+
+    /** Any {@link PixelCanvas} where the player is currently dragging the brush. */
+    public PixelCanvas activeDrawingCanvas() {
+        for (Box<?> box : boxes) {
+            if (box instanceof PixelCanvas pixelCanvas && pixelCanvas.isDrawing()) {
+                return pixelCanvas;
             }
         }
         return null;
@@ -589,13 +628,13 @@ public final class MountedLayout implements CanvasComponent {
     /** The texts of state styles (backgrounds are read when they are drawn). */
     private void applyStyle(Box<?> box) {
         Style style = box.activeStyle();
-        if (box instanceof Leaf leaf) {
-            leaf.component().setTextOverride(style != null ? style.text() : null);
+        if (box.component() instanceof AbstractCanvasComponent textComponent) {
+            textComponent.setTextOverride(style != null ? style.text() : null);
         } else if (style != null && style.text() != null && !textWithoutTextWarned) {
             textWithoutTextWarned = true;
             Pixelay.plugin()
                 .getLogger()
-                .warning("A state style sets text on a box without text: text styles only apply to node(text)");
+                .warning("A state style sets text on a box without text: text styles only apply to text/button boxes");
         }
     }
 
