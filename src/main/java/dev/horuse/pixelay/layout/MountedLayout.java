@@ -337,7 +337,58 @@ public final class MountedLayout implements CanvasComponent {
      * @return whether any box changed its hover state
      */
     public boolean pointerAt(double px, double py, Player player) {
+        for (Box<?> box : boxes) {
+            if (box instanceof ScrollView scrollView) {
+                scrollView.updatePointer(px, py);
+            }
+        }
         return hover(topmost(px, py, box -> true), player);
+    }
+
+    /**
+     * The innermost scrollable container under the given canvas pixel, or any scrollable container in this
+     * layout if none is directly under the pointer.
+     */
+    public ScrollView scrollableAt(double px, double py) {
+        Box<?> top = topmost(px, py, box -> true);
+        for (Box<?> at = top; at != null; at = parents.get(at)) {
+            if (at instanceof ScrollView scrollView && scrollView.canScroll()) {
+                return scrollView;
+            }
+        }
+        for (Box<?> box : boxes) {
+            if (box instanceof ScrollView scrollView && scrollView.canScroll()) {
+                return scrollView;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Advances smooth scroll animations of any {@link ScrollView} in this layout.
+     *
+     * @return whether any scroll offset changed
+     */
+    public boolean tickScroll() {
+        boolean changed = false;
+        for (Box<?> box : boxes) {
+            if (box instanceof ScrollView scrollView) {
+                if (scrollView.tick()) {
+                    changed = true;
+                }
+            }
+        }
+        return changed;
+    }
+
+    /** Any {@link ScrollView} whose scrollbar thumb is currently being dragged. */
+    public ScrollView activeDraggingScrollView() {
+        for (Box<?> box : boxes) {
+            if (box instanceof ScrollView scrollView && scrollView.isDragging()) {
+                return scrollView;
+            }
+        }
+        return null;
     }
 
     /** The pointer left the layout: nothing is hovered any more. */

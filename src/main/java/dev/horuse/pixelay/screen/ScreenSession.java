@@ -8,6 +8,7 @@ import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.layout.MountedLayout;
+import dev.horuse.pixelay.layout.ScrollView;
 import dev.horuse.pixelay.listeners.ChatSuppression;
 import dev.horuse.pixelay.pack.PixelayPack;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -94,6 +96,8 @@ public final class ScreenSession {
     private volatile double cursorY;
     private String hovered;
     private boolean closed;
+    private int lastHeldSlot = -1;
+    private final AtomicInteger pendingScroll = new AtomicInteger();
 
     private ScreenSession(Player player, Options options) {
         this.player = player;
@@ -171,6 +175,7 @@ public final class ScreenSession {
         Location start = view.clone();
         start.setYaw(lookOrigin);
         player.teleport(start);
+        lastHeldSlot = player.getInventory().getHeldItemSlot();
         if (shaderCursor != null) {
             // Before the game mode changes: the tab list must never tell the client it is a spectator.
             shaderCursor.start();
@@ -234,6 +239,26 @@ public final class ScreenSession {
             return;
         }
         camera.tick();
+
+        int scroll = pendingScroll.getAndSet(0);
+        MountedLayout layout = currentLayout();
+        if (scroll != 0) {
+            ScrollView target = layout.scrollableAt(cursorX, cursorY);
+            if (target != null) {
+                target.scrollBy(scroll * target.scrollStep());
+            }
+        }
+
+        ScrollView dragging = layout.activeDraggingScrollView();
+        if (dragging != null) {
+            dragging.dragTo(cursorY);
+        }
+
+        boolean animated = layout.tickScroll();
+        if (animated || scroll != 0 || dragging != null) {
+            layout.refresh();
+        }
+
         updateHover();
         if (shaderCursor != null) {
             shaderCursor.tick();
@@ -306,8 +331,35 @@ public final class ScreenSession {
 
     private void click(Player clicker) {
         if (!closed && clicker.isOnline()) {
-            currentLayout().click(cursorX, cursorY, clicker);
+            MountedLayout layout = currentLayout();
+            ScrollView dragging = layout.activeDraggingScrollView();
+            if (dragging != null) {
+                dragging.stopDragging();
+                layout.refresh();
+                return;
+            }
+            layout.click(cursorX, cursorY, clicker);
         }
+    }
+
+    void heldItemChange(int slot) {
+        int previous = lastHeldSlot;
+        lastHeldSlot = slot;
+        if (previous >= 0) {
+            int diff = slot - previous;
+            if (diff > 4) {
+                diff -= 9;
+            } else if (diff < -4) {
+                diff += 9;
+            }
+            if (diff != 0) {
+                scroll(diff);
+            }
+        }
+    }
+
+    void scroll(int notches) {
+        pendingScroll.addAndGet(notches);
     }
 
     private MountedLayout currentLayout() {

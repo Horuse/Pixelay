@@ -3,15 +3,17 @@ package dev.horuse.pixelay.screen;
 import com.github.retrooper.packetevents.event.PacketListener;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientHeldItemChange;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerInput;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerPositionAndRotation;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerRotation;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientSteerVehicle;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientVehicleMove;
 import org.bukkit.entity.Player;
 
 /**
- * Feeds the camera look of players in a {@link ScreenSession} to their cursor. The server-side player never
- * rotates while locked on the camera, but the client keeps sending its look: in vehicle move packets while
- * riding the camera, in rotation packets otherwise.
+ * Feeds the camera look of players in a {@link ScreenSession} to their cursor, and routes mouse wheel / movement
+ * keys to scrolling.
  */
 public class ScreenLookListener implements PacketListener {
 
@@ -33,6 +35,23 @@ public class ScreenLookListener implements PacketListener {
         } else if (event.getPacketType() == PacketType.Play.Client.PLAYER_POSITION_AND_ROTATION) {
             WrapperPlayClientPlayerPositionAndRotation packet = new WrapperPlayClientPlayerPositionAndRotation(event);
             session.look(packet.getYaw(), packet.getPitch());
+        } else if (event.getPacketType() == PacketType.Play.Client.HELD_ITEM_CHANGE) {
+            WrapperPlayClientHeldItemChange packet = new WrapperPlayClientHeldItemChange(event);
+            session.heldItemChange(packet.getSlot());
+        } else if (event.getPacketType() == PacketType.Play.Client.STEER_VEHICLE) {
+            WrapperPlayClientSteerVehicle packet = new WrapperPlayClientSteerVehicle(event);
+            if (packet.getForward() > 0.1f) {
+                session.scroll(-1);
+            } else if (packet.getForward() < -0.1f) {
+                session.scroll(1);
+            }
+        } else if (event.getPacketType() == PacketType.Play.Client.PLAYER_INPUT) {
+            WrapperPlayClientPlayerInput packet = new WrapperPlayClientPlayerInput(event);
+            if (packet.isForward()) {
+                session.scroll(-1);
+            } else if (packet.isBackward()) {
+                session.scroll(1);
+            }
         }
     }
 }

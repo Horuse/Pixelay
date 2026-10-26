@@ -44,6 +44,16 @@ public final class Layout {
         return new Grid(children);
     }
 
+    /** A scrollable vertical container with an optional scrollbar. */
+    public static ScrollView scrollView(LayoutItem... children) {
+        return new ScrollView(children);
+    }
+
+    /** A scrollable container wrapping {@code content}. */
+    public static ScrollView scrollView(Box<?> content) {
+        return new ScrollView(content);
+    }
+
     /** Grid track of a fixed size in canvas px. */
     public static Track px(double size) {
         return new Track(Track.Kind.PX, size);
