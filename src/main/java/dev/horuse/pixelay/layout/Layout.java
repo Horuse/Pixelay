@@ -12,6 +12,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
+import org.bukkit.Material;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -178,6 +179,11 @@ public final class Layout {
 
     // --- 3D Models (Items & Blocks) ----------------------------------------------------------------------
 
+    /** Creates a 3D item display node inside a layout from a {@link Material}. */
+    public static ModelLeaf item(Player viewer, Material material, double sizePx) {
+        return item(viewer, new ItemStack(material), sizePx);
+    }
+
     /** Creates a 3D item display node inside a layout. */
     public static ModelLeaf item(Player viewer, ItemStack stack, double sizePx) {
         return item(viewer, () -> stack, sizePx);
@@ -188,6 +194,16 @@ public final class Layout {
         return new ModelLeaf(
             viewer != null ? CanvasItem.fake(viewer, 0, 0, sizePx, stack) : new CanvasItem(0, 0, sizePx, stack)
         );
+    }
+
+    /** Creates a 3D block display node inside a layout from a {@link Material}. */
+    public static ModelLeaf block(Player viewer, Material material, double sizePx) {
+        return block(viewer, material.createBlockData(), sizePx, sizePx);
+    }
+
+    /** Creates a 3D block display node with explicit width and height inside a layout from a {@link Material}. */
+    public static ModelLeaf block(Player viewer, Material material, double widthPx, double heightPx) {
+        return block(viewer, material.createBlockData(), widthPx, heightPx);
     }
 
     /** Creates a 3D block display node inside a layout. */
