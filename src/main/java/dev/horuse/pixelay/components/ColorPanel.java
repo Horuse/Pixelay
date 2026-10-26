@@ -95,6 +95,8 @@ public final class ColorPanel {
             new WrapperPlayServerEntityMetadata(
                 id,
                 List.of(
+                    new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0),
+                    new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0),
                     new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)),
                     new EntityData<>(
                         idx.translation(),

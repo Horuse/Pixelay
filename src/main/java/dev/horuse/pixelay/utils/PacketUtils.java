@@ -7,6 +7,7 @@ import com.github.retrooper.packetevents.protocol.entity.type.EntityType;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.PacketWrapper;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBundle;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerCamera;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
@@ -99,6 +100,18 @@ public final class PacketUtils {
     /** Sends any packet wrapper to a single player. */
     public static void send(Player player, PacketWrapper<?> packet) {
         PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
+    }
+
+    /**
+     * Forces the client's camera look to absolute {@code yaw} and {@code pitch} degrees (0 pitch = horizontal).
+     */
+    public static void sendLook(Player player, float yaw, float pitch) {
+        send(player, new WrapperPlayServerPlayerRotation(yaw, false, pitch, false));
+    }
+
+    /** Sends a bundle delimiter packet: subsequent packets up to the next bundle delimiter are processed atomically. */
+    public static void sendBundle(Player player) {
+        send(player, new WrapperPlayServerBundle());
     }
 
     /**

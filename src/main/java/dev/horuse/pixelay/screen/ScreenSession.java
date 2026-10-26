@@ -11,6 +11,7 @@ import dev.horuse.pixelay.layout.MountedLayout;
 import dev.horuse.pixelay.layout.ScrollView;
 import dev.horuse.pixelay.listeners.ChatSuppression;
 import dev.horuse.pixelay.pack.PixelayPack;
+import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -176,7 +177,9 @@ public final class ScreenSession {
         lookOrigin = shaderCursor != null ? 0 : facingYaw;
         Location start = view.clone();
         start.setYaw(lookOrigin);
+        start.setPitch(0f);
         player.teleport(start);
+        PacketUtils.sendLook(player, lookOrigin, 0f);
         lastHeldSlot = player.getInventory().getHeldItemSlot();
         if (shaderCursor != null) {
             // Before the game mode changes: the tab list must never tell the client it is a spectator.
@@ -191,7 +194,7 @@ public final class ScreenSession {
         }
 
         // With a shader cursor the player sits high above the camera: the water at their eyes stays out of view.
-        camera = new ScreenCamera(player, view, shaderCursor != null ? SHADER_SEAT_HEIGHT : 0);
+        camera = new ScreenCamera(player, view, shaderCursor != null ? SHADER_SEAT_HEIGHT : 0, lookOrigin);
         camera.spawn();
         if (shaderCursor != null) {
             shaderCursor.flood(camera.seatLocation());

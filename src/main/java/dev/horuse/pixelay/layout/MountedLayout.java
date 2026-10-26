@@ -12,6 +12,7 @@ import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.data.VAlign;
+import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -228,10 +229,17 @@ public final class MountedLayout implements CanvasComponent {
         if (canvas != null) {
             layout(canvas);
         }
+        Player viewer = viewer();
+        if (viewer != null) {
+            PacketUtils.sendBundle(viewer);
+        }
         components.forEach(CanvasComponent::refresh);
         if (canvas != null) {
             syncBackgrounds();
             debugOverlay.update(root, canvas);
+        }
+        if (viewer != null) {
+            PacketUtils.sendBundle(viewer);
         }
     }
 
