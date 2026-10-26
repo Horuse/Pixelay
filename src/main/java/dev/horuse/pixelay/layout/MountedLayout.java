@@ -40,6 +40,7 @@ public final class MountedLayout implements CanvasComponent {
     private final DebugOverlay debugOverlay = new DebugOverlay();
     /** Panels of boxes with a {@link Box#background}, by box. */
     private final Map<Box<?>, TextBackground> backgrounds = new IdentityHashMap<>();
+    private final Map<Box<?>, Integer> compositedColors = new IdentityHashMap<>();
     private final ClickTarget clickTarget = this::click;
     private Player clickViewer;
     private boolean stepsWarned;
@@ -216,6 +217,7 @@ public final class MountedLayout implements CanvasComponent {
         components.forEach(CanvasComponent::despawn);
         backgrounds.values().forEach(TextBackground::remove);
         backgrounds.clear();
+        compositedColors.clear();
         debugOverlay.clear();
     }
 
@@ -248,21 +250,109 @@ public final class MountedLayout implements CanvasComponent {
      * Draws box backgrounds. They are seen by the same player as the components (the first one that has
      * a single viewer), or by everyone for server components. Deeper boxes sit closer to the text. A
      * background is cut by the boxes around it that hide their overflow (and by the canvas).
+     * <p>
+     * Overlapping backgrounds are automatically alpha-composited with their ancestors' backgrounds so that
+     * semi-transparent child containers (e.g. scrollviews, hovered items) do not cause depth buffer occlusion
+     * holes through their parent backgrounds in the Minecraft renderer.
      */
     private void syncBackgrounds() {
         Player viewer = viewer();
+        compositedColors.clear();
         for (Box<?> box : boxes) {
-            if (box.effectiveBackground() != 0 || backgrounds.containsKey(box)) {
+            int bg = compositedBackground(box);
+            if (bg != 0) {
+                compositedColors.put(box, bg);
+            }
+            if (bg != 0 || backgrounds.containsKey(box)) {
                 backgrounds
                     .computeIfAbsent(box, key -> new TextBackground(viewer))
-                    .sync(
-                        canvas,
-                        box.rect().intersect(box.clip()),
-                        box.effectiveBackground(),
-                        Layers.at(box.paintStep, viewer)
-                    );
+                    .sync(canvas, box.rect().intersect(box.clip()), bg, Layers.at(box.paintStep, viewer));
             }
         }
+    }
+
+    private int compositedBackground(Box<?> box) {
+        int own = box.effectiveBackground();
+        if (own == 0 || own >>> 24 == 255) {
+            return own;
+        }
+        int bgUnder = 0;
+        // 1. Ancestors first (standard nested CSS containers: scrollviews, items, cards)
+        for (Box<?> p = parents.get(box); p != null; p = parents.get(p)) {
+            int pBg = compositedColors.getOrDefault(p, 0);
+            if (pBg == 0) {
+                pBg = p.effectiveBackground();
+            }
+            if (pBg != 0 && p.rect() != null && box.rect() != null && !p.rect().intersect(box.rect()).isEmpty()) {
+                bgUnder = pBg;
+                break;
+            }
+        }
+        // 2. Fallback to earlier overlapping boxes (e.g. stack sibling layers)
+        if (bgUnder == 0 && box.rect() != null) {
+            int topStep = -1;
+            for (Box<?> earlier : boxes) {
+                if (earlier == box) {
+                    break;
+                }
+                int eBg = compositedColors.getOrDefault(earlier, 0);
+                if (eBg == 0) {
+                    eBg = earlier.effectiveBackground();
+                }
+                if (eBg != 0 && earlier.rect() != null && overlaps(earlier.rect(), box.rect())) {
+                    if (earlier.paintStep > topStep) {
+                        topStep = earlier.paintStep;
+                        bgUnder = eBg;
+                    }
+                }
+            }
+        }
+        if (bgUnder == 0) {
+            return own;
+        }
+        return composite(bgUnder, own);
+    }
+
+    /**
+     * Standard Porter-Duff 'Source Over' alpha blending of two ARGB colors.
+     * When bgUnder is opaque (alpha 255), the result is guaranteed to be 100% opaque (alpha 255),
+     * preventing Minecraft translucent TextDisplay depth-buffer occlusion artifacts.
+     */
+    public static int composite(int bgUnder, int bgOver) {
+        int aOver = (bgOver >>> 24) & 0xFF;
+        if (aOver == 0) {
+            return bgUnder;
+        }
+        if (aOver == 255) {
+            return bgOver;
+        }
+        int aUnder = (bgUnder >>> 24) & 0xFF;
+        if (aUnder == 0) {
+            return bgOver;
+        }
+
+        float alphaOver = aOver / 255.0f;
+        float alphaUnder = (aUnder / 255.0f) * (1.0f - alphaOver);
+        float alphaOut = alphaOver + alphaUnder;
+
+        if (alphaOut <= 0.001f) {
+            return 0;
+        }
+
+        int rOver = (bgOver >>> 16) & 0xFF;
+        int gOver = (bgOver >>> 8) & 0xFF;
+        int bOver = bgOver & 0xFF;
+
+        int rUnder = (bgUnder >>> 16) & 0xFF;
+        int gUnder = (bgUnder >>> 8) & 0xFF;
+        int bUnder = bgUnder & 0xFF;
+
+        int rOut = Math.min(255, Math.max(0, Math.round((rOver * alphaOver + rUnder * alphaUnder) / alphaOut)));
+        int gOut = Math.min(255, Math.max(0, Math.round((gOver * alphaOver + gUnder * alphaUnder) / alphaOut)));
+        int bOut = Math.min(255, Math.max(0, Math.round((bOver * alphaOver + bUnder * alphaUnder) / alphaOut)));
+        int aOutInt = Math.min(255, Math.max(0, Math.round(alphaOut * 255.0f)));
+
+        return (aOutInt << 24) | (rOut << 16) | (gOut << 8) | bOut;
     }
 
     /** The only player who sees this layout (the first component with a single viewer), or {@code null}. */
