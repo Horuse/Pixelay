@@ -223,6 +223,15 @@ public final class Button extends Box<Button> {
             case BOTTOM -> content.bottom();
         };
         component.setLineWidth(lineWidthFor(content.width()));
+        component.setVisualTransform(
+            visualScaleX(),
+            visualScaleY(),
+            visualRotateDeg(),
+            visualRotateXDeg(),
+            visualRotateYDeg(),
+            visualPivotX(),
+            visualPivotY()
+        );
         component.place(x, y, h, v);
         component.setFit(fit);
     }

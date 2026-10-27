@@ -115,12 +115,13 @@ public final class TextBackground {
             remove();
             return;
         }
+        boolean hasRotation =
+            Math.abs(rotateDeg) >= 1e-3 || Math.abs(rotateXDeg) >= 1e-3 || Math.abs(rotateYDeg) >= 1e-3;
         boolean sameRot =
             Math.abs(rotateDeg - lastRotateDeg) < 1e-3 &&
             Math.abs(rotateXDeg - lastRotateXDeg) < 1e-3 &&
             Math.abs(rotateYDeg - lastRotateYDeg) < 1e-3 &&
-            (Math.abs(rotateDeg) < 1e-3 ||
-                (Math.abs(pivotX - lastPivotX) < 1e-2 && Math.abs(pivotY - lastPivotY) < 1e-2));
+            (!hasRotation || (Math.abs(pivotX - lastPivotX) < 1e-2 && Math.abs(pivotY - lastPivotY) < 1e-2));
         if (exists() && bounds.equals(box) && depth == lastDepth && sameRot) {
             if (argb != color) {
                 if (viewer != null) {
@@ -136,7 +137,19 @@ public final class TextBackground {
         double y = bounds.y();
         double width = bounds.width();
         double height = bounds.height();
-        Location origin = ColorPanel.origin(canvas, x, y, width, height, depth, rotateDeg, pivotX, pivotY);
+        Location origin = ColorPanel.origin(
+            canvas,
+            x,
+            y,
+            width,
+            height,
+            depth,
+            rotateDeg,
+            rotateXDeg,
+            rotateYDeg,
+            pivotX,
+            pivotY
+        );
         Quaternionf rotation = ColorPanel.rotated(canvas.contentRotation(), rotateDeg, rotateXDeg, rotateYDeg);
         if (viewer != null) {
             if (fakeId == 0) {

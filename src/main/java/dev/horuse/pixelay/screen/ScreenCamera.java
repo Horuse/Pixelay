@@ -52,9 +52,23 @@ final class ScreenCamera {
 
     /** Spawns the camera entity and locks the player onto it a few ticks later. */
     void spawn() {
+        spawn(null);
+    }
+
+    /** Spawns the camera entity, locks the player onto it, and runs {@code onMounted} once mounted. */
+    void spawn(Runnable onMounted) {
         anchor = spawnStand(view);
         seat = seatHeight > 0 ? spawnStand(seatLocation()) : anchor;
-        Bukkit.getScheduler().runTaskLater(Pixelay.plugin(), this::mount, MOUNT_DELAY_TICKS);
+        Bukkit.getScheduler().runTaskLater(
+            Pixelay.plugin(),
+            () -> {
+                mount();
+                if (onMounted != null) {
+                    onMounted.run();
+                }
+            },
+            MOUNT_DELAY_TICKS
+        );
     }
 
     /** Where the player's vehicle stands. */

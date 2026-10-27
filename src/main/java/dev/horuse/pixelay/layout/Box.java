@@ -487,6 +487,44 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return rect;
     }
 
+    /** Whether the canvas point {@code (px, py)} falls within this box, taking its rotation into account. */
+    public boolean contains(double px, double py) {
+        if (rect == null || hidden) {
+            return false;
+        }
+        if (
+            Math.abs(visualRotateDeg) < 1e-4 && Math.abs(visualRotateXDeg) < 1e-4 && Math.abs(visualRotateYDeg) < 1e-4
+        ) {
+            return rect.contains(px, py);
+        }
+        double pivX = visualPivotX;
+        double pivY = visualPivotY;
+        double dx = px - pivX;
+        double dy = py - pivY;
+        if (Math.abs(visualRotateDeg) >= 1e-4) {
+            double rad = Math.toRadians(-visualRotateDeg);
+            double cos = Math.cos(rad);
+            double sin = Math.sin(rad);
+            double rx = dx * cos - dy * sin;
+            double ry = dx * sin + dy * cos;
+            dx = rx;
+            dy = ry;
+        }
+        if (Math.abs(visualRotateXDeg) >= 1e-4) {
+            double cosX = Math.cos(Math.toRadians(visualRotateXDeg));
+            if (Math.abs(cosX) > 0.05) {
+                dy = dy / cosX;
+            }
+        }
+        if (Math.abs(visualRotateYDeg) >= 1e-4) {
+            double cosY = Math.cos(Math.toRadians(visualRotateYDeg));
+            if (Math.abs(cosY) > 0.05) {
+                dx = dx / cosY;
+            }
+        }
+        return rect.contains(pivX + dx, pivY + dy);
+    }
+
     public String id() {
         return id;
     }
