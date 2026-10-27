@@ -50,11 +50,28 @@ public final class ColorPanel {
         int argb,
         float depth
     ) {
+        return spawn(viewer, canvas, x, y, width, height, argb, depth, 0.0, 0.0, 0.0);
+    }
+
+    /** Spawns a panel over canvas px {@code (x, y, width, height)} with optional Euler rotation degrees. */
+    public static int spawn(
+        Player viewer,
+        Canvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        int argb,
+        float depth,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg
+    ) {
         int id = FakeEntityIds.next();
         Location origin = origin(canvas, x, y, width, height, depth);
         PacketUtils.spawnEntity(viewer, id, EntityTypes.TEXT_DISPLAY, origin.getX(), origin.getY(), origin.getZ());
 
-        Quaternionf rotation = canvas.contentRotation();
+        Quaternionf rotation = rotated(canvas.contentRotation(), rotateDeg, rotateXDeg, rotateYDeg);
         PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
         List<EntityData<?>> data = new ArrayList<>();
         data.add(new EntityData<>(0, EntityDataTypes.BYTE, (byte) 0));
@@ -148,6 +165,56 @@ public final class ColorPanel {
                 )
             )
         );
+    }
+
+    /** Moves, resizes, rotates, and optionally recolors an existing panel in a single metadata packet. */
+    public static void update(
+        Player viewer,
+        int id,
+        Canvas canvas,
+        double width,
+        double height,
+        org.bukkit.util.Vector translation,
+        Quaternionf rotation,
+        Integer argb
+    ) {
+        PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
+        List<EntityData<?>> data = new ArrayList<>();
+        data.add(new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0));
+        data.add(new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0));
+        data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)));
+        data.add(
+            new EntityData<>(
+                idx.leftRotation(),
+                EntityDataTypes.QUATERNION,
+                new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
+            )
+        );
+        data.add(
+            new EntityData<>(
+                idx.translation(),
+                EntityDataTypes.VECTOR3F,
+                new Vector3f((float) translation.getX(), (float) translation.getY(), (float) translation.getZ())
+            )
+        );
+        if (argb != null) {
+            data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, argb));
+        }
+        PacketUtils.send(viewer, new WrapperPlayServerEntityMetadata(id, data));
+    }
+
+    public static Quaternionf rotated(Quaternionf base, double rotateDeg, double rotateXDeg, double rotateYDeg) {
+        Quaternionf rot = new Quaternionf(base);
+        if (rotateDeg != 0.0) {
+            rot.rotateZ((float) Math.toRadians(-rotateDeg));
+        }
+        if (rotateXDeg != 0.0) {
+            rot.rotateX((float) Math.toRadians(rotateXDeg));
+        }
+        if (rotateYDeg != 0.0) {
+            rot.rotateY((float) Math.toRadians(rotateYDeg));
+        }
+        return rot;
     }
 
     /** Moves and resizes an existing panel to a new rectangle. */

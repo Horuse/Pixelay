@@ -63,6 +63,9 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     private volatile boolean hovered;
     /** Where a layout lets the model draw, or {@code null} outside layouts (the canvas then). */
     private volatile Rect clip;
+    private volatile double rotateDeg;
+    private volatile double rotateXDeg;
+    private volatile double rotateYDeg;
 
     private Canvas canvas;
     private Display display;
@@ -263,6 +266,13 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         this.vAlign = VAlign.TOP;
     }
 
+    @ApiStatus.Internal
+    public void setVisualRotation(double rotateDeg, double rotateXDeg, double rotateYDeg) {
+        this.rotateDeg = rotateDeg;
+        this.rotateXDeg = rotateXDeg;
+        this.rotateYDeg = rotateYDeg;
+    }
+
     @Override
     @ApiStatus.Internal
     public void setLayerStep(int step) {
@@ -327,7 +337,17 @@ public abstract class CanvasModel<T> implements LayoutComponent {
             .add((float) corner.getX(), (float) corner.getY(), (float) corner.getZ());
         // Clipped away: scaled to nothing, so it comes back in place without a respawn.
         Vector3f scale = clippedAway() ? new Vector3f() : new Vector3f(width, height, thickness);
-        return new Transformation(translation, rotation, scale, modelRotation());
+        Quaternionf rightRot = modelRotation();
+        if (rotateDeg != 0.0) {
+            rightRot.rotateZ((float) Math.toRadians(-rotateDeg));
+        }
+        if (rotateXDeg != 0.0) {
+            rightRot.rotateX((float) Math.toRadians(rotateXDeg));
+        }
+        if (rotateYDeg != 0.0) {
+            rightRot.rotateY((float) Math.toRadians(rotateYDeg));
+        }
+        return new Transformation(translation, rotation, scale, rightRot);
     }
 
     /** Metadata set once at spawn. */

@@ -246,25 +246,40 @@ public class Flex extends Container<Flex> {
 
     @Override
     protected void arrangeContent(Rect content) {
+        double sx = visualScaleX();
+        double sy = visualScaleY();
+        Rect unscaled = new Rect(
+            content.x(),
+            content.y(),
+            sx > 1e-4 ? content.width() / sx : content.width(),
+            sy > 1e-4 ? content.height() / sy : content.height()
+        );
         List<Box<?>> flow = flowChildren();
         if (horizontal && wrap && !flow.isEmpty()) {
-            List<List<Box<?>>> lines = buildWrappedLines(flow, content.width());
+            List<List<Box<?>>> lines = buildWrappedLines(flow, unscaled.width());
             double crossCursor = 0;
             double crossGap = rowGap();
             for (List<Box<?>> line : lines) {
                 double lineH = 0;
                 for (Box<?> child : line) {
-                    lineH = Math.max(lineH, childSize(child, content.width()).height());
+                    lineH = Math.max(lineH, childSize(child, unscaled.width()).height());
                 }
-                arrangeLine(line, new Rect(content.x(), content.y() + crossCursor, content.width(), lineH));
+                arrangeLine(
+                    line,
+                    new Rect(unscaled.x(), unscaled.y() + crossCursor, unscaled.width(), lineH),
+                    content.x(),
+                    content.y(),
+                    sx,
+                    sy
+                );
                 crossCursor += lineH + crossGap;
             }
             return;
         }
-        arrangeLine(flow, content);
+        arrangeLine(flow, unscaled, content.x(), content.y(), sx, sy);
     }
 
-    private void arrangeLine(List<Box<?>> flow, Rect content) {
+    private void arrangeLine(List<Box<?>> flow, Rect content, double originX, double originY, double sx, double sy) {
         Size[] sizes = childSizes(flow, content.width());
         double used = gaps(flow.size());
         double totalGrow = 0;
@@ -325,7 +340,14 @@ public class Flex extends Container<Flex> {
             Rect slot = horizontal
                 ? new Rect(content.x() + cursor, content.y() + crossPos, mainSize, crossSize)
                 : new Rect(content.x() + crossPos, content.y() + cursor, crossSize, mainSize);
-            child.arrange(child.effectiveMargin().shrink(slot), overflowsHere());
+            Rect unscaledChild = child.effectiveMargin().shrink(slot);
+            Rect scaledChild = new Rect(
+                originX + (unscaledChild.x() - originX) * sx,
+                originY + (unscaledChild.y() - originY) * sy,
+                unscaledChild.width() * sx,
+                unscaledChild.height() * sy
+            );
+            arrangeChild(child, scaledChild, overflowsHere());
             cursor += mainSize + between;
         }
     }

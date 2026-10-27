@@ -158,7 +158,20 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
                 y = bounds.y() + m.top() + vAlign.offset(Math.max(0, bounds.height() - m.vertical()), h);
             }
 
-            child.arrange(new Rect(x, y, w, h), overflowsHere());
+            child.arrange(
+                new Rect(
+                    bounds.x() + (x - bounds.x()) * visualScaleX(),
+                    bounds.y() + (y - bounds.y()) * visualScaleY(),
+                    w * visualScaleX(),
+                    h * visualScaleY()
+                ),
+                overflowsHere(),
+                visualScaleX(),
+                visualScaleY(),
+                visualRotateDeg(),
+                visualRotateXDeg(),
+                visualRotateYDeg()
+            );
         }
     }
 }

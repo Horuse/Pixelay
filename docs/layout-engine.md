@@ -124,8 +124,35 @@ stack(
   - `.left(px)`, `.right(px)`, `.top(px)`, `.bottom(px)`
   - `.absolute(left, top)` — shorthand for `.position(Position.ABSOLUTE).left(left).top(top)`.
   - `.inset(all)` / `.inset(v, h)` / `.inset(t, r, b, l)` — sets all four edge offsets; if both `left` and `right` (or `top` and `bottom`) are set without a fixed width/height, the box stretches between those edges!
-  - `.translate(percentX, percentY)` / `.translatePx(dx, dy)` — CSS `transform: translate(...)`, e.g. `.translate(-0.5, -0.5)` for `transform: translate(-50%, -50%)` to center a marker on `(left, top)`.
 - **`.zIndex(int)`**: Controls stacking order for both depth layers and pointer hit-testing.
+
+---
+
+## 5. CSS `transform` (`translate`, `scale`, `rotate`) & Animated Transitions
+
+Every `Box` and `Style` supports full 2D/3D CSS transforms, which can be smoothly animated via `.transition(durationMs, Easing)` on `:hover`, `:selected`, or custom states:
+
+```java
+card
+    .border(2, "#E2E8F0")
+    .state(State.HOVERED, s -> s
+        .scale(1.08)
+        .translateY(-6)
+        .rotate(3)
+        .borderColor("#6366F1")
+    )
+    .transition(240, Easing.EASE_OUT_BACK);
+```
+
+| Method | CSS Equivalent | Description |
+| :--- | :--- | :--- |
+| `.translate(pctX, pctY)` | `transform: translate(X%, Y%)` | Shifts the box by a fraction of its own width/height (e.g. `.translate(-0.5, -0.5)` for `-50%, -50%`). |
+| `.translatePx(dx, dy)` / `.translateX(dx)` / `.translateY(dy)` | `transform: translate(Xpx, Ypx)` | Shifts the box in canvas pixels without affecting sibling layout flow. |
+| `.scale(factor)` / `.scale(sx, sy)` / `.scaleX(sx)` / `.scaleY(sy)` | `transform: scale(...)` | Scales the box, its border, text, and child components around `transformOrigin` without reflowing siblings. |
+| `.rotate(deg)` | `transform: rotate(deg)` | Rotates the box and its components clockwise on the 2D canvas plane. |
+| `.rotateX(deg)` / `.rotateY(deg)` | `transform: rotateX/Y(deg)` | 3D pitch/yaw tilt in degrees. |
+| `.transformOrigin(ox, oy)` | `transform-origin` | Pivot point for `scale` (`0.0 .. 1.0`, default `0.5, 0.5` center). |
+| `.transform(Transform)` | `transform` | Applies a composite immutable `Transform` record. |
 
 ---
 

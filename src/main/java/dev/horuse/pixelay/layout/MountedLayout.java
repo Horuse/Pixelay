@@ -310,7 +310,15 @@ public final class MountedLayout implements CanvasComponent {
             if (bg != 0 || backgrounds.containsKey(box)) {
                 backgrounds
                     .computeIfAbsent(box, key -> new TextBackground(viewer))
-                    .sync(canvas, box.rect().intersect(box.clip()), bg, Layers.at(box.paintStep, viewer));
+                    .sync(
+                        canvas,
+                        box.rect().intersect(box.clip()),
+                        bg,
+                        Layers.at(box.paintStep, viewer),
+                        box.visualRotateDeg(),
+                        box.visualRotateXDeg(),
+                        box.visualRotateYDeg()
+                    );
             }
             syncBoxBorders(box, viewer, bg);
             if (box instanceof Canvas pixelCanvas) {
@@ -320,7 +328,13 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     private void syncBoxBorders(Box<?> box, Player viewer, int boxBg) {
-        Insets b = box.effectiveBorderWidths();
+        Insets rawB = box.effectiveBorderWidths();
+        Insets b = new Insets(
+            rawB.top() * box.visualScaleY(),
+            rawB.right() * box.visualScaleX(),
+            rawB.bottom() * box.visualScaleY(),
+            rawB.left() * box.visualScaleX()
+        );
         int rawBorderColor = box.effectiveBorderColor();
         boolean active =
             !box.isHidden() && rawBorderColor != 0 && (b.top() > 0 || b.right() > 0 || b.bottom() > 0 || b.left() > 0);
@@ -363,10 +377,13 @@ public final class MountedLayout implements CanvasComponent {
                   ).intersect(clip)
                 : Rect.EMPTY;
 
-        edges[0].sync(canvas, topRect, borderArgb, depth);
-        edges[1].sync(canvas, rightRect, borderArgb, depth);
-        edges[2].sync(canvas, bottomRect, borderArgb, depth);
-        edges[3].sync(canvas, leftRect, borderArgb, depth);
+        double rotZ = box.visualRotateDeg();
+        double rotX = box.visualRotateXDeg();
+        double rotY = box.visualRotateYDeg();
+        edges[0].sync(canvas, topRect, borderArgb, depth, rotZ, rotX, rotY);
+        edges[1].sync(canvas, rightRect, borderArgb, depth, rotZ, rotX, rotY);
+        edges[2].sync(canvas, bottomRect, borderArgb, depth, rotZ, rotX, rotY);
+        edges[3].sync(canvas, leftRect, borderArgb, depth, rotZ, rotX, rotY);
     }
 
     private int compositedBackground(Box<?> box) {

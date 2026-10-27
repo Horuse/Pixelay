@@ -217,6 +217,13 @@ public final class Text extends Box<Text> {
         } else {
             component.setEllipsisWidthFontPx(0);
         }
+        component.setVisualTransform(
+            visualScaleX(),
+            visualScaleY(),
+            visualRotateDeg(),
+            visualRotateXDeg(),
+            visualRotateYDeg()
+        );
         component.place(x, y, h, v);
         component.setFit(fit);
     }

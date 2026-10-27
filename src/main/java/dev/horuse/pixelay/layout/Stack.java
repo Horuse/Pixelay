@@ -37,18 +37,33 @@ public final class Stack extends Container<Stack> {
 
     @Override
     protected void arrangeContent(Rect content) {
+        double sx = visualScaleX();
+        double sy = visualScaleY();
+        Rect unscaledContent = new Rect(
+            content.x(),
+            content.y(),
+            sx > 1e-4 ? content.width() / sx : content.width(),
+            sy > 1e-4 ? content.height() / sy : content.height()
+        );
         for (Box<?> child : flowChildren()) {
             Align horizontal = child.justifySelf != null ? child.justifySelf : Align.STRETCH;
             Align vertical = child.alignSelf != null ? child.alignSelf : Align.STRETCH;
             Rect area = Align.place(
-                content,
-                child.outer(content.width()),
+                unscaledContent,
+                child.outer(unscaledContent.width()),
                 horizontal,
                 vertical,
                 horizontal == Align.STRETCH && !child.hasFixedWidth(),
                 vertical == Align.STRETCH && !child.hasFixedHeight()
             );
-            child.arrange(child.effectiveMargin().shrink(area), overflowsHere());
+            Rect unscaledSlot = child.effectiveMargin().shrink(area);
+            Rect scaledSlot = new Rect(
+                content.x() + (unscaledSlot.x() - content.x()) * sx,
+                content.y() + (unscaledSlot.y() - content.y()) * sy,
+                unscaledSlot.width() * sx,
+                unscaledSlot.height() * sy
+            );
+            arrangeChild(child, scaledSlot, overflowsHere());
         }
     }
 }

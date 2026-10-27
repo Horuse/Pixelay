@@ -54,17 +54,19 @@ public final class TextPlacement {
     public static Placement place(CanvasDrawable drawable, String text) {
         FontMetrics.Laid laid = FontMetrics.lay(CanvasText.parse(text), drawable.lineWidth(), drawable.textWrap());
         FontMetrics.Metrics metrics = laid.metrics();
-        double fontPx = drawable.heightPx() / FontMetrics.LINE_HEIGHT_PX;
-        double width = inkWidthPx(metrics, fontPx);
-        double height = (metrics.bottomPx() - metrics.topPx()) * fontPx;
+        double baseFontPx = drawable.heightPx() / FontMetrics.LINE_HEIGHT_PX;
+        double fontPxX = baseFontPx * drawable.visualScaleX();
+        double fontPxY = baseFontPx * drawable.visualScaleY();
+        double width = inkWidthPx(metrics, fontPxX);
+        double height = (metrics.bottomPx() - metrics.topPx()) * fontPxY;
         double boxTop = drawable.pixelY() + drawable.vAlign().bottomOffset(height) - height;
         double boxCenterX = drawable.pixelX() + drawable.hAlign().horizontalOffset(width);
         // The client centres the advance (ink plus the trailing spacing) 1 font px right of the entity and
         // stacks the lines up from it, so the entity stands at the end of the last normal line (plus the
         // configured gap), wherever the box is anchored: the drawing always fills the box.
-        double firstLineTop = boxTop - metrics.topPx() * fontPx;
-        double x = boxCenterX + (TRAILING_SPACING_FONT_PX / 2.0 - CLIENT_TEXT_OFFSET_FONT_PX) * fontPx;
-        double y = firstLineTop + normalBottomPx(metrics) * fontPx + bottomGapPx(drawable);
+        double firstLineTop = boxTop - metrics.topPx() * fontPxY;
+        double x = boxCenterX + (TRAILING_SPACING_FONT_PX / 2.0 - CLIENT_TEXT_OFFSET_FONT_PX) * fontPxX;
+        double y = firstLineTop + normalBottomPx(metrics) * fontPxY + bottomGapPx(drawable) * drawable.visualScaleY();
         return new Placement(
             explicitOr(drawable, width, height),
             x,
@@ -73,7 +75,7 @@ public final class TextPlacement {
             laid,
             boxCenterX - width / 2,
             firstLineTop,
-            fontPx
+            fontPxX
         );
     }
 

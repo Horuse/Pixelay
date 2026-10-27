@@ -78,12 +78,13 @@ public final class Item extends Box<Item> {
         Align vertical = alignSelf != null ? alignSelf : Align.START;
         Rect box = Align.place(
             content,
-            new Size(model.naturalWidthPx(), model.naturalHeightPx()),
+            new Size(model.naturalWidthPx() * visualScaleX(), model.naturalHeightPx() * visualScaleY()),
             horizontal,
             vertical,
             horizontal == Align.STRETCH,
             vertical == Align.STRETCH
         );
+        model.setVisualRotation(visualRotateDeg(), visualRotateXDeg(), visualRotateYDeg());
         model.place(box.x(), box.y(), box.width(), box.height());
     }
 

@@ -69,6 +69,18 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     protected double translateY;
     protected double translatePxX;
     protected double translatePxY;
+    protected double scaleX = 1.0;
+    protected double scaleY = 1.0;
+    protected double rotateDeg;
+    protected double rotateXDeg;
+    protected double rotateYDeg;
+    protected double transformOriginX = 0.5;
+    protected double transformOriginY = 0.5;
+    private double visualScaleX = 1.0;
+    private double visualScaleY = 1.0;
+    private double visualRotateDeg;
+    private double visualRotateXDeg;
+    private double visualRotateYDeg;
     protected int zIndex;
     private MountedLayout directMount;
     /** Result of the last arrange: does this box (or an ancestor) not fit its space. */
@@ -105,6 +117,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     private Consumer<Player> onHoverLeave;
     private TransitionState backgroundTransition;
     private TransitionState borderTransition;
+    private TransformTransitionState transformTransition;
     /** Under the pointer (itself or a descendant), from the last {@link MountedLayout#pointerAt} — CSS {@code :hover}. */
     private volatile boolean hovered;
     private Rect rect = new Rect(0, 0, 0, 0);
@@ -274,30 +287,109 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
 
     /** @param insideOverflow an ancestor already does not fit its space */
     final void arrange(Rect rect, boolean insideOverflow) {
+        arrange(rect, insideOverflow, 1.0, 1.0, 0.0, 0.0, 0.0);
+    }
+
+    /** Arranges {@code child} inside this container, propagating this container's visual scale and rotation. */
+    final void arrangeChild(Box<?> child, Rect childRect, boolean insideOverflow) {
+        child.arrange(
+            childRect,
+            insideOverflow,
+            this.visualScaleX,
+            this.visualScaleY,
+            this.visualRotateDeg,
+            this.visualRotateXDeg,
+            this.visualRotateYDeg
+        );
+    }
+
+    final void arrange(
+        Rect rect,
+        boolean insideOverflow,
+        double inheritedScaleX,
+        double inheritedScaleY,
+        double inheritedRotateDeg,
+        double inheritedRotateXDeg,
+        double inheritedRotateYDeg
+    ) {
         if (hidden) {
             this.rect = new Rect(rect.x(), rect.y(), 0, 0);
             this.fit = Fit.NONE;
+            this.visualScaleX = 1.0;
+            this.visualScaleY = 1.0;
+            this.visualRotateDeg = 0.0;
+            this.visualRotateXDeg = 0.0;
+            this.visualRotateYDeg = 0.0;
             arrangeContent(this.rect);
             arrangeAbsoluteChildren(this.rect);
             return;
         }
-        double dx = translateX * rect.width() + translatePxX;
-        double dy = translateY * rect.height() + translatePxY;
+        Transform tf = effectiveTransform();
+        double sx = tf.scaleX();
+        double sy = tf.scaleY();
+        this.visualScaleX = inheritedScaleX * sx;
+        this.visualScaleY = inheritedScaleY * sy;
+        this.visualRotateDeg = inheritedRotateDeg + tf.rotateDeg();
+        this.visualRotateXDeg = inheritedRotateXDeg + tf.rotateXDeg();
+        this.visualRotateYDeg = inheritedRotateYDeg + tf.rotateYDeg();
+
+        double w = rect.width();
+        double h = rect.height();
+        double dx = tf.translateX() * w + tf.translatePxX();
+        double dy = tf.translateY() * h + tf.translatePxY();
         if (position == Position.RELATIVE) {
             dx += !Double.isNaN(left) ? left : !Double.isNaN(right) ? -right : 0;
             dy += !Double.isNaN(top) ? top : !Double.isNaN(bottom) ? -bottom : 0;
         }
-        if (dx != 0 || dy != 0) {
-            rect = new Rect(rect.x() + dx, rect.y() + dy, rect.width(), rect.height());
+        double x = rect.x() + dx;
+        double y = rect.y() + dy;
+        if (Math.abs(sx - 1.0) > 1e-4 || Math.abs(sy - 1.0) > 1e-4) {
+            double newW = Math.max(0, w * sx);
+            double newH = Math.max(0, h * sy);
+            x += (w - newW) * tf.originX();
+            y += (h - newH) * tf.originY();
+            w = newW;
+            h = newH;
         }
+        rect = new Rect(x, y, w, h);
         this.rect = rect;
         Size natural = measure(rect.width());
         boolean selfOverflow =
-            natural.width() > rect.width() + OVERFLOW_EPSILON || natural.height() > rect.height() + OVERFLOW_EPSILON;
+            Math.abs(sx - 1.0) <= 1e-4 &&
+            Math.abs(sy - 1.0) <= 1e-4 &&
+            (natural.width() > rect.width() + OVERFLOW_EPSILON || natural.height() > rect.height() + OVERFLOW_EPSILON);
         fit = selfOverflow ? Fit.SELF : insideOverflow ? Fit.INSIDE : Fit.NONE;
-        Rect inner = effectiveBorderWidths().shrink(rect);
-        arrangeContent(effectivePadding().shrink(inner));
+        Insets b = effectiveBorderWidths();
+        if (Math.abs(sx - 1.0) > 1e-4 || Math.abs(sy - 1.0) > 1e-4) {
+            b = new Insets(b.top() * sy, b.right() * sx, b.bottom() * sy, b.left() * sx);
+        }
+        Rect inner = b.shrink(rect);
+        Insets p = effectivePadding();
+        if (Math.abs(sx - 1.0) > 1e-4 || Math.abs(sy - 1.0) > 1e-4) {
+            p = new Insets(p.top() * sy, p.right() * sx, p.bottom() * sy, p.left() * sx);
+        }
+        arrangeContent(p.shrink(inner));
         arrangeAbsoluteChildren(inner);
+    }
+
+    double visualScaleX() {
+        return visualScaleX;
+    }
+
+    double visualScaleY() {
+        return visualScaleY;
+    }
+
+    double visualRotateDeg() {
+        return visualRotateDeg;
+    }
+
+    double visualRotateXDeg() {
+        return visualRotateXDeg;
+    }
+
+    double visualRotateYDeg() {
+        return visualRotateYDeg;
     }
 
     /** Hook overridden by {@link Container} to arrange any {@link Position#ABSOLUTE} children inside {@code bounds}. */
@@ -790,12 +882,132 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return self();
     }
 
+    public S translateX(double dxPx) {
+        this.translatePxX = dxPx;
+        return self();
+    }
+
+    public S translateY(double dyPx) {
+        this.translatePxY = dyPx;
+        return self();
+    }
+
     public double translatePxX() {
         return translatePxX;
     }
 
     public double translatePxY() {
         return translatePxY;
+    }
+
+    /** CSS {@code transform: scale(factor)} (uniform X and Y scale around {@link #transformOrigin}). */
+    public S scale(double factor) {
+        return scale(factor, factor);
+    }
+
+    /** CSS {@code transform: scale(sx, sy)} around {@link #transformOrigin}. */
+    public S scale(double sx, double sy) {
+        this.scaleX = sx;
+        this.scaleY = sy;
+        return self();
+    }
+
+    public S scaleX(double sx) {
+        this.scaleX = sx;
+        return self();
+    }
+
+    public S scaleY(double sy) {
+        this.scaleY = sy;
+        return self();
+    }
+
+    public double scaleX() {
+        return scaleX;
+    }
+
+    public double scaleY() {
+        return scaleY;
+    }
+
+    /** CSS {@code transform: rotate(deg)} (clockwise rotation in degrees on the 2D canvas plane). */
+    public S rotate(double degrees) {
+        this.rotateDeg = degrees;
+        return self();
+    }
+
+    public double rotateDeg() {
+        return rotateDeg;
+    }
+
+    /** CSS {@code transform: rotateX(deg)} (3D pitch tilt in degrees). */
+    public S rotateX(double degrees) {
+        this.rotateXDeg = degrees;
+        return self();
+    }
+
+    public double rotateXDeg() {
+        return rotateXDeg;
+    }
+
+    /** CSS {@code transform: rotateY(deg)} (3D yaw turn in degrees). */
+    public S rotateY(double degrees) {
+        this.rotateYDeg = degrees;
+        return self();
+    }
+
+    public double rotateYDeg() {
+        return rotateYDeg;
+    }
+
+    /** CSS {@code transform-origin: ox oy} ({@code 0.0..1.0}, default {@code 0.5, 0.5} center). */
+    public S transformOrigin(double ox, double oy) {
+        this.transformOriginX = ox;
+        this.transformOriginY = oy;
+        return self();
+    }
+
+    public double transformOriginX() {
+        return transformOriginX;
+    }
+
+    public double transformOriginY() {
+        return transformOriginY;
+    }
+
+    /** Sets the full CSS {@link Transform} on this box. */
+    public S transform(Transform t) {
+        if (t == null) {
+            t = Transform.NONE;
+        }
+        this.translateX = t.translateX();
+        this.translateY = t.translateY();
+        this.translatePxX = t.translatePxX();
+        this.translatePxY = t.translatePxY();
+        this.scaleX = t.scaleX();
+        this.scaleY = t.scaleY();
+        this.rotateDeg = t.rotateDeg();
+        this.rotateXDeg = t.rotateXDeg();
+        this.rotateYDeg = t.rotateYDeg();
+        this.transformOriginX = t.originX();
+        this.transformOriginY = t.originY();
+        return self();
+    }
+
+    public Transform transform() {
+        return new Transform(
+            translateX,
+            translateY,
+            translatePxX,
+            translatePxY,
+            scaleX,
+            scaleY,
+            rotateDeg,
+            rotateXDeg,
+            rotateYDeg,
+            transformOriginX,
+            transformOriginY
+        );
     }
 
     /** CSS {@code z-index}: controls stacking order for both depth layers and pointer hit-testing (default 0). */
@@ -1087,13 +1299,16 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * Configures CSS-style property transitions (e.g. background or border color smoothing on hover).
+     * Configures CSS-style property transitions (e.g. background, border color, or transform smoothing on hover).
      */
     public S transition(Transition... transitions) {
         for (Transition t : transitions) {
             if (t.property() == Transition.Property.ALL || t.property() == Transition.Property.BACKGROUND) {
                 this.backgroundTransition = new TransitionState(t);
                 this.borderTransition = new TransitionState(t);
+            }
+            if (t.property() == Transition.Property.ALL || t.property() == Transition.Property.TRANSFORM) {
+                this.transformTransition = new TransformTransitionState(t);
             }
         }
         return self();
@@ -1121,13 +1336,14 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     boolean hasTransitions() {
-        return backgroundTransition != null || borderTransition != null;
+        return backgroundTransition != null || borderTransition != null || transformTransition != null;
     }
 
     boolean isTransitioning() {
         return (
             (backgroundTransition != null && backgroundTransition.isAnimating()) ||
-            (borderTransition != null && borderTransition.isAnimating())
+            (borderTransition != null && borderTransition.isAnimating()) ||
+            (transformTransition != null && transformTransition.isAnimating())
         );
     }
 
@@ -1141,7 +1357,36 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
             effectiveBorderColor(now);
             animating |= borderTransition.isAnimating();
         }
+        if (transformTransition != null) {
+            effectiveTransform(now);
+            animating |= transformTransition.isAnimating();
+        }
         return animating;
+    }
+
+    Transform effectiveTransform() {
+        return effectiveTransform(System.currentTimeMillis());
+    }
+
+    Transform effectiveTransform(long now) {
+        Style style = activeStyle();
+        Transform target = new Transform(
+            style != null && style.translateX() != null ? style.translateX() : translateX,
+            style != null && style.translateY() != null ? style.translateY() : translateY,
+            style != null && style.translatePxX() != null ? style.translatePxX() : translatePxX,
+            style != null && style.translatePxY() != null ? style.translatePxY() : translatePxY,
+            style != null && style.scaleX() != null ? style.scaleX() : scaleX,
+            style != null && style.scaleY() != null ? style.scaleY() : scaleY,
+            style != null && style.rotateDeg() != null ? style.rotateDeg() : rotateDeg,
+            style != null && style.rotateXDeg() != null ? style.rotateXDeg() : rotateXDeg,
+            style != null && style.rotateYDeg() != null ? style.rotateYDeg() : rotateYDeg,
+            style != null && style.originX() != null ? style.originX() : transformOriginX,
+            style != null && style.originY() != null ? style.originY() : transformOriginY
+        );
+        if (transformTransition != null) {
+            return transformTransition.update(target, now);
+        }
+        return target;
     }
 
     /** The background to draw now: from the active states, if they set one. */

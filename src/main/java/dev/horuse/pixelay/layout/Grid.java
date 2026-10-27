@@ -149,12 +149,20 @@ public final class Grid extends Container<Grid> {
 
     @Override
     protected void arrangeContent(Rect content) {
+        double sx = visualScaleX();
+        double sy = visualScaleY();
+        Rect unscaled = new Rect(
+            content.x(),
+            content.y(),
+            sx > 1e-4 ? content.width() / sx : content.width(),
+            sy > 1e-4 ? content.height() / sy : content.height()
+        );
         List<Box<?>> flow = flowChildren();
         int[][] placements = placements(flow);
-        double[] widths = trackSizes(true, content.width(), null);
-        double[] heights = trackSizes(false, content.height(), widths);
-        double[] xs = offsets(widths, content.x());
-        double[] ys = offsets(heights, content.y());
+        double[] widths = trackSizes(true, unscaled.width(), null);
+        double[] heights = trackSizes(false, unscaled.height(), widths);
+        double[] xs = offsets(widths, unscaled.x());
+        double[] ys = offsets(heights, unscaled.y());
 
         for (int i = 0; i < flow.size(); i++) {
             Box<?> child = flow.get(i);
@@ -179,7 +187,14 @@ public final class Grid extends Container<Grid> {
                 horizontal == Align.STRETCH && !child.hasFixedWidth(),
                 vertical == Align.STRETCH && !child.hasFixedHeight()
             );
-            child.arrange(child.effectiveMargin().shrink(placed), overflowsHere());
+            Rect unscaledChild = child.effectiveMargin().shrink(placed);
+            Rect scaledChild = new Rect(
+                content.x() + (unscaledChild.x() - content.x()) * sx,
+                content.y() + (unscaledChild.y() - content.y()) * sy,
+                unscaledChild.width() * sx,
+                unscaledChild.height() * sy
+            );
+            arrangeChild(child, scaledChild, overflowsHere());
         }
     }
 

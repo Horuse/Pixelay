@@ -10,6 +10,7 @@ public final class Transition {
     public enum Property {
         ALL,
         BACKGROUND,
+        TRANSFORM,
     }
 
     private final Property property;
@@ -28,6 +29,14 @@ public final class Transition {
 
     public static Transition background(long durationMs) {
         return new Transition(Property.BACKGROUND, durationMs, Easing.EASE);
+    }
+
+    public static Transition transform(long durationMs, Easing easing) {
+        return new Transition(Property.TRANSFORM, durationMs, easing);
+    }
+
+    public static Transition transform(long durationMs) {
+        return new Transition(Property.TRANSFORM, durationMs, Easing.EASE);
     }
 
     public static Transition all(long durationMs, Easing easing) {

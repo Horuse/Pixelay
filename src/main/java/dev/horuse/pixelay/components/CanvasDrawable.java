@@ -111,4 +111,29 @@ public interface CanvasDrawable {
     /** Click handler if this element is clickable, otherwise null. */
     @Nullable
     Consumer<Player> onClick();
+
+    /** Visual scale multiplier on the X axis (from CSS {@code transform: scaleX(...)}), defaults to {@code 1.0}. */
+    default double visualScaleX() {
+        return 1.0;
+    }
+
+    /** Visual scale multiplier on the Y axis (from CSS {@code transform: scaleY(...)}), defaults to {@code 1.0}. */
+    default double visualScaleY() {
+        return 1.0;
+    }
+
+    /** Visual rotation around the canvas Z normal in degrees (clockwise, CSS {@code transform: rotate(deg)}). */
+    default double rotateDeg() {
+        return 0.0;
+    }
+
+    /** Visual 3D rotation around the X axis in degrees (CSS {@code transform: rotateX(deg)}). */
+    default double rotateXDeg() {
+        return 0.0;
+    }
+
+    /** Visual 3D rotation around the Y axis in degrees (CSS {@code transform: rotateY(deg)}). */
+    default double rotateYDeg() {
+        return 0.0;
+    }
 }

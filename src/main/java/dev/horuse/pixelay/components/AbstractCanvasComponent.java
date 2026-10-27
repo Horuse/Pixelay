@@ -52,6 +52,11 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     private volatile int ellipsisWidthFontPx;
     /** Where a layout lets the element draw, or {@code null} outside layouts (the canvas then). */
     private volatile Rect layoutClip;
+    private volatile double visualScaleX = 1.0;
+    private volatile double visualScaleY = 1.0;
+    private volatile double rotateDeg;
+    private volatile double rotateXDeg;
+    private volatile double rotateYDeg;
 
     protected AbstractCanvasComponent(double pixelX, double pixelY, double heightPx) {
         this.pixelX = pixelX;
@@ -309,5 +314,55 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     @Override
     public Consumer<Player> onClick() {
         return null;
+    }
+
+    @ApiStatus.Internal
+    public void setVisualTransform(
+        double scaleX,
+        double scaleY,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg
+    ) {
+        if (
+            Math.abs(this.visualScaleX - scaleX) < 1e-4 &&
+            Math.abs(this.visualScaleY - scaleY) < 1e-4 &&
+            Math.abs(this.rotateDeg - rotateDeg) < 1e-3 &&
+            Math.abs(this.rotateXDeg - rotateXDeg) < 1e-3 &&
+            Math.abs(this.rotateYDeg - rotateYDeg) < 1e-3
+        ) {
+            return;
+        }
+        this.visualScaleX = scaleX;
+        this.visualScaleY = scaleY;
+        this.rotateDeg = rotateDeg;
+        this.rotateXDeg = rotateXDeg;
+        this.rotateYDeg = rotateYDeg;
+        layoutVersion++;
+    }
+
+    @Override
+    public double visualScaleX() {
+        return visualScaleX;
+    }
+
+    @Override
+    public double visualScaleY() {
+        return visualScaleY;
+    }
+
+    @Override
+    public double rotateDeg() {
+        return rotateDeg;
+    }
+
+    @Override
+    public double rotateXDeg() {
+        return rotateXDeg;
+    }
+
+    @Override
+    public double rotateYDeg() {
+        return rotateYDeg;
     }
 }
