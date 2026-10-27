@@ -26,4 +26,16 @@ public final class Row extends Flex {
         super.gap(gap);
         return this;
     }
+
+    @Override
+    public Row wrap(boolean wrap) {
+        super.wrap(wrap);
+        return this;
+    }
+
+    @Override
+    public Row rowGap(double rowGap) {
+        super.rowGap(rowGap);
+        return this;
+    }
 }

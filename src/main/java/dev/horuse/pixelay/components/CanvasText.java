@@ -65,7 +65,12 @@ public class CanvasText extends AbstractCanvasComponent {
     @Override
     public String renderText() {
         TextContent override = textOverride();
-        return override != null ? override.render() : content.render();
+        String raw = override != null ? override.render() : content.render();
+        int ellipsisLimit = ellipsisWidthFontPx();
+        if (ellipsisLimit > 0) {
+            return dev.horuse.pixelay.content.FontMetrics.truncateEllipsis(raw, ellipsisLimit);
+        }
+        return raw;
     }
 
     /** Parses component text as MiniMessage — the single markup format used by canvas content. */

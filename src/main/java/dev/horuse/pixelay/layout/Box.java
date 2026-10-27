@@ -6,6 +6,7 @@ import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.debug.Fit;
+import dev.horuse.pixelay.utils.ColorUtils;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,8 +37,19 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
 
     protected Insets padding = Insets.NONE;
     protected Insets margin = Insets.NONE;
+    protected Insets borderWidths = Insets.NONE;
+    protected int borderColor;
     protected double fixedWidth = -1;
     protected double fixedHeight = -1;
+    protected double minWidth = -1;
+    protected double maxWidth = -1;
+    protected double minHeight = -1;
+    protected double maxHeight = -1;
+    protected double widthPercent = -1;
+    protected double heightPercent = -1;
+    protected double opacity = 1.0;
+    private volatile boolean hidden;
+    private BooleanSupplier hiddenWhen;
     protected double grow;
     protected double shrink = 1;
     protected Align alignSelf;
@@ -92,6 +104,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     private Consumer<Player> onHoverEnter;
     private Consumer<Player> onHoverLeave;
     private TransitionState backgroundTransition;
+    private TransitionState borderTransition;
     /** Under the pointer (itself or a descendant), from the last {@link MountedLayout#pointerAt} — CSS {@code :hover}. */
     private volatile boolean hovered;
     private Rect rect = new Rect(0, 0, 0, 0);
@@ -143,9 +156,9 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return null;
     }
 
-    /** Depth steps the box paints on (see {@link MountedLayout}): a background, or a component's layers. */
+    /** Depth steps the box paints on (see {@link MountedLayout}): a background, border, or a component's layers. */
     int layerSteps() {
-        return 1;
+        return hasBorder() ? 2 : 1;
     }
 
     /** Adds every box of this subtree (self included, depth-first, parents before children). */
@@ -167,40 +180,91 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
 
     /** Outer size when at most {@code maxWidth} px wide is available; a fixed width overrides it. */
     public final Size measure(double maxWidth) {
+        if (hidden) {
+            return Size.ZERO;
+        }
         double limit = fixedWidth >= 0 ? fixedWidth : maxWidth;
+        if (widthPercent >= 0 && maxWidth >= 0 && fixedWidth < 0) {
+            limit = maxWidth * widthPercent;
+        }
+        if (this.maxWidth >= 0) {
+            limit = limit < 0 ? this.maxWidth : Math.min(limit, this.maxWidth);
+        }
         if (limit < 0) {
             if (unbounded == null) {
-                unbounded = compute(UNBOUNDED);
+                unbounded = compute(UNBOUNDED, UNBOUNDED);
             }
             return unbounded;
         }
         if (constrained == null || constrainedFor != limit) {
-            constrained = compute(limit);
+            constrained = compute(limit, maxWidth);
             constrainedFor = limit;
         }
         return constrained;
     }
 
-    private Size compute(double limit) {
+    private Size compute(double limit, double parentAvailableWidth) {
         Insets padding = effectivePadding();
-        double contentLimit = limit < 0 ? UNBOUNDED : Math.max(0, limit - padding.horizontal());
+        Insets border = effectiveBorderWidths();
+        double hExtra = padding.horizontal() + border.horizontal();
+        double vExtra = padding.vertical() + border.vertical();
+        double contentLimit = limit < 0 ? UNBOUNDED : Math.max(0, limit - hExtra);
         Size content = measureContent(contentLimit);
-        return new Size(
-            fixedWidth >= 0 ? fixedWidth : content.width() + padding.horizontal(),
-            fixedHeight >= 0 ? fixedHeight : content.height() + padding.vertical()
-        );
+
+        double w;
+        if (fixedWidth >= 0) {
+            w = fixedWidth;
+        } else if (widthPercent >= 0 && parentAvailableWidth >= 0) {
+            w = parentAvailableWidth * widthPercent;
+        } else {
+            w = content.width() + hExtra;
+        }
+        if (minWidth >= 0) {
+            w = Math.max(minWidth, w);
+        }
+        if (maxWidth >= 0) {
+            w = Math.min(maxWidth, w);
+        }
+
+        double h;
+        if (fixedHeight >= 0) {
+            h = fixedHeight;
+        } else {
+            h = content.height() + vExtra;
+        }
+        if (minHeight >= 0) {
+            h = Math.max(minHeight, h);
+        }
+        if (maxHeight >= 0) {
+            h = Math.min(maxHeight, h);
+        }
+
+        return new Size(w, h);
     }
 
     /** Size plus margin when at most {@code maxWidth} px (margin included) is available. */
     Size outer(double maxWidth) {
+        if (hidden) {
+            return Size.ZERO;
+        }
         Insets margin = effectiveMargin();
         Size size = measure(maxWidth < 0 ? UNBOUNDED : Math.max(0, maxWidth - margin.horizontal()));
         return new Size(size.width() + margin.horizontal(), size.height() + margin.vertical());
     }
 
-    /** {@link #minContentWidth()} as the parent sees it: with padding and margin, or the fixed width. */
+    /** {@link #minContentWidth()} as the parent sees it: with padding, border, and margin, or the fixed/min width. */
     double minOuterWidth() {
-        double width = fixedWidth >= 0 ? fixedWidth : minContentWidth() + effectivePadding().horizontal();
+        if (hidden) {
+            return 0;
+        }
+        double hExtra = effectivePadding().horizontal() + effectiveBorderWidths().horizontal();
+        double width = fixedWidth >= 0 ? fixedWidth : minContentWidth() + hExtra;
+        if (minWidth >= 0) {
+            width = Math.max(minWidth, width);
+        }
+        if (maxWidth >= 0) {
+            width = Math.min(maxWidth, width);
+        }
         return width + effectiveMargin().horizontal();
     }
 
@@ -210,6 +274,13 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
 
     /** @param insideOverflow an ancestor already does not fit its space */
     final void arrange(Rect rect, boolean insideOverflow) {
+        if (hidden) {
+            this.rect = new Rect(rect.x(), rect.y(), 0, 0);
+            this.fit = Fit.NONE;
+            arrangeContent(this.rect);
+            arrangeAbsoluteChildren(this.rect);
+            return;
+        }
         double dx = translateX * rect.width() + translatePxX;
         double dy = translateY * rect.height() + translatePxY;
         if (position == Position.RELATIVE) {
@@ -224,8 +295,9 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         boolean selfOverflow =
             natural.width() > rect.width() + OVERFLOW_EPSILON || natural.height() > rect.height() + OVERFLOW_EPSILON;
         fit = selfOverflow ? Fit.SELF : insideOverflow ? Fit.INSIDE : Fit.NONE;
-        arrangeContent(effectivePadding().shrink(rect));
-        arrangeAbsoluteChildren(rect);
+        Rect inner = effectiveBorderWidths().shrink(rect);
+        arrangeContent(effectivePadding().shrink(inner));
+        arrangeAbsoluteChildren(inner);
     }
 
     /** Hook overridden by {@link Container} to arrange any {@link Position#ABSOLUTE} children inside {@code bounds}. */
@@ -255,16 +327,135 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     boolean hasFixedWidth() {
-        return fixedWidth >= 0;
+        return fixedWidth >= 0 || widthPercent >= 0;
     }
 
     boolean hasFixedHeight() {
-        return fixedHeight >= 0;
+        return fixedHeight >= 0 || heightPercent >= 0;
     }
 
     @SuppressWarnings("unchecked")
     protected final S self() {
         return (S) this;
+    }
+
+    /** CSS {@code border}: sets uniform border width and colour (ARGB) on all four sides. */
+    public S border(double widthPx, int argb) {
+        this.borderWidths = Insets.all(Math.max(0, widthPx));
+        this.borderColor = argb;
+        return self();
+    }
+
+    /** CSS {@code border}: sets uniform border width and CSS colour string (e.g. {@code "#00E5FF"}). */
+    public S border(double widthPx, String cssColor) {
+        return border(widthPx, ColorUtils.parse(cssColor));
+    }
+
+    /** Sets per-side border widths and uniform border colour (ARGB). */
+    public S border(Insets widths, int argb) {
+        this.borderWidths = widths != null ? widths : Insets.NONE;
+        this.borderColor = argb;
+        return self();
+    }
+
+    /** Sets per-side border widths and CSS colour string. */
+    public S border(Insets widths, String cssColor) {
+        return border(widths, ColorUtils.parse(cssColor));
+    }
+
+    /** CSS {@code border-top}. */
+    public S borderTop(double widthPx, int argb) {
+        this.borderWidths = new Insets(
+            Math.max(0, widthPx),
+            borderWidths.right(),
+            borderWidths.bottom(),
+            borderWidths.left()
+        );
+        this.borderColor = argb;
+        return self();
+    }
+
+    public S borderTop(double widthPx, String cssColor) {
+        return borderTop(widthPx, ColorUtils.parse(cssColor));
+    }
+
+    /** CSS {@code border-right}. */
+    public S borderRight(double widthPx, int argb) {
+        this.borderWidths = new Insets(
+            borderWidths.top(),
+            Math.max(0, widthPx),
+            borderWidths.bottom(),
+            borderWidths.left()
+        );
+        this.borderColor = argb;
+        return self();
+    }
+
+    public S borderRight(double widthPx, String cssColor) {
+        return borderRight(widthPx, ColorUtils.parse(cssColor));
+    }
+
+    /** CSS {@code border-bottom}. */
+    public S borderBottom(double widthPx, int argb) {
+        this.borderWidths = new Insets(
+            borderWidths.top(),
+            borderWidths.right(),
+            Math.max(0, widthPx),
+            borderWidths.left()
+        );
+        this.borderColor = argb;
+        return self();
+    }
+
+    public S borderBottom(double widthPx, String cssColor) {
+        return borderBottom(widthPx, ColorUtils.parse(cssColor));
+    }
+
+    /** CSS {@code border-left}. */
+    public S borderLeft(double widthPx, int argb) {
+        this.borderWidths = new Insets(
+            borderWidths.top(),
+            borderWidths.right(),
+            borderWidths.bottom(),
+            Math.max(0, widthPx)
+        );
+        this.borderColor = argb;
+        return self();
+    }
+
+    public S borderLeft(double widthPx, String cssColor) {
+        return borderLeft(widthPx, ColorUtils.parse(cssColor));
+    }
+
+    /** CSS {@code border-color} (ARGB). */
+    public S borderColor(int argb) {
+        this.borderColor = argb;
+        return self();
+    }
+
+    /** CSS {@code border-color} from string (e.g. {@code "#FFD166"}). */
+    public S borderColor(String cssColor) {
+        return borderColor(ColorUtils.parse(cssColor));
+    }
+
+    public Insets borderWidths() {
+        return borderWidths;
+    }
+
+    public int borderColor() {
+        return borderColor;
+    }
+
+    boolean hasBorder() {
+        Insets b = effectiveBorderWidths();
+        return (
+            (b.top() > 0 || b.right() > 0 || b.bottom() > 0 || b.left() > 0) &&
+            (borderColor != 0 ||
+                stateStyles
+                    .values()
+                    .stream()
+                    .anyMatch(s -> s.borderColor() != null))
+        );
     }
 
     public S padding(double all) {
@@ -318,6 +509,36 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return fixedWidth;
     }
 
+    /** CSS percentage width ({@code 0.0..1.0}, e.g. {@code 0.5} for {@code width: 50%}) relative to the parent's content width. */
+    public S widthPercent(double fraction) {
+        this.widthPercent = fraction;
+        return self();
+    }
+
+    public double widthPercent() {
+        return widthPercent;
+    }
+
+    /** CSS {@code min-width} in canvas pixels. */
+    public S minWidth(double minWidth) {
+        this.minWidth = minWidth;
+        return self();
+    }
+
+    public double minWidth() {
+        return minWidth;
+    }
+
+    /** CSS {@code max-width} in canvas pixels. */
+    public S maxWidth(double maxWidth) {
+        this.maxWidth = maxWidth;
+        return self();
+    }
+
+    public double maxWidth() {
+        return maxWidth;
+    }
+
     public S height(double height) {
         this.fixedHeight = height;
         return self();
@@ -327,8 +548,48 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return fixedHeight;
     }
 
+    /** CSS percentage height ({@code 0.0..1.0}, e.g. {@code 1.0} for {@code height: 100%}) relative to the parent's content height. */
+    public S heightPercent(double fraction) {
+        this.heightPercent = fraction;
+        return self();
+    }
+
+    public double heightPercent() {
+        return heightPercent;
+    }
+
+    /** CSS {@code min-height} in canvas pixels. */
+    public S minHeight(double minHeight) {
+        this.minHeight = minHeight;
+        return self();
+    }
+
+    public double minHeight() {
+        return minHeight;
+    }
+
+    /** CSS {@code max-height} in canvas pixels. */
+    public S maxHeight(double maxHeight) {
+        this.maxHeight = maxHeight;
+        return self();
+    }
+
+    public double maxHeight() {
+        return maxHeight;
+    }
+
     public S size(double width, double height) {
         return width(width).height(height);
+    }
+
+    /** CSS {@code min-width} and {@code min-height} shorthand. */
+    public S minSize(double minWidth, double minHeight) {
+        return minWidth(minWidth).minHeight(minHeight);
+    }
+
+    /** CSS {@code max-width} and {@code max-height} shorthand. */
+    public S maxSize(double maxWidth, double maxHeight) {
+        return maxWidth(maxWidth).maxHeight(maxHeight);
     }
 
     /**
@@ -562,8 +823,54 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return self();
     }
 
+    /**
+     * Fills the box with a colour parsed from a CSS string (e.g. {@code "#0B1426"}, {@code "#FF335580"},
+     * {@code "rgba(11, 20, 38, 0.85)"}, or {@code "transparent"}).
+     */
+    public S background(String cssColor) {
+        return background(ColorUtils.parse(cssColor));
+    }
+
     public int background() {
         return background;
+    }
+
+    /** CSS {@code opacity} ({@code 0.0..1.0}) applied to this box's background and border. */
+    public S opacity(double opacity) {
+        this.opacity = Math.clamp(opacity, 0.0, 1.0);
+        return self();
+    }
+
+    public double opacity() {
+        return opacity;
+    }
+
+    double effectiveOpacity() {
+        Style style = activeStyle();
+        return style != null && style.opacity() != null ? style.opacity() : opacity;
+    }
+
+    /**
+     * CSS {@code display: none} — when {@code true}, removes this box and its subtree from layout flow
+     * and rendering completely.
+     */
+    public S hidden(boolean hidden) {
+        this.hidden = hidden;
+        this.hiddenWhen = null;
+        return self();
+    }
+
+    /** Dynamically hides this box (CSS {@code display: none}) whenever {@code condition} returns {@code true}. */
+    public S hidden(BooleanSupplier condition) {
+        this.hiddenWhen = condition;
+        if (condition != null) {
+            this.hidden = condition.getAsBoolean();
+        }
+        return self();
+    }
+
+    public boolean isHidden() {
+        return hidden;
     }
 
     /**
@@ -707,8 +1014,12 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return customStates.contains(customState);
     }
 
-    /** Re-reads the conditional states (see {@link #selected(BooleanSupplier)}). */
+    /** Re-reads the conditional states (see {@link #selected(BooleanSupplier)} and {@link #hidden(BooleanSupplier)}). */
     void updateStates() {
+        if (hiddenWhen != null && hidden != hiddenWhen.getAsBoolean()) {
+            hidden = !hidden;
+            invalidate();
+        }
         if (selectedWhen != null && selected != selectedWhen.getAsBoolean()) {
             selected = !selected;
             styleStale = true;
@@ -757,6 +1068,12 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return style != null && style.margin() != null ? style.margin() : margin;
     }
 
+    /** Border widths now: from the active states, if they set one. */
+    Insets effectiveBorderWidths() {
+        Style style = activeStyle();
+        return style != null && style.borderWidths() != null ? style.borderWidths() : borderWidths;
+    }
+
     /** Runs when the pointer enters the box (or a box inside it), with the pointing player. */
     public S onHoverEnter(Consumer<Player> handler) {
         this.onHoverEnter = handler;
@@ -770,12 +1087,13 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * Configures CSS-style property transitions (e.g. background color smoothing on hover).
+     * Configures CSS-style property transitions (e.g. background or border color smoothing on hover).
      */
     public S transition(Transition... transitions) {
         for (Transition t : transitions) {
             if (t.property() == Transition.Property.ALL || t.property() == Transition.Property.BACKGROUND) {
                 this.backgroundTransition = new TransitionState(t);
+                this.borderTransition = new TransitionState(t);
             }
         }
         return self();
@@ -803,19 +1121,27 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     boolean hasTransitions() {
-        return backgroundTransition != null;
+        return backgroundTransition != null || borderTransition != null;
     }
 
     boolean isTransitioning() {
-        return backgroundTransition != null && backgroundTransition.isAnimating();
+        return (
+            (backgroundTransition != null && backgroundTransition.isAnimating()) ||
+            (borderTransition != null && borderTransition.isAnimating())
+        );
     }
 
     boolean tickTransitions(long now) {
+        boolean animating = false;
         if (backgroundTransition != null) {
             effectiveBackground(now);
-            return backgroundTransition.isAnimating();
+            animating |= backgroundTransition.isAnimating();
         }
-        return false;
+        if (borderTransition != null) {
+            effectiveBorderColor(now);
+            animating |= borderTransition.isAnimating();
+        }
+        return animating;
     }
 
     /** The background to draw now: from the active states, if they set one. */
@@ -824,10 +1150,32 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     int effectiveBackground(long now) {
+        if (hidden) {
+            return 0;
+        }
         Style style = activeStyle();
-        int target = style != null && style.background() != null ? style.background() : background;
+        int raw = style != null && style.background() != null ? style.background() : background;
+        int target = ColorUtils.withOpacity(raw, effectiveOpacity());
         if (backgroundTransition != null) {
             return backgroundTransition.update(target, now);
+        }
+        return target;
+    }
+
+    /** The border colour to draw now: from the active states, if they set one. */
+    int effectiveBorderColor() {
+        return effectiveBorderColor(System.currentTimeMillis());
+    }
+
+    int effectiveBorderColor(long now) {
+        if (hidden) {
+            return 0;
+        }
+        Style style = activeStyle();
+        int raw = style != null && style.borderColor() != null ? style.borderColor() : borderColor;
+        int target = ColorUtils.withOpacity(raw, effectiveOpacity());
+        if (borderTransition != null) {
+            return borderTransition.update(target, now);
         }
         return target;
     }

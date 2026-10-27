@@ -2,6 +2,8 @@ package dev.horuse.pixelay.data;
 
 /** An axis-aligned rectangle in canvas px (y grows down). */
 public record Rect(double x, double y, double width, double height) {
+    public static final Rect EMPTY = new Rect(0, 0, 0, 0);
+
     public double right() {
         return x + width;
     }

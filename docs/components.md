@@ -22,6 +22,7 @@ Text counter = new Text(18, () -> "<#64748B>Clicks: <b>" + clicks[0] + "</b>");
 - `.textAlign(HAlign)` / `.textAlign(Align)` — aligns text horizontally (`LEFT`, `CENTER`, `RIGHT`) inside the box independently of `justifySelf`.
 - `.whiteSpace(WhiteSpace.NORMAL | NOWRAP)` — controls line wrapping.
 - `.wordBreak(WordBreak.NORMAL | BREAK_WORD | BREAK_ALL)` — controls word breaking.
+- `.textOverflow(TextOverflow.CLIP | ELLIPSIS)` — when set to `TextOverflow.ELLIPSIS`, automatically truncates single-line text that exceeds the box's available width and appends `"..."` while preserving MiniMessage styling.
 
 ---
 

@@ -77,28 +77,29 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
     protected double widestChildMinWidth() {
         double width = 0;
         for (Box<?> child : children) {
-            if (!child.isAbsolute()) {
+            if (!child.isAbsolute() && !child.isHidden()) {
                 width = Math.max(width, child.minOuterWidth());
             }
         }
         return width;
     }
 
-    /** Returns only the children participating in normal layout flow (excluding {@link Position#ABSOLUTE}). */
+    /** Returns only the children participating in normal layout flow (excluding {@link Position#ABSOLUTE} and {@link Box#isHidden()}). */
     protected List<Box<?>> flowChildren() {
-        boolean anyAbsolute = false;
+        boolean anyExcluded = false;
         for (int i = 0; i < children.size(); i++) {
-            if (children.get(i).isAbsolute()) {
-                anyAbsolute = true;
+            Box<?> c = children.get(i);
+            if (c.isAbsolute() || c.isHidden()) {
+                anyExcluded = true;
                 break;
             }
         }
-        if (!anyAbsolute) {
+        if (!anyExcluded) {
             return children;
         }
         List<Box<?>> flow = new ArrayList<>(children.size());
         for (Box<?> child : children) {
-            if (!child.isAbsolute()) {
+            if (!child.isAbsolute() && !child.isHidden()) {
                 flow.add(child);
             }
         }
@@ -108,6 +109,10 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
     @Override
     void arrangeAbsoluteChildren(Rect bounds) {
         for (Box<?> child : children) {
+            if (child.isHidden()) {
+                child.arrange(new Rect(bounds.x(), bounds.y(), 0, 0), false);
+                continue;
+            }
             if (!child.isAbsolute()) {
                 continue;
             }
@@ -124,10 +129,14 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
             Size natural = child.measure(availW);
 
             double w = hasL && hasR && !child.hasFixedWidth() ? availW : natural.width();
-            double h =
-                hasT && hasB && !child.hasFixedHeight()
-                    ? Math.max(0, bounds.height() - child.top - child.bottom - m.vertical())
-                    : natural.height();
+            double h;
+            if (hasT && hasB && !child.hasFixedHeight()) {
+                h = Math.max(0, bounds.height() - child.top - child.bottom - m.vertical());
+            } else if (child.heightPercent >= 0 && child.fixedHeight < 0) {
+                h = Math.max(0, bounds.height() - m.vertical()) * child.heightPercent;
+            } else {
+                h = natural.height();
+            }
 
             double x;
             if (hasL) {

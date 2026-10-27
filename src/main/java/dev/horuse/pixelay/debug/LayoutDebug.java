@@ -6,28 +6,59 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 /**
- * Per-player layout debug mode ({@code /pixelay debug layout}): every component gets a translucent
- * text background — blue when it fits, red where an overflow starts, orange inside an overflowing box.
- * The highlight follows the next canvas refresh (at most a second for managed surfaces).
+ * Per-player layout debug mode ({@code /pixelay debug layout}): draws wireframe box outlines
+ * and shows a live DevTools inspector in the ActionBar when hovering over elements.
  */
 public final class LayoutDebug {
 
     /** Background of a component that fits its space, while debugging (ARGB). */
-    public static final int DEBUG_BACKGROUND = 0x4000A0FF;
+    public static final int DEBUG_BACKGROUND = 0xFF1E3A8A;
 
     /** Background of a component that is itself bigger than its space, while debugging (ARGB). */
-    public static final int OVERFLOW_BACKGROUND = 0x60FF0000;
+    public static final int OVERFLOW_BACKGROUND = 0xFF991B1B;
 
     /** Background of a component inside an overflowing box, while debugging (ARGB). */
-    public static final int INSIDE_OVERFLOW_BACKGROUND = 0x60FF9900;
+    public static final int INSIDE_OVERFLOW_BACKGROUND = 0xFF9A3412;
 
     private static final Set<UUID> VIEWERS = ConcurrentHashMap.newKeySet();
 
     private LayoutDebug() {}
+
+    /** Sends a live DevTools-style DOM inspector line to the debugging player's ActionBar. */
+    public static void sendInspector(
+        Player player,
+        String tagName,
+        String id,
+        double x,
+        double y,
+        double w,
+        double h,
+        int step,
+        int zIndex
+    ) {
+        if (!isEnabled(player)) {
+            return;
+        }
+        String idPart = id != null && !id.isBlank() ? "<#FACC15>#" + id : "";
+        String msg = String.format(
+            java.util.Locale.ROOT,
+            "<#38BDF8><b><%s%s></b> <#94A3B8>• <#E2E8F0>%dx%d px <#64748B>at (%d, %d) <#94A3B8>• <#A3E635>step %d <#64748B>(z:%d)",
+            tagName,
+            idPart,
+            Math.round(w),
+            Math.round(h),
+            Math.round(x),
+            Math.round(y),
+            step,
+            zIndex
+        );
+        player.sendActionBar(MiniMessage.miniMessage().deserialize(msg));
+    }
 
     /** @return whether the mode is now enabled for the player */
     public static boolean toggle(Player player) {

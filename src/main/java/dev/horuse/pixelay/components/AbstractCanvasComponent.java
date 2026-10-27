@@ -48,6 +48,8 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     private volatile TextWrap textWrap = TextWrap.NORMAL;
     /** Text replacing the component's own one (a state style), or {@code null}. */
     private volatile TextContent textOverride;
+    /** Maximum width in font px before single-line ellipsis truncation ({@code <= 0} = disabled). */
+    private volatile int ellipsisWidthFontPx;
     /** Where a layout lets the element draw, or {@code null} outside layouts (the canvas then). */
     private volatile Rect layoutClip;
 
@@ -187,6 +189,18 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
 
     protected TextContent textOverride() {
         return textOverride;
+    }
+
+    @ApiStatus.Internal
+    public void setEllipsisWidthFontPx(int fontPx) {
+        if (this.ellipsisWidthFontPx != fontPx) {
+            this.ellipsisWidthFontPx = fontPx;
+            layoutVersion++;
+        }
+    }
+
+    protected int ellipsisWidthFontPx() {
+        return ellipsisWidthFontPx;
     }
 
     @Override

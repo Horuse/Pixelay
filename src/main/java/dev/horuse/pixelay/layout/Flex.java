@@ -2,6 +2,7 @@ package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -9,6 +10,8 @@ import java.util.List;
  * In a row each child starts at its natural width; when they do not fit, the missing space is taken
  * from them by {@code shrink x width} (never below their min-content width, so texts wrap and words
  * stay whole), and free space goes to growing children (or is distributed by {@link #justify}).
+ * When {@link #wrap(boolean)} is enabled on a row, items that exceed the available width wrap onto
+ * additional flex lines.
  * Each child is placed on the cross axis by {@link #align} or its own {@code alignSelf}; {@code STRETCH}
  * (the default) fills it, except for children with a fixed size on that axis.
  */
@@ -17,6 +20,8 @@ public class Flex extends Container<Flex> {
     private final boolean horizontal;
     private Align align = Align.STRETCH;
     private Justify justify = Justify.START;
+    private boolean wrap;
+    private double rowGap = -1;
 
     public Flex(boolean horizontal, LayoutItem... items) {
         super(items);
@@ -57,9 +62,48 @@ public class Flex extends Container<Flex> {
         return justify;
     }
 
+    /** CSS {@code flex-wrap: wrap} — wraps children onto multiple lines when they exceed the available width. */
+    public Flex wrap(boolean wrap) {
+        this.wrap = wrap;
+        return this;
+    }
+
+    public boolean isWrap() {
+        return wrap;
+    }
+
+    /** Cross-axis gap between wrapped flex lines (defaults to {@link #gap()}). */
+    public Flex rowGap(double rowGap) {
+        this.rowGap = rowGap;
+        return this;
+    }
+
+    public double rowGap() {
+        return rowGap >= 0 ? rowGap : gap;
+    }
+
     @Override
     protected Size measureContent(double maxWidth) {
         List<Box<?>> flow = flowChildren();
+        if (horizontal && wrap && maxWidth >= 0 && !flow.isEmpty()) {
+            List<List<Box<?>>> lines = buildWrappedLines(flow, maxWidth);
+            double maxLineW = 0;
+            double totalCrossH = 0;
+            double crossGap = rowGap();
+            for (int l = 0; l < lines.size(); l++) {
+                List<Box<?>> line = lines.get(l);
+                double lineW = gaps(line.size());
+                double lineH = 0;
+                for (Box<?> child : line) {
+                    Size s = childSize(child, maxWidth);
+                    lineW += s.width();
+                    lineH = Math.max(lineH, s.height());
+                }
+                maxLineW = Math.max(maxLineW, lineW);
+                totalCrossH += lineH + (l > 0 ? crossGap : 0);
+            }
+            return new Size(Math.min(maxWidth, maxLineW), totalCrossH);
+        }
         Size[] sizes = childSizes(flow, maxWidth);
         double main = gaps(flow.size());
         double cross = 0;
@@ -72,7 +116,7 @@ public class Flex extends Container<Flex> {
 
     @Override
     protected double minContentWidth() {
-        if (!horizontal) {
+        if (!horizontal || wrap) {
             return widestChildMinWidth();
         }
         List<Box<?>> flow = flowChildren();
@@ -81,6 +125,29 @@ public class Flex extends Container<Flex> {
             width += child instanceof Spacer spacer ? spacer.mainLength() : child.minOuterWidth();
         }
         return width;
+    }
+
+    private List<List<Box<?>>> buildWrappedLines(List<Box<?>> flow, double maxWidth) {
+        List<List<Box<?>>> lines = new ArrayList<>();
+        List<Box<?>> current = new ArrayList<>();
+        double currentW = 0;
+        for (Box<?> child : flow) {
+            double childW = childSize(child, maxWidth).width();
+            double needed = current.isEmpty() ? childW : currentW + gap + childW;
+            if (!current.isEmpty() && needed > maxWidth) {
+                lines.add(current);
+                current = new ArrayList<>();
+                current.add(child);
+                currentW = childW;
+            } else {
+                current.add(child);
+                currentW = needed;
+            }
+        }
+        if (!current.isEmpty()) {
+            lines.add(current);
+        }
+        return lines;
     }
 
     private double gaps(int count) {
@@ -180,12 +247,37 @@ public class Flex extends Container<Flex> {
     @Override
     protected void arrangeContent(Rect content) {
         List<Box<?>> flow = flowChildren();
+        if (horizontal && wrap && !flow.isEmpty()) {
+            List<List<Box<?>>> lines = buildWrappedLines(flow, content.width());
+            double crossCursor = 0;
+            double crossGap = rowGap();
+            for (List<Box<?>> line : lines) {
+                double lineH = 0;
+                for (Box<?> child : line) {
+                    lineH = Math.max(lineH, childSize(child, content.width()).height());
+                }
+                arrangeLine(line, new Rect(content.x(), content.y() + crossCursor, content.width(), lineH));
+                crossCursor += lineH + crossGap;
+            }
+            return;
+        }
+        arrangeLine(flow, content);
+    }
+
+    private void arrangeLine(List<Box<?>> flow, Rect content) {
         Size[] sizes = childSizes(flow, content.width());
         double used = gaps(flow.size());
         double totalGrow = 0;
         for (int i = 0; i < sizes.length; i++) {
+            Box<?> child = flow.get(i);
+            if (!horizontal && child.heightPercent >= 0 && child.fixedHeight < 0) {
+                double pctH =
+                    Math.max(0, content.height() - child.effectiveMargin().vertical()) * child.heightPercent +
+                    child.effectiveMargin().vertical();
+                sizes[i] = new Size(sizes[i].width(), pctH);
+            }
             used += sizes[i].main(horizontal);
-            totalGrow += flow.get(i).grow;
+            totalGrow += child.grow;
         }
 
         // A row already gave growing children their share of the width; a column grows here.
@@ -220,8 +312,15 @@ public class Flex extends Container<Flex> {
             double mainSize = outer.main(horizontal) + (distributeGrow ? (free * child.grow) / totalGrow : 0);
             Align crossAlign = child.alignSelf != null ? child.alignSelf : align;
             boolean fixedCross = horizontal ? child.hasFixedHeight() : child.hasFixedWidth();
-            double crossSize =
-                crossAlign == Align.STRETCH && !fixedCross ? crossSpace : Math.min(crossSpace, outer.cross(horizontal));
+            double crossSize;
+            if (horizontal && child.heightPercent >= 0 && child.fixedHeight < 0) {
+                crossSize = crossSpace * child.heightPercent;
+            } else {
+                crossSize =
+                    crossAlign == Align.STRETCH && !fixedCross
+                        ? crossSpace
+                        : Math.min(crossSpace, outer.cross(horizontal));
+            }
             double crossPos = crossAlign.offset(crossSpace, crossSize);
             Rect slot = horizontal
                 ? new Rect(content.x() + cursor, content.y() + crossPos, mainSize, crossSize)

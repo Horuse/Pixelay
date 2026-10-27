@@ -42,6 +42,8 @@ public final class MountedLayout implements CanvasComponent {
     private BukkitTask transitionTask;
     /** Panels of boxes with a {@link Box#background}, by box. */
     private final Map<Box<?>, TextBackground> backgrounds = new IdentityHashMap<>();
+    /** Border edge panels (top, right, bottom, left) of boxes with a {@link Box#border}, by box. */
+    private final Map<Box<?>, TextBackground[]> borders = new IdentityHashMap<>();
     private final Map<Box<?>, Integer> compositedColors = new IdentityHashMap<>();
     private final ClickTarget clickTarget = this::click;
     private Player explicitViewer;
@@ -196,7 +198,7 @@ public final class MountedLayout implements CanvasComponent {
             box.paintEnd = base + needs - 1;
             painted.add(box);
             if (box.component() != null) {
-                box.component().setLayerStep(base);
+                box.component().setLayerStep(box.hasBorder() ? base + 1 : base);
             }
         }
     }
@@ -207,12 +209,13 @@ public final class MountedLayout implements CanvasComponent {
      * hides its overflow.
      */
     private static void assignClips(Box<?> box, Rect clip) {
-        box.clip(clip);
+        Rect effectiveClip = box.isHidden() ? Rect.EMPTY : clip;
+        box.clip(effectiveClip);
         if (box.component() != null) {
-            box.component().setClip(box.childClip());
+            box.component().setClip(box.isHidden() ? Rect.EMPTY : box.childClip());
         }
         if (box instanceof Container<?> container) {
-            Rect inside = box.childClip();
+            Rect inside = box.isHidden() ? Rect.EMPTY : box.childClip();
             for (Box<?> child : container.children) {
                 assignClips(child, inside);
             }
@@ -250,6 +253,14 @@ public final class MountedLayout implements CanvasComponent {
         }
         backgrounds.values().forEach(TextBackground::remove);
         backgrounds.clear();
+        for (TextBackground[] edges : borders.values()) {
+            for (TextBackground edge : edges) {
+                if (edge != null) {
+                    edge.remove();
+                }
+            }
+        }
+        borders.clear();
         compositedColors.clear();
         debugOverlay.clear();
     }
@@ -301,10 +312,61 @@ public final class MountedLayout implements CanvasComponent {
                     .computeIfAbsent(box, key -> new TextBackground(viewer))
                     .sync(canvas, box.rect().intersect(box.clip()), bg, Layers.at(box.paintStep, viewer));
             }
+            syncBoxBorders(box, viewer, bg);
             if (box instanceof Canvas pixelCanvas) {
                 pixelCanvas.sync(canvas, viewer, bg, Layers.at(box.paintStep + 1, viewer));
             }
         }
+    }
+
+    private void syncBoxBorders(Box<?> box, Player viewer, int boxBg) {
+        Insets b = box.effectiveBorderWidths();
+        int rawBorderColor = box.effectiveBorderColor();
+        boolean active =
+            !box.isHidden() && rawBorderColor != 0 && (b.top() > 0 || b.right() > 0 || b.bottom() > 0 || b.left() > 0);
+        if (!active && !borders.containsKey(box)) {
+            return;
+        }
+        TextBackground[] edges = borders.computeIfAbsent(box, k -> new TextBackground[] {
+            new TextBackground(viewer),
+            new TextBackground(viewer),
+            new TextBackground(viewer),
+            new TextBackground(viewer),
+        });
+        int borderArgb = active ? (boxBg != 0 ? composite(boxBg, rawBorderColor) : rawBorderColor) : 0;
+        Rect r = box.rect();
+        Rect clip = box.clip();
+        float depth = Layers.at(box.paintStep + 1, viewer);
+
+        Rect topRect =
+            b.top() > 0 ? new Rect(r.x(), r.y(), r.width(), Math.min(b.top(), r.height())).intersect(clip) : Rect.EMPTY;
+        Rect bottomRect =
+            b.bottom() > 0
+                ? new Rect(
+                      r.x(),
+                      Math.max(r.y(), r.bottom() - b.bottom()),
+                      r.width(),
+                      Math.min(b.bottom(), r.height())
+                  ).intersect(clip)
+                : Rect.EMPTY;
+        double midY = r.y() + b.top();
+        double midH = Math.max(0, r.height() - b.top() - b.bottom());
+        Rect leftRect =
+            b.left() > 0 ? new Rect(r.x(), midY, Math.min(b.left(), r.width()), midH).intersect(clip) : Rect.EMPTY;
+        Rect rightRect =
+            b.right() > 0
+                ? new Rect(
+                      Math.max(r.x(), r.right() - b.right()),
+                      midY,
+                      Math.min(b.right(), r.width()),
+                      midH
+                  ).intersect(clip)
+                : Rect.EMPTY;
+
+        edges[0].sync(canvas, topRect, borderArgb, depth);
+        edges[1].sync(canvas, rightRect, borderArgb, depth);
+        edges[2].sync(canvas, bottomRect, borderArgb, depth);
+        edges[3].sync(canvas, leftRect, borderArgb, depth);
     }
 
     private int compositedBackground(Box<?> box) {
@@ -423,8 +485,29 @@ public final class MountedLayout implements CanvasComponent {
                     scrollView.updatePointer(px, py);
                 }
             }
+            if (player != null && dev.horuse.pixelay.debug.LayoutDebug.isEnabled(player)) {
+                Box<?> inspectBox = topmost(px, py, box -> !box.isHidden());
+                if (inspectBox != null) {
+                    Rect r = inspectBox.rect();
+                    dev.horuse.pixelay.debug.LayoutDebug.sendInspector(
+                        player,
+                        inspectBox.tagName(),
+                        inspectBox.id(),
+                        r.x(),
+                        r.y(),
+                        r.width(),
+                        r.height(),
+                        inspectBox.paintStep,
+                        inspectBox.zIndex()
+                    );
+                }
+            }
         }
-        Box<?> target = topmost(px, py, box -> box.effectiveOnClick() != null || box.is(State.DISABLED));
+        Box<?> target = topmost(
+            px,
+            py,
+            box -> !box.isHidden() && (box.effectiveOnClick() != null || box.is(State.DISABLED))
+        );
         if (target == null) {
             return false;
         }
@@ -450,7 +533,12 @@ public final class MountedLayout implements CanvasComponent {
         double y = clampToCanvas(py, false);
         for (int i = boxes.size() - 1; i >= 0; i--) {
             Box<?> box = boxes.get(i);
-            if (filter.test(box) && box.rect().contains(x, y) && (box.clip() == null || box.clip().contains(x, y))) {
+            if (
+                !box.isHidden() &&
+                filter.test(box) &&
+                box.rect().contains(x, y) &&
+                (box.clip() == null || box.clip().contains(x, y))
+            ) {
                 return box;
             }
         }
@@ -613,6 +701,20 @@ public final class MountedLayout implements CanvasComponent {
 
     /** Hovers {@code top} and its ancestors (nothing for {@code null}); refreshes when anything changed. */
     private boolean hover(Box<?> top, Player player) {
+        if (top != null && player != null && dev.horuse.pixelay.debug.LayoutDebug.isEnabled(player)) {
+            Rect r = top.rect();
+            dev.horuse.pixelay.debug.LayoutDebug.sendInspector(
+                player,
+                top.tagName(),
+                top.id(),
+                r.x(),
+                r.y(),
+                r.width(),
+                r.height(),
+                top.paintStep,
+                top.zIndex()
+            );
+        }
         Set<Box<?>> hoveredBoxes = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Box<?> box = top; box != null; box = parents.get(box)) {
             hoveredBoxes.add(box);

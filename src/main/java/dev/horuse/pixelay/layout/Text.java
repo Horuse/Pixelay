@@ -28,6 +28,7 @@ public final class Text extends Box<Text> {
 
     private final AbstractCanvasComponent component;
     private HAlign textAlign;
+    private TextOverflow textOverflow = TextOverflow.CLIP;
     // Per-pass caches: the text and its longest word are evaluated once per layout pass.
     private String text;
     private int longestWord = -1;
@@ -117,10 +118,10 @@ public final class Text extends Box<Text> {
         return this;
     }
 
-    /** The text background, and the text one step above it. */
+    /** The text background, optional border, and the text above it. */
     @Override
     int layerSteps() {
-        return 2;
+        return hasBorder() ? 3 : 2;
     }
 
     @Override
@@ -209,8 +210,30 @@ public final class Text extends Box<Text> {
         };
         // Only now the element gets its final width: the client must wrap where we measured.
         component.setLineWidth(lineWidthFor(content.width()));
+        if (textOverflow == TextOverflow.ELLIPSIS && content.width() > 0) {
+            int availFontPx =
+                (int) Math.floor((content.width() * FontMetrics.LINE_HEIGHT_PX) / component.heightPx() + 1e-6) + 1;
+            component.setEllipsisWidthFontPx(Math.max(1, availFontPx));
+        } else {
+            component.setEllipsisWidthFontPx(0);
+        }
         component.place(x, y, h, v);
         component.setFit(fit);
+    }
+
+    /** CSS {@code text-overflow}: {@link TextOverflow#CLIP} (default) or {@link TextOverflow#ELLIPSIS} ({@code "..."}). */
+    public Text textOverflow(TextOverflow textOverflow) {
+        this.textOverflow = textOverflow != null ? textOverflow : TextOverflow.CLIP;
+        if (textOverflow == TextOverflow.ELLIPSIS) {
+            whiteSpace(TextWrap.WhiteSpace.NOWRAP);
+            overflow(Overflow.HIDDEN);
+        }
+        invalidate();
+        return this;
+    }
+
+    public TextOverflow textOverflow() {
+        return textOverflow;
     }
 
     /** A clickable component (a button) is clicked on its whole box, padding included, not just its text. */

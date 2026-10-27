@@ -1,6 +1,7 @@
 package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.content.TextContent;
+import dev.horuse.pixelay.utils.ColorUtils;
 
 /**
  * What changes on a box in a state (see {@link Box#state}), like the body of a CSS rule such as
@@ -9,6 +10,9 @@ import dev.horuse.pixelay.content.TextContent;
 public final class Style {
 
     private Integer background;
+    private Integer borderColor;
+    private Insets borderWidths;
+    private Double opacity;
     private TextContent text;
     private Insets padding;
     private Insets margin;
@@ -19,6 +23,40 @@ public final class Style {
     /** Background colour (ARGB). */
     public Style background(int argb) {
         this.background = argb;
+        return this;
+    }
+
+    /** Background colour from CSS hex/rgb/rgba string (e.g. {@code "#0B1426"} or {@code "rgba(11, 20, 38, 0.8)"}). */
+    public Style background(String cssColor) {
+        return background(ColorUtils.parse(cssColor));
+    }
+
+    /** Border width and colour on all four sides while in this state. */
+    public Style border(double widthPx, int argb) {
+        this.borderWidths = Insets.all(widthPx);
+        this.borderColor = argb;
+        return this;
+    }
+
+    /** Border width and CSS colour on all four sides while in this state. */
+    public Style border(double widthPx, String cssColor) {
+        return border(widthPx, ColorUtils.parse(cssColor));
+    }
+
+    /** Border colour (ARGB) while in this state. */
+    public Style borderColor(int argb) {
+        this.borderColor = argb;
+        return this;
+    }
+
+    /** Border colour from CSS string while in this state. */
+    public Style borderColor(String cssColor) {
+        return borderColor(ColorUtils.parse(cssColor));
+    }
+
+    /** Opacity multiplier ({@code 0.0..1.0}) while in this state. */
+    public Style opacity(double opacity) {
+        this.opacity = Math.clamp(opacity, 0.0, 1.0);
         return this;
     }
 
@@ -71,6 +109,18 @@ public final class Style {
         return background;
     }
 
+    public Integer borderColor() {
+        return borderColor;
+    }
+
+    public Insets borderWidths() {
+        return borderWidths;
+    }
+
+    public Double opacity() {
+        return opacity;
+    }
+
     public TextContent text() {
         return text;
     }
@@ -79,6 +129,15 @@ public final class Style {
     void fillFrom(Style other) {
         if (background == null) {
             background = other.background;
+        }
+        if (borderColor == null) {
+            borderColor = other.borderColor;
+        }
+        if (borderWidths == null) {
+            borderWidths = other.borderWidths;
+        }
+        if (opacity == null) {
+            opacity = other.opacity;
         }
         if (text == null) {
             text = other.text;

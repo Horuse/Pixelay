@@ -13,8 +13,15 @@ Every node in a Pixelay layout extends `Box<S>`. A `Box` can also be instantiate
 ### Sizing & Spacing
 | Method | CSS Equivalent | Description |
 | :--- | :--- | :--- |
-| `.width(px)` / `.height(px)` | `width` / `height` | Fixed outer box size (including padding, excluding margin). |
+| `.width(px)` / `.height(px)` | `width` / `height` | Fixed outer box size (including border & padding, excluding margin). |
 | `.size(w, h)` | `width` + `height` | Sets both fixed width and fixed height. |
+| `.widthPercent(pct)` / `.heightPercent(pct)` | `width: %` / `height: %` | Percentage of parent container's inner width/height (`0.0 .. 1.0`, e.g. `0.5` for `50%`). |
+| `.minWidth(px)` / `.maxWidth(px)` | `min-width` / `max-width` | Clamps the box's resolved outer width. |
+| `.minHeight(px)` / `.maxHeight(px)` | `min-height` / `max-height` | Clamps the box's resolved outer height. |
+| `.minSize(w, h)` / `.maxSize(w, h)` | `min-width/height`, `max-width/height` | Sets both min or max dimensions. |
+| `.border(width, color)` | `border: Wpx solid C` | Uniform border on all four sides (supports `int` ARGB or CSS string like `"#38BDF8"`). |
+| `.borderTop(w, c)` / `.borderRight(w, c)` / `.borderBottom(w, c)` / `.borderLeft(w, c)` | `border-top`, etc. | Per-side border width and colour. |
+| `.borderColor(color)` | `border-color` | Sets or overrides the border colour (also supported in `.state(...)` and `.transition(...)`). |
 | `.padding(all)` | `padding: A` | Uniform inner padding on all four sides. |
 | `.padding(v, h)` | `padding: V H` | Vertical (`top`/`bottom`) and horizontal (`left`/`right`) padding. |
 | `.padding(t, r, b, l)` | `padding: T R B L` | Explicit padding per side. |
@@ -22,9 +29,12 @@ Every node in a Pixelay layout extends `Box<S>`. A `Box` can also be instantiate
 | `.margin(v, h)` | `margin: V H` | Vertical and horizontal outer margin. |
 | `.margin(t, r, b, l)` | `margin: T R B L` | Explicit outer margin per side. |
 
-### Overflow & Clipping
+### Backgrounds, Opacity, Display & Overflow
 | Method | CSS Equivalent | Description |
 | :--- | :--- | :--- |
+| `.background(argb)` / `.background("#RRGGBB")` | `background-color` | Accepts packed `0xAARRGGBB` ints or CSS strings (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, `rgba(...)`, `transparent`). |
+| `.opacity(0.0 .. 1.0)` | `opacity` | Multiplies the alpha channel of the box's background and border (also supported in `.state(...)`). |
+| `.hidden(boolean)` / `.hidden(BooleanSupplier)` | `display: none` | Completely removes the box and its subtree from layout flow, rendering, and hit-testing when `true`. |
 | `.overflow(Overflow.HIDDEN)` | `overflow: hidden` | Clips child backgrounds, text glyphs, and pointer hit-testing to this box's edges. |
 | `.overflowX(...)` / `.overflowY(...)` | `overflow-x` / `overflow-y` | Axis-specific clipping (`VISIBLE`, `HIDDEN`, `SCROLL`). |
 
@@ -59,6 +69,8 @@ row(
 - **Flexibility (`.grow(double)` & `.shrink(double)`)**:
   - When a `row` overflows its available width, children shrink proportionally to `shrink * naturalWidth`, never shrinking below `minContentWidth()` (so words never break mid-word unless `wordBreak(BREAK_ALL)` is set).
   - Free space is distributed proportionally to `.grow(weight)`.
+- **Flex Wrapping (`.wrap(boolean)` & `.rowGap(double)`)**:
+  - Calling `.wrap(true)` on a `Row` or `Flex` enables `flex-wrap: wrap`: items that exceed the available line width automatically wrap onto subsequent lines, separated vertically by `.rowGap(px)` (or `.gap(px)` if `rowGap` is not set).
 
 ---
 

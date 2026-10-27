@@ -188,6 +188,76 @@ final class TextLayout {
         return Math.max(widest, piece);
     }
 
+    /**
+     * Truncates a single-line MiniMessage component with {@code "..."} if its width exceeds {@code maxWidth} font px.
+     */
+    static Component truncateEllipsis(Component root, int maxWidth) {
+        if (maxWidth <= 0) {
+            return Component.empty();
+        }
+        List<Glyph> glyphs = glyphs(root);
+        int total = widthOf(glyphs, 0, glyphs.size());
+        if (total <= maxWidth) {
+            return root;
+        }
+        int dotAdvance = FontMetrics.advance('.', false);
+        int ellipsisWidth = dotAdvance * 3;
+        if (maxWidth <= ellipsisWidth) {
+            return Component.text("...");
+        }
+        int budget = maxWidth - ellipsisWidth;
+        int keepCount = 0;
+        int used = 0;
+        for (Glyph glyph : glyphs) {
+            if (glyph.newline() || used + glyph.advance() > budget) {
+                break;
+            }
+            used += glyph.advance();
+            keepCount++;
+        }
+        return truncateTree(root, new int[] { keepCount }, new boolean[] { false });
+    }
+
+    private static Component truncateTree(Component component, int[] remaining, boolean[] ellipsisAppended) {
+        if (remaining[0] <= 0 && ellipsisAppended[0]) {
+            return Component.empty();
+        }
+        Component result = component;
+        if (component instanceof TextComponent text) {
+            String content = text.content();
+            StringBuilder out = new StringBuilder(content.length() + 3);
+            for (int i = 0; i < content.length(); ) {
+                if (remaining[0] <= 0) {
+                    if (!ellipsisAppended[0]) {
+                        out.append("...");
+                        ellipsisAppended[0] = true;
+                    }
+                    break;
+                }
+                int codePoint = content.codePointAt(i);
+                out.appendCodePoint(codePoint);
+                remaining[0]--;
+                i += Character.charCount(codePoint);
+                if (remaining[0] == 0 && !ellipsisAppended[0]) {
+                    out.append("...");
+                    ellipsisAppended[0] = true;
+                }
+            }
+            result = text.content(out.toString());
+        }
+        if (component.children().isEmpty()) {
+            return result;
+        }
+        List<Component> children = new ArrayList<>();
+        for (Component child : component.children()) {
+            if (remaining[0] <= 0 && ellipsisAppended[0]) {
+                break;
+            }
+            children.add(truncateTree(child, remaining, ellipsisAppended));
+        }
+        return result.children(children);
+    }
+
     /** Writes the breaks into the component as line breaks, keeping every style. */
     static Component apply(Component root, Lines laid) {
         if (laid.dropped().isEmpty() && laid.breaksBefore().isEmpty()) {
