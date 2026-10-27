@@ -277,7 +277,7 @@ public class Canvas extends Box<Canvas> {
 
     /** Converts a canvas coordinate {@code (px, py)} into grid coordinates {@code {gx, gy}}, or {@code null}. */
     private int[] toGrid(double px, double py) {
-        Rect content = effectivePadding().shrink(rect());
+        Rect content = effectivePadding().shrink(effectiveBorderWidths().shrink(rect()));
         if (content.width() <= 0 || content.height() <= 0 || !content.contains(px, py)) {
             return null;
         }
@@ -378,7 +378,7 @@ public class Canvas extends Box<Canvas> {
      */
     void sync(dev.horuse.pixelay.data.Canvas surface, Player fallbackViewer, int baseBg, float depth) {
         Player effectiveViewer = viewer != null ? viewer : fallbackViewer;
-        Rect content = effectivePadding().shrink(rect());
+        Rect content = effectivePadding().shrink(effectiveBorderWidths().shrink(rect()));
         Rect clipRect = childClip();
         if (content.width() <= 0 || content.height() <= 0 || (clipRect != null && clipRect.isEmpty())) {
             clearQuads();
