@@ -308,7 +308,7 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         return visible.intersect(new Rect(left, top, widthPx, heightPx)).isEmpty();
     }
 
-    protected final T currentContent() {
+    private T currentContent() {
         T value = content.get();
         return value != null ? value : empty();
     }
@@ -321,15 +321,6 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     }
 
     /**
-     * Optional pitch tilt (radians) applied to the model's normal matrix so that flat models on vertical
-     * canvases catch Minecraft's overhead directional light ({@code Light0_Direction} / {@code Light1_Direction})
-     * instead of being shaded dark at East/West/North/South yaw angles when no custom core shader is active.
-     */
-    protected float normalPitchTiltRad() {
-        return 0f;
-    }
-
-    /**
      * The model fitted into its box. The entity never moves (its yaw and pitch are 0, so the translation is in
      * world axes): the box corner relative to it, plus the model's own offset turned with the canvas.
      */
@@ -337,14 +328,15 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         CanvasResolution res = canvas.resolution();
         float width = (float) ((widthPx * res.blockWidth()) / res.pixelWidth());
         float height = (float) ((heightPx * res.blockHeight()) / res.pixelHeight());
+        // Half a step: the flattened model stays between its own layer and the next one.
         float thickness = Layers.at(0.5, viewer);
-        float tilt = normalPitchTiltRad();
-        float adjHeight = tilt != 0f ? height / (float) Math.cos(tilt) : height;
         Quaternionf rotation = canvas.contentRotation();
         Vector corner = cornerWorld().toVector().subtract(entityPos);
         Vector3f translation = rotation
             .transform(modelOffset(width, height, thickness))
             .add((float) corner.getX(), (float) corner.getY(), (float) corner.getZ());
+        // Clipped away: scaled to nothing, so it comes back in place without a respawn.
+        Vector3f scale = clippedAway() ? new Vector3f() : new Vector3f(width, height, thickness);
         Quaternionf rightRot = modelRotation();
         if (rotateDeg != 0.0) {
             rightRot.rotateZ((float) Math.toRadians(-rotateDeg));
@@ -355,11 +347,6 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         if (rotateYDeg != 0.0) {
             rightRot.rotateY((float) Math.toRadians(rotateYDeg));
         }
-        if (tilt != 0f) {
-            rotation.rotateX(tilt);
-        }
-        // Clipped away: scaled to nothing, so it comes back in place without a respawn.
-        Vector3f scale = clippedAway() ? new Vector3f() : new Vector3f(width, adjHeight, thickness);
         return new Transformation(translation, rotation, scale, rightRot);
     }
 

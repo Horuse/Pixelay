@@ -97,12 +97,7 @@ public class CanvasItem extends CanvasModel<ItemStack> {
     /** An item model is centred on its entity and fills a 1x1 block square in the GUI display, like a slot. */
     @Override
     protected Vector3f modelOffset(float width, float height, float thickness) {
-        return new Vector3f(width / 2, height / 2, 0f);
-    }
-
-    @Override
-    protected float normalPitchTiltRad() {
-        return Pixelay.settings().text().fullBrightness() ? (float) Math.toRadians(-35.0) : 0f;
+        return new Vector3f(width / 2, height / 2, thickness / 2);
     }
 
     @Override
