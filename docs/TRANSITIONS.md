@@ -1,28 +1,33 @@
-# Screen Transitions & 140+ FPS Client Interpolation in Pixelay
+# Screen Transitions & Native Client GPU Interpolation in Pixelay
 
 Pixelay provides two distinct layers of animation and transition technologies:
-1. **140+ FPS Hardware Client Interpolation**: Sub-tick GPU interpolation of transforms (`scale`, `translate`, `rotate`) on Display entities.
+1. **Native Client GPU Interpolation (Unlimited / High-Refresh FPS)**: Sub-tick hardware GPU interpolation of transforms (`scale`, `translate`, `rotate`) on Display entities, running at the player's full monitor refresh rate (60 Hz, 144 Hz, 240 Hz, 360 Hz+).
 2. **Screen Transitions**: Cinematic screen entry and exit transitions (fade, wipe, iris, dissolve) driven by both server-side faders and GLSL core shaders.
 
 ---
 
-## 1. 140+ FPS Client-Side GPU Interpolation
+## 1. Native Client-Side GPU Interpolation (Unlimited FPS)
 
 ### Why Display Entities Normally Stutter at 20 FPS
-In vanilla Minecraft, the server ticks at 20 TPS (50 ms per tick). If a plugin attempts to animate position or size by updating entity metadata on every server tick:
+In vanilla Minecraft, the server ticks at 20 TPS (50 ms per tick). If a plugin attempts to animate position or size by recalculating values and updating entity metadata on every server tick:
 - The server sends intermediate steps at most 20 times per second.
-- On a 60 Hz, 144 Hz, or 240 Hz monitor, the animation appears choppy and stepped, like a 20 FPS slideshow.
+- On a 60 Hz, 144 Hz, 240 Hz, or 360 Hz monitor, the animation appears choppy and stepped, like a 20 FPS slideshow.
 - Setting `transformation_interpolation_duration = 0` forces the client to snap immediately to each packet, completely bypassing the client's internal GPU interpolation engine.
 
-### How Pixelay Achieves 140+ FPS Smoothness
-Minecraft 1.19.4+ Display entities (`TextDisplay`, `ItemDisplay`, `BlockDisplay`) natively support GPU interpolation across render frames:
+### How Pixelay Achieves Monitor-Refresh Smoothness
+Minecraft 1.19.4+ Display entities (`TextDisplay`, `ItemDisplay`, `BlockDisplay`) natively support GPU sub-tick interpolation across render frames:
 1. When a property changes (such as `:hover`, `:selected`, or `.scale(1.04)`), Pixelay calculates the transition duration in ticks:
    $$\text{durationTicks} = \max\left(1, \operatorname{round}\left(\frac{\text{durationMs}}{50}\right)\right)$$
 2. Instead of recalculating intermediate steps on the server every tick, Pixelay immediately sends the **final target transformation matrix** with:
    - `transformation_interpolation_duration` = `durationTicks`
    - `transformation_start_delta` = `0`
 3. The Minecraft client's `DisplayRenderer` interpolates between the current transformation matrix and target matrix on **every single video frame rendered by the GPU** using `partialTicks`.
-4. On a 144 Hz monitor, a 200 ms (4-tick) transition renders **~29 smooth frames** with zero network overhead and zero server CPU load during the animation.
+4. The frame rate is completely **uncapped** and matches the player's monitor:
+   - **60 Hz**: ~12 interpolated frames for a 200 ms transition
+   - **144 Hz**: ~29 interpolated frames
+   - **240 Hz**: ~48 interpolated frames
+   - **360 Hz**: ~72 interpolated frames
+   All rendered on the GPU with zero network overhead and zero server CPU load during the animation.
 
 ### How to Use Transitions in Pixelay Layouts
 
