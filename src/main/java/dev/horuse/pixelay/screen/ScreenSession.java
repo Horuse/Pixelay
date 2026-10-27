@@ -206,6 +206,7 @@ public final class ScreenSession {
         scale = shaderCursor != null ? shaderScale() : clampScale(options.scale());
         canvas = new Canvas(canvasCenter, canvasYaw(), resolution(scale));
         content = options.content().apply(canvas);
+        content.viewer(player);
         content.spawn(canvas);
         Pixelay.manager().register(surface);
 
@@ -263,9 +264,12 @@ public final class ScreenSession {
             dragging.dragTo(cursorY);
         }
 
+        dev.horuse.pixelay.layout.Canvas drawingCanvas = layout.activeDrawingCanvas();
+        boolean painted = drawingCanvas != null && drawingCanvas.dragTo(cursorX, cursorY, player);
+
         boolean animatedScroll = layout.tickScroll();
         boolean animatedTransition = layout.tickTransitions();
-        if (animatedScroll || animatedTransition || scroll != 0 || dragging != null) {
+        if (animatedScroll || animatedTransition || scroll != 0 || dragging != null || painted) {
             layout.refresh();
         }
 
@@ -414,6 +418,7 @@ public final class ScreenSession {
         content.pointerLeft(player);
         content.despawn();
         content = layout;
+        content.viewer(player);
         content.spawn(canvas);
     }
 
@@ -652,7 +657,7 @@ public final class ScreenSession {
 
         private final Player player;
         private Location camera;
-        private double distance = 3;
+        private double distance = 1.5;
         private double pixelWidth = 1920;
         private double pixelHeight = 1080;
         private double verticalFov = 70;
@@ -682,7 +687,7 @@ public final class ScreenSession {
             return this;
         }
 
-        /** Blocks between the camera and the canvas (default 3). Keep the space between them free of blocks. */
+        /** Blocks between the camera and the canvas (default 1.5). Keep the space between them free of blocks. */
         public Builder distance(double blocks) {
             this.distance = blocks;
             return this;
@@ -701,9 +706,18 @@ public final class ScreenSession {
             return this;
         }
 
-        /** The UI, built once for the session's canvas (use fake components for {@code player}). */
-        public Builder content(Function<Canvas, MountedLayout> factory) {
-            this.content = factory;
+        /** The UI, built once for the session's canvas (accepts any {@link dev.horuse.pixelay.layout.Box} or {@link MountedLayout}). */
+        public Builder content(Function<Canvas, ? extends dev.horuse.pixelay.components.CanvasComponent> factory) {
+            this.content = canvas -> {
+                dev.horuse.pixelay.components.CanvasComponent comp = factory.apply(canvas);
+                if (comp instanceof MountedLayout mounted) {
+                    return mounted;
+                }
+                if (comp instanceof dev.horuse.pixelay.layout.Box<?> box) {
+                    return dev.horuse.pixelay.layout.Layout.mount(box);
+                }
+                throw new IllegalArgumentException("Unsupported ScreenSession content: " + comp);
+            };
             return this;
         }
 

@@ -1,9 +1,7 @@
 package dev.horuse.pixelay.layout;
 
-import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -23,8 +21,8 @@ public class ScrollView extends Container<ScrollView> {
     }
 
     private final Box<?> content;
-    private final ScrollbarElement track = new ScrollbarElement();
-    private final ScrollbarElement thumb = new ScrollbarElement();
+    private final Box<?> track = new Box<>();
+    private final Box<?> thumb = new Box<>();
 
     private double scrollOffset;
     private double targetScrollOffset;
@@ -110,6 +108,11 @@ public class ScrollView extends Container<ScrollView> {
     }
 
     @Override
+    public String tagName() {
+        return "scroll-view";
+    }
+
+    @Override
     public ScrollView gap(double gap) {
         if (content instanceof Flex flex) {
             flex.gap(gap);
@@ -136,14 +139,26 @@ public class ScrollView extends Container<ScrollView> {
         return this;
     }
 
+    public double scrollbarWidth() {
+        return scrollbarWidth;
+    }
+
     public ScrollView scrollbarMargin(double margin) {
         this.scrollbarMargin = Math.max(0, margin);
         return this;
     }
 
+    public double scrollbarMargin() {
+        return scrollbarMargin;
+    }
+
     public ScrollView minThumbSize(double size) {
         this.minThumbSize = Math.max(4, size);
         return this;
+    }
+
+    public double minThumbSize() {
+        return minThumbSize;
     }
 
     public ScrollView scrollStep(double px) {
@@ -160,9 +175,17 @@ public class ScrollView extends Container<ScrollView> {
         return this;
     }
 
+    public boolean isSmooth() {
+        return smooth;
+    }
+
     public ScrollView scrollbar(ScrollbarPolicy policy) {
         this.scrollbarPolicy = policy;
         return this;
+    }
+
+    public ScrollbarPolicy scrollbarPolicy() {
+        return scrollbarPolicy;
     }
 
     public ScrollView scrollbar(boolean visible) {
@@ -175,6 +198,10 @@ public class ScrollView extends Container<ScrollView> {
         return this;
     }
 
+    public int trackColor() {
+        return trackColor;
+    }
+
     public ScrollView thumbColor(int argb) {
         this.thumbColor = argb;
         if (!dragging) {
@@ -183,10 +210,18 @@ public class ScrollView extends Container<ScrollView> {
         return this;
     }
 
+    public int thumbColor() {
+        return thumbColor;
+    }
+
     public ScrollView thumbHoverColor(int argb) {
         this.thumbHoverColor = argb;
         thumb.state(State.HOVERED, s -> s.background(argb));
         return this;
+    }
+
+    public int thumbHoverColor() {
+        return thumbHoverColor;
     }
 
     public ScrollView thumbDragColor(int argb) {
@@ -195,6 +230,10 @@ public class ScrollView extends Container<ScrollView> {
             thumb.background(argb);
         }
         return this;
+    }
+
+    public int thumbDragColor() {
+        return thumbDragColor;
     }
 
     public ScrollView onScroll(Consumer<ScrollView> listener) {
@@ -336,8 +375,7 @@ public class ScrollView extends Container<ScrollView> {
         double available = maxWidth >= 0 ? Math.max(0, maxWidth - gutter) : UNBOUNDED;
         Size contentSize = content.measure(available);
         double width = contentSize.width() + gutter;
-        double height = hasFixedHeight() ? rect().height() : contentSize.height();
-        return new Size(width, height);
+        return new Size(width, contentSize.height());
     }
 
     @Override
@@ -351,10 +389,25 @@ public class ScrollView extends Container<ScrollView> {
         this.viewportHeight = viewport.height();
         this.viewportWidth = viewport.width();
 
-        boolean showBar = hasScrollbar();
-        double gutter = showBar ? scrollbarWidth + scrollbarMargin : 0;
-        double contentW = Math.max(0, viewport.width() - gutter);
-        Size contentSize = content.measure(contentW);
+        boolean showBar = scrollbarPolicy == ScrollbarPolicy.ALWAYS;
+        Size contentSize;
+        double contentW;
+        if (scrollbarPolicy == ScrollbarPolicy.AUTO) {
+            Size initial = content.measure(Math.max(0, viewport.width()));
+            if (initial.height() > viewport.height()) {
+                showBar = true;
+                double gutter = scrollbarWidth + scrollbarMargin;
+                contentW = Math.max(0, viewport.width() - gutter);
+                contentSize = content.measure(contentW);
+            } else {
+                contentW = Math.max(0, viewport.width());
+                contentSize = initial;
+            }
+        } else {
+            double gutter = showBar ? scrollbarWidth + scrollbarMargin : 0;
+            contentW = Math.max(0, viewport.width() - gutter);
+            contentSize = content.measure(contentW);
+        }
         this.contentHeight = contentSize.height();
         this.contentWidth = contentSize.width();
 
@@ -384,24 +437,5 @@ public class ScrollView extends Container<ScrollView> {
             track.arrange(new Rect(viewport.right(), viewport.y(), 0, 0), false);
             thumb.arrange(new Rect(viewport.right(), viewport.y(), 0, 0), false);
         }
-    }
-
-    private static final class ScrollbarElement extends Box<ScrollbarElement> {
-
-        @Override
-        protected Size measureContent(double maxWidth) {
-            return Size.ZERO;
-        }
-
-        @Override
-        protected double minContentWidth() {
-            return 0;
-        }
-
-        @Override
-        protected void arrangeContent(Rect content) {}
-
-        @Override
-        protected void collectComponents(List<LayoutComponent> out) {}
     }
 }

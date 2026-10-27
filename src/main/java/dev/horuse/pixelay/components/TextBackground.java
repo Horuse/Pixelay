@@ -34,6 +34,11 @@ public final class TextBackground {
     private int color;
     private Rect box;
     private float lastDepth;
+    private double lastRotateDeg;
+    private double lastRotateXDeg;
+    private double lastRotateYDeg;
+    private double lastPivotX = Double.NaN;
+    private double lastPivotY = Double.NaN;
 
     /** @param viewer the only player who sees the panel, or {@code null} for a server entity everyone sees */
     public TextBackground(Player viewer) {
@@ -64,12 +69,44 @@ public final class TextBackground {
      * remove it.
      */
     public void sync(Canvas canvas, Rect bounds, int argb, float depth) {
+        sync(canvas, bounds, argb, depth, 0.0, 0.0, 0.0, Double.NaN, Double.NaN);
+    }
+
+    public void sync(
+        Canvas canvas,
+        Rect bounds,
+        int argb,
+        float depth,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg
+    ) {
+        sync(canvas, bounds, argb, depth, rotateDeg, rotateXDeg, rotateYDeg, Double.NaN, Double.NaN);
+    }
+
+    public void sync(
+        Canvas canvas,
+        Rect bounds,
+        int argb,
+        float depth,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg,
+        double pivotX,
+        double pivotY
+    ) {
         boolean empty = bounds == null || bounds.width() <= 0 || bounds.height() <= 0 || argb >>> 24 == 0;
         if (empty) {
             remove();
             return;
         }
-        if (exists() && bounds.equals(box) && depth == lastDepth) {
+        boolean sameRot =
+            Math.abs(rotateDeg - lastRotateDeg) < 1e-3 &&
+            Math.abs(rotateXDeg - lastRotateXDeg) < 1e-3 &&
+            Math.abs(rotateYDeg - lastRotateYDeg) < 1e-3 &&
+            (Math.abs(rotateDeg) < 1e-3 ||
+                (Math.abs(pivotX - lastPivotX) < 1e-2 && Math.abs(pivotY - lastPivotY) < 1e-2));
+        if (exists() && bounds.equals(box) && depth == lastDepth && sameRot) {
             if (argb != color) {
                 if (viewer != null) {
                     ColorPanel.updateColor(viewer, fakeId, argb);
@@ -80,40 +117,69 @@ public final class TextBackground {
             }
             return;
         }
-        if (exists() && argb != color) {
-            remove();
-        }
         double x = bounds.x();
         double y = bounds.y();
         double width = bounds.width();
         double height = bounds.height();
-        Location origin = ColorPanel.origin(canvas, x, y, width, height, depth);
+        Location origin = ColorPanel.origin(canvas, x, y, width, height, depth, rotateDeg, pivotX, pivotY);
+        Quaternionf rotation = ColorPanel.rotated(canvas.contentRotation(), rotateDeg, rotateXDeg, rotateYDeg);
         if (viewer != null) {
             if (fakeId == 0) {
                 fakeOrigin = origin.toVector();
-                fakeId = ColorPanel.spawn(viewer, canvas, x, y, width, height, argb, depth);
+                fakeId = ColorPanel.spawn(
+                    viewer,
+                    canvas,
+                    x,
+                    y,
+                    width,
+                    height,
+                    argb,
+                    depth,
+                    rotateDeg,
+                    rotateXDeg,
+                    rotateYDeg,
+                    pivotX,
+                    pivotY
+                );
             } else {
                 org.bukkit.util.Vector translation = origin.toVector().subtract(fakeOrigin);
-                ColorPanel.update(viewer, fakeId, canvas, width, height, translation);
+                ColorPanel.update(
+                    viewer,
+                    fakeId,
+                    canvas,
+                    width,
+                    height,
+                    translation,
+                    rotation,
+                    argb != color ? argb : null
+                );
             }
         } else {
             Vector3f scale = toJoml(ColorPanel.scale(canvas, width, height));
             if (entity == null) {
-                entity = DisplayUtils.spawnText(origin, Component.text(" "), canvas.contentRotation(), 1f);
+                entity = DisplayUtils.spawnText(origin, Component.text(" "), rotation, 1f);
                 entity.setBackgroundColor(Color.fromARGB(argb));
                 entity.setViewRange(Pixelay.settings().text().viewRange());
                 entity.setBrightness(new Display.Brightness(15, 15));
                 DisplayUtils.tag(entity);
             } else {
                 entity.teleport(origin);
+                if (argb != color) {
+                    entity.setBackgroundColor(Color.fromARGB(argb));
+                }
             }
             entity.setTransformation(
-                new Transformation(new Vector3f(), new Quaternionf(canvas.contentRotation()), scale, new Quaternionf())
+                new Transformation(new Vector3f(), new Quaternionf(rotation), scale, new Quaternionf())
             );
         }
         color = argb;
         box = bounds;
         lastDepth = depth;
+        lastRotateDeg = rotateDeg;
+        lastRotateXDeg = rotateXDeg;
+        lastRotateYDeg = rotateYDeg;
+        lastPivotX = pivotX;
+        lastPivotY = pivotY;
     }
 
     public void remove() {

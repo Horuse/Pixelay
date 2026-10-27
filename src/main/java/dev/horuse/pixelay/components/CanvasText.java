@@ -12,7 +12,7 @@ import org.bukkit.entity.Player;
  */
 public class CanvasText extends AbstractCanvasComponent {
 
-    private final TextContent content;
+    private volatile TextContent content;
 
     /** A label drawn with real entities seen by everyone. */
     public CanvasText(double pixelX, double pixelY, double heightPx, TextContent content) {
@@ -48,10 +48,29 @@ public class CanvasText extends AbstractCanvasComponent {
         return new CanvasText(pixelX, pixelY, heightPx, content, drawable -> new FakeRenderer(viewer, drawable));
     }
 
+    /** Switches this text to packet-only rendering for {@code viewer} if it currently has no viewer. */
+    public void bindViewer(Player viewer) {
+        if (viewer != null && renderer.viewer() == null) {
+            renderer = new FakeRenderer(viewer, this);
+        }
+    }
+
+    @Override
+    public void setContent(TextContent content) {
+        if (content != null) {
+            this.content = content;
+        }
+    }
+
     @Override
     public String renderText() {
         TextContent override = textOverride();
-        return override != null ? override.render() : content.render();
+        String raw = override != null ? override.render() : content.render();
+        int ellipsisLimit = ellipsisWidthFontPx();
+        if (ellipsisLimit > 0) {
+            return dev.horuse.pixelay.content.FontMetrics.truncateEllipsis(raw, ellipsisLimit);
+        }
+        return raw;
     }
 
     /** Parses component text as MiniMessage — the single markup format used by canvas content. */

@@ -5,6 +5,7 @@
 #moj_import <minecraft:projection.glsl>
 #moj_import <minecraft:globals.glsl>
 #moj_import <minecraft:pixelay_state.glsl>
+#moj_import <minecraft:pixelay_lighting.glsl>
 
 in vec3 Position;
 in vec4 Color;
@@ -30,6 +31,6 @@ void main() {
 
     sphericalVertexDistance = fog_spherical_distance(pos);
     cylindricalVertexDistance = fog_cylindrical_distance(pos);
-    vertexColor = Color * minecraft_sample_lightmap(Sampler2, UV2);
+    vertexColor = pixelay_is_full_brightness(UV2) ? Color : Color * minecraft_sample_lightmap(Sampler2, UV2);
     texCoord0 = UV0;
 }

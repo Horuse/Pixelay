@@ -48,8 +48,17 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     private volatile TextWrap textWrap = TextWrap.NORMAL;
     /** Text replacing the component's own one (a state style), or {@code null}. */
     private volatile TextContent textOverride;
+    /** Maximum width in font px before single-line ellipsis truncation ({@code <= 0} = disabled). */
+    private volatile int ellipsisWidthFontPx;
     /** Where a layout lets the element draw, or {@code null} outside layouts (the canvas then). */
     private volatile Rect layoutClip;
+    private volatile double visualScaleX = 1.0;
+    private volatile double visualScaleY = 1.0;
+    private volatile double rotateDeg;
+    private volatile double rotateXDeg;
+    private volatile double rotateYDeg;
+    private volatile double rotatePivotX = Double.NaN;
+    private volatile double rotatePivotY = Double.NaN;
 
     protected AbstractCanvasComponent(double pixelX, double pixelY, double heightPx) {
         this.pixelX = pixelX;
@@ -189,6 +198,18 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         return textOverride;
     }
 
+    @ApiStatus.Internal
+    public void setEllipsisWidthFontPx(int fontPx) {
+        if (this.ellipsisWidthFontPx != fontPx) {
+            this.ellipsisWidthFontPx = fontPx;
+            layoutVersion++;
+        }
+    }
+
+    protected int ellipsisWidthFontPx() {
+        return ellipsisWidthFontPx;
+    }
+
     @Override
     @ApiStatus.Internal
     public void setHovered(boolean hovered) {
@@ -261,6 +282,17 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         return heightPx;
     }
 
+    /** Updates the rendered font height in canvas pixels (CSS {@code font-size}). */
+    public void setHeightPx(double heightPx) {
+        if (this.heightPx != heightPx) {
+            this.heightPx = heightPx;
+            layoutVersion++;
+        }
+    }
+
+    /** Updates the primary text content of this component. */
+    public void setContent(TextContent content) {}
+
     @Override
     public HAlign hAlign() {
         return hAlign;
@@ -284,5 +316,71 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     @Override
     public Consumer<Player> onClick() {
         return null;
+    }
+
+    @ApiStatus.Internal
+    public void setVisualTransform(
+        double scaleX,
+        double scaleY,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg,
+        double pivotX,
+        double pivotY
+    ) {
+        if (
+            Math.abs(this.visualScaleX - scaleX) < 1e-4 &&
+            Math.abs(this.visualScaleY - scaleY) < 1e-4 &&
+            Math.abs(this.rotateDeg - rotateDeg) < 1e-3 &&
+            Math.abs(this.rotateXDeg - rotateXDeg) < 1e-3 &&
+            Math.abs(this.rotateYDeg - rotateYDeg) < 1e-3 &&
+            (Math.abs(rotateDeg) < 1e-3 ||
+                (Math.abs(this.rotatePivotX - pivotX) < 1e-2 && Math.abs(this.rotatePivotY - pivotY) < 1e-2))
+        ) {
+            return;
+        }
+        this.visualScaleX = scaleX;
+        this.visualScaleY = scaleY;
+        this.rotateDeg = rotateDeg;
+        this.rotateXDeg = rotateXDeg;
+        this.rotateYDeg = rotateYDeg;
+        this.rotatePivotX = pivotX;
+        this.rotatePivotY = pivotY;
+        layoutVersion++;
+    }
+
+    @Override
+    public double visualScaleX() {
+        return visualScaleX;
+    }
+
+    @Override
+    public double visualScaleY() {
+        return visualScaleY;
+    }
+
+    @Override
+    public double rotateDeg() {
+        return rotateDeg;
+    }
+
+    @Override
+    public double rotateXDeg() {
+        return rotateXDeg;
+    }
+
+    @Override
+    public double rotateYDeg() {
+        return rotateYDeg;
+    }
+
+    @Override
+    public double rotatePivotX() {
+        return rotatePivotX;
+    }
+
+    @Override
+    public double rotatePivotY() {
+        return rotatePivotY;
     }
 }

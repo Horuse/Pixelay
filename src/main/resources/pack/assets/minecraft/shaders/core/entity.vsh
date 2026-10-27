@@ -6,6 +6,7 @@
 #moj_import <minecraft:projection.glsl>
 #moj_import <minecraft:globals.glsl>
 #moj_import <minecraft:pixelay_state.glsl>
+#moj_import <minecraft:pixelay_lighting.glsl>
 
 in vec3 Position;
 in vec4 Color;
@@ -37,16 +38,16 @@ void main() {
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
 
 #ifdef PER_FACE_LIGHTING
-    vec2 light = minecraft_compute_light(Light0_Direction, Light1_Direction, Normal);
+    vec2 light = pixelay_is_full_brightness(UV2) ? vec2(1.0) : minecraft_compute_light(Light0_Direction, Light1_Direction, Normal);
     vertexPerFaceColorBack = minecraft_mix_light_separate(-light, Color);
     vertexPerFaceColorFront = minecraft_mix_light_separate(light, Color);
 #elif defined(NO_CARDINAL_LIGHTING)
     vertexColor = Color;
 #else
-    vertexColor = minecraft_mix_light(Light0_Direction, Light1_Direction, Normal, Color);
+    vertexColor = pixelay_is_full_brightness(UV2) ? Color : minecraft_mix_light(Light0_Direction, Light1_Direction, Normal, Color);
 #endif
 #ifndef EMISSIVE
-    lightMapColor = texelFetch(Sampler2, UV2 / 16, 0);
+    lightMapColor = pixelay_is_full_brightness(UV2) ? vec4(1.0) : texelFetch(Sampler2, UV2 / 16, 0);
 #endif
     overlayColor = texelFetch(Sampler1, UV1, 0);
 

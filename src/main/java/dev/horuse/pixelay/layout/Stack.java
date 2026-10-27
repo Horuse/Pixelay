@@ -9,15 +9,20 @@ import dev.horuse.pixelay.data.Size;
  */
 public final class Stack extends Container<Stack> {
 
-    Stack(LayoutItem... items) {
+    public Stack(LayoutItem... items) {
         super(items);
+    }
+
+    @Override
+    public String tagName() {
+        return "stack";
     }
 
     @Override
     protected Size measureContent(double maxWidth) {
         double width = 0;
         double height = 0;
-        for (Box<?> child : children) {
+        for (Box<?> child : flowChildren()) {
             Size size = child.outer(maxWidth);
             width = Math.max(width, size.width());
             height = Math.max(height, size.height());
@@ -32,18 +37,33 @@ public final class Stack extends Container<Stack> {
 
     @Override
     protected void arrangeContent(Rect content) {
-        for (Box<?> child : children) {
+        double sx = visualScaleX();
+        double sy = visualScaleY();
+        Rect unscaledContent = new Rect(
+            content.x(),
+            content.y(),
+            sx > 1e-4 ? content.width() / sx : content.width(),
+            sy > 1e-4 ? content.height() / sy : content.height()
+        );
+        for (Box<?> child : flowChildren()) {
             Align horizontal = child.justifySelf != null ? child.justifySelf : Align.STRETCH;
             Align vertical = child.alignSelf != null ? child.alignSelf : Align.STRETCH;
             Rect area = Align.place(
-                content,
-                child.outer(content.width()),
+                unscaledContent,
+                child.outer(unscaledContent.width()),
                 horizontal,
                 vertical,
                 horizontal == Align.STRETCH && !child.hasFixedWidth(),
                 vertical == Align.STRETCH && !child.hasFixedHeight()
             );
-            child.arrange(child.effectiveMargin().shrink(area), overflowsHere());
+            Rect unscaledSlot = child.effectiveMargin().shrink(area);
+            Rect scaledSlot = new Rect(
+                content.x() + (unscaledSlot.x() - content.x()) * sx,
+                content.y() + (unscaledSlot.y() - content.y()) * sy,
+                unscaledSlot.width() * sx,
+                unscaledSlot.height() * sy
+            );
+            arrangeChild(child, scaledSlot, overflowsHere());
         }
     }
 }

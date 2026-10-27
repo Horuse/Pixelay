@@ -66,14 +66,32 @@ public class FakeRenderer extends TextRenderer {
         entityPos = at.toVector();
         translation = new Vector();
         PacketUtils.spawnEntity(viewer, entityId, EntityTypes.TEXT_DISPLAY, at.getX(), at.getY(), at.getZ());
-        float scale = canvas.scaleForHeightPx(drawable.heightPx());
-        PacketUtils.send(viewer, new WrapperPlayServerEntityMetadata(entityId, metadata(placement.component(), scale)));
+        float baseScale = canvas.scaleForHeightPx(drawable.heightPx());
+        Vector3f scaleVec = new Vector3f(
+            (float) (baseScale * drawable.visualScaleX()),
+            (float) (baseScale * drawable.visualScaleY()),
+            baseScale
+        );
+        PacketUtils.send(
+            viewer,
+            new WrapperPlayServerEntityMetadata(
+                entityId,
+                metadata(placement.component(), scaleVec, effectiveRotation())
+            )
+        );
     }
 
     @Override
     protected void updateEntity(TextPlacement.Placement placement, Location at) {
         translation = at.toVector().subtract(entityPos);
         PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
+        float baseScale = canvas.scaleForHeightPx(drawable.heightPx());
+        Vector3f scaleVec = new Vector3f(
+            (float) (baseScale * drawable.visualScaleX()),
+            (float) (baseScale * drawable.visualScaleY()),
+            baseScale
+        );
+        Quaternionf rot = effectiveRotation();
         // Text and position go in ONE metadata packet: a separate teleport + metadata pair lets the
         // client render a frame with the new text at the old position (visible as a jerk).
         PacketUtils.send(
@@ -88,6 +106,12 @@ public class FakeRenderer extends TextRenderer {
                     new EntityData<>(idx.textOpacity(), EntityDataTypes.BYTE, textOpacity()),
                     // The alignment presses multi-line text left/right; it may have changed since the spawn.
                     new EntityData<>(idx.styleFlags(), EntityDataTypes.BYTE, styleFlags(Pixelay.settings().text())),
+                    new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scaleVec),
+                    new EntityData<>(
+                        idx.leftRotation(),
+                        EntityDataTypes.QUATERNION,
+                        new Quaternion4f(rot.x, rot.y, rot.z, rot.w)
+                    ),
                     new EntityData<>(
                         idx.translation(),
                         EntityDataTypes.VECTOR3F,
@@ -96,6 +120,20 @@ public class FakeRenderer extends TextRenderer {
                 )
             )
         );
+    }
+
+    private Quaternionf effectiveRotation() {
+        Quaternionf rot = new Quaternionf(canvas.contentRotation());
+        if (drawable.rotateDeg() != 0.0) {
+            rot.rotateZ((float) Math.toRadians(-drawable.rotateDeg()));
+        }
+        if (drawable.rotateXDeg() != 0.0) {
+            rot.rotateX((float) Math.toRadians(drawable.rotateXDeg()));
+        }
+        if (drawable.rotateYDeg() != 0.0) {
+            rot.rotateY((float) Math.toRadians(drawable.rotateYDeg()));
+        }
+        return rot;
     }
 
     @Override
@@ -133,17 +171,16 @@ public class FakeRenderer extends TextRenderer {
         );
     }
 
-    private List<EntityData<?>> metadata(Component text, float scale) {
+    private List<EntityData<?>> metadata(Component text, Vector3f scale, Quaternionf rotation) {
         PixelaySettings.Text style = Pixelay.settings().text();
         PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
-        Quaternionf rotation = canvas.contentRotation();
         List<EntityData<?>> data = new ArrayList<>();
         data.add(new EntityData<>(0, EntityDataTypes.BYTE, (byte) 0)); // entity flags
         data.add(new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0));
         data.add(new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0));
         data.add(new EntityData<>(idx.positionInterpolationDuration(), EntityDataTypes.INT, 0));
         data.add(new EntityData<>(idx.translation(), EntityDataTypes.VECTOR3F, new Vector3f(0f, 0f, 0f)));
-        data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, new Vector3f(scale, scale, scale)));
+        data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale));
         data.add(
             new EntityData<>(
                 idx.leftRotation(),

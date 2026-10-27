@@ -17,26 +17,27 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 /**
- * Layout debug panels ({@code /pixelay debug layout}): every container, spacer and click zone of a
- * mounted layout is drawn as a translucent coloured panel — a fake TextDisplay holding a single space
- * whose background is stretched to the box — visible only to debugging players near the canvas.
- * Panels are re-sent only when the layout changes.
+ * Layout debug wireframe overlay ({@code /pixelay debug layout}): draws crisp 100% opaque wireframe
+ * outlines (top/right/bottom/left edges) IN FRONT OF all backgrounds and text, so container hierarchy,
+ * spacers, click zones, and overflow errors are clearly visible even over dark/opaque UI surfaces.
  */
 final class DebugOverlay {
 
     private static final double VIEW_DISTANCE = 64;
+    private static final double WIRE_THICKNESS = 2.0;
 
-    /** Half a step under the box: above what is painted before it, under its own background and text. */
+    /** Sits above the box's background and text so opaque backgrounds never hide debug outlines. */
     private static float depthOf(Box<?> box, Player viewer) {
-        return Layers.at(box.paintStep - 0.5, viewer);
+        return Layers.at(box.paintEnd + 0.5, viewer);
     }
 
-    static final int ROW = 0x403399FF;
-    static final int COLUMN = 0x4033DD44;
-    static final int GRID = 0x40AA44FF;
-    static final int STACK = 0x40888888;
-    static final int SPACER = 0x40FFFFFF;
-    static final int CLICK = 0x55FFDD00;
+    static final int ROW = 0xFF38BDF8;
+    static final int COLUMN = 0xFFA3E635;
+    static final int GRID = 0xFFC084FC;
+    static final int STACK = 0xFF94A3B8;
+    static final int SPACER = 0xFFF8FAFC;
+    static final int CLICK = 0xFFFACC15;
+    static final int OVERFLOW = 0xFFEF4444;
 
     private record Panel(Rect rect, int color, float depth) {}
 
@@ -133,18 +134,36 @@ final class DebugOverlay {
     }
 
     private static void collect(Box<?> box, List<Panel> panels, Player viewer) {
-        int color = colorOf(box);
+        if (box.isHidden()) {
+            return;
+        }
+        int color = box.fit() == dev.horuse.pixelay.debug.Fit.SELF ? OVERFLOW : colorOf(box);
+        float depth = depthOf(box, viewer);
         if (color != 0) {
-            panels.add(new Panel(box.rect(), color, depthOf(box, viewer)));
+            addWireframe(panels, box.rect(), color, depth, WIRE_THICKNESS);
         }
         if (box.effectiveOnClick() != null) {
-            panels.add(new Panel(box.rect(), CLICK, depthOf(box, viewer)));
+            addWireframe(panels, Insets.all(WIRE_THICKNESS).shrink(box.rect()), CLICK, depth + 0.0005f, WIRE_THICKNESS);
         }
         if (box instanceof Container<?> container) {
             for (Box<?> child : container.children) {
                 collect(child, panels, viewer);
             }
         }
+    }
+
+    private static void addWireframe(List<Panel> panels, Rect r, int color, float depth, double t) {
+        if (r.width() <= 0 || r.height() <= 0) {
+            return;
+        }
+        double hBar = Math.min(t, r.height());
+        double vBar = Math.min(t, r.width());
+        double midH = Math.max(0, r.height() - 2 * hBar);
+        // Top, Bottom, Left, Right wireframe edges
+        panels.add(new Panel(new Rect(r.x(), r.y(), r.width(), hBar), color, depth));
+        panels.add(new Panel(new Rect(r.x(), Math.max(r.y(), r.bottom() - hBar), r.width(), hBar), color, depth));
+        panels.add(new Panel(new Rect(r.x(), r.y() + hBar, vBar, midH), color, depth));
+        panels.add(new Panel(new Rect(Math.max(r.x(), r.right() - vBar), r.y() + hBar, vBar, midH), color, depth));
     }
 
     private static int colorOf(Box<?> box) {

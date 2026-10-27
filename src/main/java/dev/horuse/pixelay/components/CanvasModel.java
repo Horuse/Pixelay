@@ -48,8 +48,8 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     private static final int NO_BRIGHTNESS_OVERRIDE = -1;
     private static final byte BILLBOARD_FIXED = 0;
 
-    private final Player viewer;
-    private final boolean fake;
+    private Player viewer;
+    private boolean fake;
     private final Supplier<T> content;
     private final double naturalWidthPx;
     private final double naturalHeightPx;
@@ -63,6 +63,9 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     private volatile boolean hovered;
     /** Where a layout lets the model draw, or {@code null} outside layouts (the canvas then). */
     private volatile Rect clip;
+    private volatile double rotateDeg;
+    private volatile double rotateXDeg;
+    private volatile double rotateYDeg;
 
     private Canvas canvas;
     private Display display;
@@ -214,6 +217,14 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         return fake ? fakeId != 0 : display != null && display.isValid();
     }
 
+    /** Switches this model to packet-only rendering for {@code viewer} if it currently has no viewer. */
+    public void bindViewer(Player viewer) {
+        if (viewer != null && this.viewer == null) {
+            this.viewer = viewer;
+            this.fake = true;
+        }
+    }
+
     @Override
     public Player viewer() {
         return viewer;
@@ -253,6 +264,13 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         this.heightPx = height;
         this.hAlign = HAlign.LEFT;
         this.vAlign = VAlign.TOP;
+    }
+
+    @ApiStatus.Internal
+    public void setVisualRotation(double rotateDeg, double rotateXDeg, double rotateYDeg) {
+        this.rotateDeg = rotateDeg;
+        this.rotateXDeg = rotateXDeg;
+        this.rotateYDeg = rotateYDeg;
     }
 
     @Override
@@ -319,7 +337,17 @@ public abstract class CanvasModel<T> implements LayoutComponent {
             .add((float) corner.getX(), (float) corner.getY(), (float) corner.getZ());
         // Clipped away: scaled to nothing, so it comes back in place without a respawn.
         Vector3f scale = clippedAway() ? new Vector3f() : new Vector3f(width, height, thickness);
-        return new Transformation(translation, rotation, scale, modelRotation());
+        Quaternionf rightRot = modelRotation();
+        if (rotateDeg != 0.0) {
+            rightRot.rotateZ((float) Math.toRadians(-rotateDeg));
+        }
+        if (rotateXDeg != 0.0) {
+            rightRot.rotateX((float) Math.toRadians(rotateXDeg));
+        }
+        if (rotateYDeg != 0.0) {
+            rightRot.rotateY((float) Math.toRadians(rotateYDeg));
+        }
+        return new Transformation(translation, rotation, scale, rightRot);
     }
 
     /** Metadata set once at spawn. */

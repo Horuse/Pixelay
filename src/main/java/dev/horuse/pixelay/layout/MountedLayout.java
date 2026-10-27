@@ -3,19 +3,18 @@ package dev.horuse.pixelay.layout;
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.clicks.ClickTarget;
+import dev.horuse.pixelay.components.AbstractCanvasComponent;
 import dev.horuse.pixelay.components.CanvasComponent;
 import dev.horuse.pixelay.components.LayoutComponent;
 import dev.horuse.pixelay.components.TextBackground;
-import dev.horuse.pixelay.data.Canvas;
-import dev.horuse.pixelay.data.HAlign;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
-import dev.horuse.pixelay.data.VAlign;
 import dev.horuse.pixelay.screen.ScreenSession;
 import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,32 +37,24 @@ public final class MountedLayout implements CanvasComponent {
     private final Box<?> root;
     private final List<LayoutComponent> components = new ArrayList<>();
     private final List<Box<?>> boxes = new ArrayList<>();
-    private Canvas canvas;
+    private dev.horuse.pixelay.data.Canvas canvas;
     private final DebugOverlay debugOverlay = new DebugOverlay();
     private BukkitTask transitionTask;
     /** Panels of boxes with a {@link Box#background}, by box. */
     private final Map<Box<?>, TextBackground> backgrounds = new IdentityHashMap<>();
+    /** Border edge panels (top, right, bottom, left) of boxes with a {@link Box#border}, by box. */
+    private final Map<Box<?>, TextBackground[]> borders = new IdentityHashMap<>();
     private final Map<Box<?>, Integer> compositedColors = new IdentityHashMap<>();
     private final ClickTarget clickTarget = this::click;
+    private Player explicitViewer;
     private Player clickViewer;
     private boolean stepsWarned;
-    private boolean anchorsWarned;
     private boolean textWithoutTextWarned;
     /** Parent of every box, to give :hover to the ancestors of the hovered box. */
     private final Map<Box<?>, Box<?>> parents = new IdentityHashMap<>();
 
-    /** Where a layout mounted with {@link Layout#mountAt} is pinned; {@code null} = fill the canvas. */
-    record Placement(double x, double y, HAlign h, VAlign v) {}
-
-    private final Placement placement;
-
-    MountedLayout(Box<?> root) {
-        this(root, null);
-    }
-
-    MountedLayout(Box<?> root, Placement placement) {
+    public MountedLayout(Box<?> root) {
         this.root = root;
-        this.placement = placement;
         root.collectComponents(components);
         root.collectBoxes(boxes);
         mapParents(root);
@@ -82,21 +73,43 @@ public final class MountedLayout implements CanvasComponent {
         return root;
     }
 
+    /** Explicitly binds this mounted layout to a single viewer player (used when the tree has no text leaves). */
+    public MountedLayout viewer(Player viewer) {
+        this.explicitViewer = viewer;
+        if (viewer != null) {
+            for (Box<?> box : boxes) {
+                box.bindViewer(viewer);
+            }
+        }
+        return this;
+    }
+
     public List<LayoutComponent> components() {
         return List.copyOf(components);
     }
 
     /** Runs measure + arrange over the whole canvas, or at the mount point (see {@link Layout#mountAt}). */
-    public void layout(Canvas canvas) {
+    public void layout(dev.horuse.pixelay.data.Canvas canvas) {
         this.canvas = canvas;
+        boxes.clear();
+        root.collectBoxes(boxes);
+        Player v = explicitViewer != null ? explicitViewer : viewer();
+        if (v != null) {
+            for (Box<?> box : boxes) {
+                box.bindViewer(v);
+            }
+        }
+        boxes.sort(Comparator.comparingInt(Box::zIndex));
+        parents.clear();
+        mapParents(root);
         // States may change texts (state styles), and so sizes: they go before measuring.
         updateStates();
         // Texts may have changed since the last pass: measure everything once more, then reuse.
         root.invalidate();
-        if (placement == null) {
-            root.arrange(new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight()));
+        if (root.isAbsolute()) {
+            arrangeAbsoluteRoot(canvas);
         } else {
-            arrangeAtPoint(canvas);
+            root.arrange(new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight()));
         }
         assignClips(root, new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight()));
         assignSteps();
@@ -105,6 +118,50 @@ public final class MountedLayout implements CanvasComponent {
             top = Math.max(top, box.paintEnd);
         }
         Layers.reportTopStep(canvas, this, top);
+    }
+
+    /** Places an absolutely positioned root box inside the canvas bounds using its CSS left/top/right/bottom offsets. */
+    private void arrangeAbsoluteRoot(dev.horuse.pixelay.data.Canvas canvas) {
+        Rect bounds = new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight());
+        Insets m = root.effectiveMargin();
+        boolean hasL = !Double.isNaN(root.left);
+        boolean hasR = !Double.isNaN(root.right);
+        boolean hasT = !Double.isNaN(root.top);
+        boolean hasB = !Double.isNaN(root.bottom);
+
+        double availW =
+            hasL && hasR
+                ? Math.max(0, bounds.width() - root.left - root.right - m.horizontal())
+                : Math.max(0, bounds.width() - m.horizontal());
+        Size natural = root.measure(availW);
+
+        double w = hasL && hasR && !root.hasFixedWidth() ? availW : natural.width();
+        double h =
+            hasT && hasB && !root.hasFixedHeight()
+                ? Math.max(0, bounds.height() - root.top - root.bottom - m.vertical())
+                : natural.height();
+
+        double x;
+        if (hasL) {
+            x = bounds.x() + root.left + m.left();
+        } else if (hasR) {
+            x = bounds.right() - root.right - m.right() - w;
+        } else {
+            Align hAlign = root.justifySelf != null ? root.justifySelf : Align.START;
+            x = bounds.x() + m.left() + hAlign.offset(Math.max(0, bounds.width() - m.horizontal()), w);
+        }
+
+        double y;
+        if (hasT) {
+            y = bounds.y() + root.top + m.top();
+        } else if (hasB) {
+            y = bounds.bottom() - root.bottom - m.bottom() - h;
+        } else {
+            Align vAlign = root.alignSelf != null ? root.alignSelf : Align.START;
+            y = bounds.y() + m.top() + vAlign.offset(Math.max(0, bounds.height() - m.vertical()), h);
+        }
+
+        root.arrange(new Rect(x, y, w, h));
     }
 
     /**
@@ -141,7 +198,7 @@ public final class MountedLayout implements CanvasComponent {
             box.paintEnd = base + needs - 1;
             painted.add(box);
             if (box.component() != null) {
-                box.component().setLayerStep(base);
+                box.component().setLayerStep(box.hasBorder() ? base + 1 : base);
             }
         }
     }
@@ -152,12 +209,13 @@ public final class MountedLayout implements CanvasComponent {
      * hides its overflow.
      */
     private static void assignClips(Box<?> box, Rect clip) {
-        box.clip(clip);
+        Rect effectiveClip = box.isHidden() ? Rect.EMPTY : clip;
+        box.clip(effectiveClip);
         if (box.component() != null) {
-            box.component().setClip(box.childClip());
+            box.component().setClip(box.isHidden() ? Rect.EMPTY : box.childClip());
         }
         if (box instanceof Container<?> container) {
-            Rect inside = box.childClip();
+            Rect inside = box.isHidden() ? Rect.EMPTY : box.childClip();
             for (Box<?> child : container.children) {
                 assignClips(child, inside);
             }
@@ -168,39 +226,8 @@ public final class MountedLayout implements CanvasComponent {
         return a.x() < b.right() && b.x() < a.right() && a.y() < b.bottom() && b.y() < a.bottom();
     }
 
-    /** Places a {@link Layout#mountAt} tree: shrink-to-fit within the canvas width, aligned to the point. */
-    private void arrangeAtPoint(Canvas canvas) {
-        // Like CSS absolute positioning: natural width, but never wider than the canvas (texts wrap).
-        Size size = root.measure(canvas.resolution().pixelWidth());
-        root.arrange(new Rect(0, 0, size.width(), size.height()));
-        // Align the anchored box (or the whole tree) to the point, then place the tree there.
-        Rect pinned = anchorBox().rect();
-        // The anchor point of a box: its left/centre/right and top/middle/bottom, as for components.
-        double dx = placement.x() - (pinned.centerX() - placement.h().horizontalOffset(pinned.width()));
-        double dy = placement.y() - (pinned.bottom() - placement.v().bottomOffset(pinned.height()));
-        root.arrange(new Rect(dx, dy, size.width(), size.height()));
-    }
-
-    /** The box marked {@link Box#anchor()} (the first in painting order if several, with a warning), or the root. */
-    private Box<?> anchorBox() {
-        Box<?> found = null;
-        for (Box<?> box : boxes) {
-            if (box.isAnchor()) {
-                if (found == null) {
-                    found = box;
-                } else if (!anchorsWarned) {
-                    anchorsWarned = true;
-                    Pixelay.plugin()
-                        .getLogger()
-                        .warning("A mountAt layout has several anchor() boxes: only the first one is used");
-                }
-            }
-        }
-        return found != null ? found : root;
-    }
-
     @Override
-    public void spawn(Canvas canvas) {
+    public void spawn(dev.horuse.pixelay.data.Canvas canvas) {
         layout(canvas);
         components.forEach(component -> component.spawn(canvas));
         clickViewer = viewer();
@@ -219,8 +246,21 @@ public final class MountedLayout implements CanvasComponent {
             this.canvas = null;
         }
         components.forEach(CanvasComponent::despawn);
+        for (Box<?> box : boxes) {
+            if (box instanceof Canvas pixelCanvas) {
+                pixelCanvas.clearQuads();
+            }
+        }
         backgrounds.values().forEach(TextBackground::remove);
         backgrounds.clear();
+        for (TextBackground[] edges : borders.values()) {
+            for (TextBackground edge : edges) {
+                if (edge != null) {
+                    edge.remove();
+                }
+            }
+        }
+        borders.clear();
         compositedColors.clear();
         debugOverlay.clear();
     }
@@ -270,9 +310,84 @@ public final class MountedLayout implements CanvasComponent {
             if (bg != 0 || backgrounds.containsKey(box)) {
                 backgrounds
                     .computeIfAbsent(box, key -> new TextBackground(viewer))
-                    .sync(canvas, box.rect().intersect(box.clip()), bg, Layers.at(box.paintStep, viewer));
+                    .sync(
+                        canvas,
+                        box.rect().intersect(box.clip()),
+                        bg,
+                        Layers.at(box.paintStep, viewer),
+                        box.visualRotateDeg(),
+                        box.visualRotateXDeg(),
+                        box.visualRotateYDeg(),
+                        box.visualPivotX(),
+                        box.visualPivotY()
+                    );
+            }
+            syncBoxBorders(box, viewer, bg);
+            if (box instanceof Canvas pixelCanvas) {
+                pixelCanvas.sync(canvas, viewer, bg, Layers.at(box.paintStep + 1, viewer));
             }
         }
+    }
+
+    private void syncBoxBorders(Box<?> box, Player viewer, int boxBg) {
+        Insets rawB = box.effectiveBorderWidths();
+        Insets b = new Insets(
+            rawB.top() * box.visualScaleY(),
+            rawB.right() * box.visualScaleX(),
+            rawB.bottom() * box.visualScaleY(),
+            rawB.left() * box.visualScaleX()
+        );
+        int rawBorderColor = box.effectiveBorderColor();
+        boolean active =
+            !box.isHidden() && rawBorderColor != 0 && (b.top() > 0 || b.right() > 0 || b.bottom() > 0 || b.left() > 0);
+        if (!active && !borders.containsKey(box)) {
+            return;
+        }
+        TextBackground[] edges = borders.computeIfAbsent(box, k -> new TextBackground[] {
+            new TextBackground(viewer),
+            new TextBackground(viewer),
+            new TextBackground(viewer),
+            new TextBackground(viewer),
+        });
+        int borderArgb = active ? (boxBg != 0 ? composite(boxBg, rawBorderColor) : rawBorderColor) : 0;
+        Rect r = box.rect();
+        Rect clip = box.clip();
+        float depth = Layers.at(box.paintStep + 1, viewer);
+
+        Rect topRect =
+            b.top() > 0 ? new Rect(r.x(), r.y(), r.width(), Math.min(b.top(), r.height())).intersect(clip) : Rect.EMPTY;
+        Rect bottomRect =
+            b.bottom() > 0
+                ? new Rect(
+                      r.x(),
+                      Math.max(r.y(), r.bottom() - b.bottom()),
+                      r.width(),
+                      Math.min(b.bottom(), r.height())
+                  ).intersect(clip)
+                : Rect.EMPTY;
+        double midY = r.y() + b.top();
+        double midH = Math.max(0, r.height() - b.top() - b.bottom());
+        Rect leftRect =
+            b.left() > 0 ? new Rect(r.x(), midY, Math.min(b.left(), r.width()), midH).intersect(clip) : Rect.EMPTY;
+        Rect rightRect =
+            b.right() > 0
+                ? new Rect(
+                      Math.max(r.x(), r.right() - b.right()),
+                      midY,
+                      Math.min(b.right(), r.width()),
+                      midH
+                  ).intersect(clip)
+                : Rect.EMPTY;
+
+        double rotZ = box.visualRotateDeg();
+        double rotX = box.visualRotateXDeg();
+        double rotY = box.visualRotateYDeg();
+        double pivX = box.visualPivotX();
+        double pivY = box.visualPivotY();
+        edges[0].sync(canvas, topRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
+        edges[1].sync(canvas, rightRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
+        edges[2].sync(canvas, bottomRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
+        edges[3].sync(canvas, leftRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
     }
 
     private int compositedBackground(Box<?> box) {
@@ -359,9 +474,21 @@ public final class MountedLayout implements CanvasComponent {
         return (aOutInt << 24) | (rOut << 16) | (gOut << 8) | bOut;
     }
 
-    /** The only player who sees this layout (the first component with a single viewer), or {@code null}. */
+    /** The only player who sees this layout (explicit viewer or first component/box with a viewer), or {@code null}. */
     private Player viewer() {
-        return components.stream().map(LayoutComponent::viewer).filter(Objects::nonNull).findFirst().orElse(null);
+        if (explicitViewer != null) {
+            return explicitViewer;
+        }
+        Player compViewer = components
+            .stream()
+            .map(LayoutComponent::viewer)
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
+        if (compViewer != null) {
+            return compViewer;
+        }
+        return boxes.stream().map(Box::viewer).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     /**
@@ -379,8 +506,29 @@ public final class MountedLayout implements CanvasComponent {
                     scrollView.updatePointer(px, py);
                 }
             }
+            if (player != null && dev.horuse.pixelay.debug.LayoutDebug.isEnabled(player)) {
+                Box<?> inspectBox = topmost(px, py, box -> !box.isHidden());
+                if (inspectBox != null) {
+                    Rect r = inspectBox.rect();
+                    dev.horuse.pixelay.debug.LayoutDebug.sendInspector(
+                        player,
+                        inspectBox.tagName(),
+                        inspectBox.id(),
+                        r.x(),
+                        r.y(),
+                        r.width(),
+                        r.height(),
+                        inspectBox.paintStep,
+                        inspectBox.zIndex()
+                    );
+                }
+            }
         }
-        Box<?> target = topmost(px, py, box -> box.effectiveOnClick() != null || box.is(State.DISABLED));
+        Box<?> target = topmost(
+            px,
+            py,
+            box -> !box.isHidden() && (box.effectiveOnClick() != null || box.is(State.DISABLED))
+        );
         if (target == null) {
             return false;
         }
@@ -406,7 +554,12 @@ public final class MountedLayout implements CanvasComponent {
         double y = clampToCanvas(py, false);
         for (int i = boxes.size() - 1; i >= 0; i--) {
             Box<?> box = boxes.get(i);
-            if (filter.test(box) && box.rect().contains(x, y) && (box.clip() == null || box.clip().contains(x, y))) {
+            if (
+                !box.isHidden() &&
+                filter.test(box) &&
+                box.rect().contains(x, y) &&
+                (box.clip() == null || box.clip().contains(x, y))
+            ) {
                 return box;
             }
         }
@@ -513,7 +666,8 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     void ensureTransitionTicking() {
-        if (transitionTask != null || canvas == null || viewer() != null) {
+        Player v = viewer();
+        if (transitionTask != null || canvas == null || (v != null && ScreenSession.isInSession(v))) {
             return;
         }
         transitionTask = Bukkit.getScheduler().runTaskTimer(
@@ -551,6 +705,16 @@ public final class MountedLayout implements CanvasComponent {
         return null;
     }
 
+    /** Any {@link Canvas} where the player is currently dragging the brush. */
+    public Canvas activeDrawingCanvas() {
+        for (Box<?> box : boxes) {
+            if (box instanceof Canvas pixelCanvas && pixelCanvas.isDrawing()) {
+                return pixelCanvas;
+            }
+        }
+        return null;
+    }
+
     /** The pointer left the layout: nothing is hovered any more. */
     public boolean pointerLeft(Player player) {
         return hover(null, player);
@@ -558,6 +722,20 @@ public final class MountedLayout implements CanvasComponent {
 
     /** Hovers {@code top} and its ancestors (nothing for {@code null}); refreshes when anything changed. */
     private boolean hover(Box<?> top, Player player) {
+        if (top != null && player != null && dev.horuse.pixelay.debug.LayoutDebug.isEnabled(player)) {
+            Rect r = top.rect();
+            dev.horuse.pixelay.debug.LayoutDebug.sendInspector(
+                player,
+                top.tagName(),
+                top.id(),
+                r.x(),
+                r.y(),
+                r.width(),
+                r.height(),
+                top.paintStep,
+                top.zIndex()
+            );
+        }
         Set<Box<?>> hoveredBoxes = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Box<?> box = top; box != null; box = parents.get(box)) {
             hoveredBoxes.add(box);
@@ -589,13 +767,13 @@ public final class MountedLayout implements CanvasComponent {
     /** The texts of state styles (backgrounds are read when they are drawn). */
     private void applyStyle(Box<?> box) {
         Style style = box.activeStyle();
-        if (box instanceof Leaf leaf) {
-            leaf.component().setTextOverride(style != null ? style.text() : null);
+        if (box.component() instanceof AbstractCanvasComponent textComponent) {
+            textComponent.setTextOverride(style != null ? style.text() : null);
         } else if (style != null && style.text() != null && !textWithoutTextWarned) {
             textWithoutTextWarned = true;
             Pixelay.plugin()
                 .getLogger()
-                .warning("A state style sets text on a box without text: text styles only apply to node(text)");
+                .warning("A state style sets text on a box without text: text styles only apply to text/button boxes");
         }
     }
 

@@ -24,13 +24,15 @@ public class EntityRenderer extends TextRenderer {
 
     @Override
     protected void spawnEntity(TextPlacement.Placement placement, Location at) {
+        float baseScale = canvas.scaleForHeightPx(drawable.heightPx());
         display = DisplayUtils.spawnText(
             at,
             placement.component(),
-            canvas.contentRotation(),
-            canvas.scaleForHeightPx(drawable.heightPx()),
+            effectiveRotation(),
+            baseScale,
             drawable.hAlign().textAlignment()
         );
+        applyScaleAndRotation(display, baseScale);
         if (viewer != null) {
             display.setVisibleByDefault(false);
             viewer.showEntity(Pixelay.plugin(), display);
@@ -44,10 +46,41 @@ public class EntityRenderer extends TextRenderer {
     protected void updateEntity(TextPlacement.Placement placement, Location at) {
         // Position first, then text: the block must not blink with the new text at the old position.
         display.teleport(at);
+        applyScaleAndRotation(display, canvas.scaleForHeightPx(drawable.heightPx()));
         // The alignment presses multi-line text left/right; it may have changed since the spawn.
         display.setAlignment(drawable.hAlign().textAlignment());
         display.text(placement.component());
         display.setTextOpacity(textOpacity());
+    }
+
+    private void applyScaleAndRotation(TextDisplay display, float baseScale) {
+        org.joml.Vector3f scaleVec = new org.joml.Vector3f(
+            (float) (baseScale * drawable.visualScaleX()),
+            (float) (baseScale * drawable.visualScaleY()),
+            baseScale
+        );
+        display.setTransformation(
+            new org.bukkit.util.Transformation(
+                new org.joml.Vector3f(),
+                effectiveRotation(),
+                scaleVec,
+                new org.joml.Quaternionf()
+            )
+        );
+    }
+
+    private org.joml.Quaternionf effectiveRotation() {
+        org.joml.Quaternionf rot = new org.joml.Quaternionf(canvas.contentRotation());
+        if (drawable.rotateDeg() != 0.0) {
+            rot.rotateZ((float) Math.toRadians(-drawable.rotateDeg()));
+        }
+        if (drawable.rotateXDeg() != 0.0) {
+            rot.rotateX((float) Math.toRadians(drawable.rotateXDeg()));
+        }
+        if (drawable.rotateYDeg() != 0.0) {
+            rot.rotateY((float) Math.toRadians(drawable.rotateYDeg()));
+        }
+        return rot;
     }
 
     @Override

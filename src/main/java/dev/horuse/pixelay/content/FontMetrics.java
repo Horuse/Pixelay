@@ -105,6 +105,19 @@ public final class FontMetrics {
         return new Laid(text, TextLayout.lay(TextLayout.glyphs(text), maxLineWidth, wrap));
     }
 
+    /** Truncates a single-line MiniMessage string with {@code "..."} if its advance exceeds {@code maxLineWidth} font px. */
+    public static String truncateEllipsis(String miniMessageText, int maxLineWidth) {
+        if (miniMessageText == null || miniMessageText.isEmpty() || maxLineWidth <= 0) {
+            return "";
+        }
+        Component parsed = MiniMessage.miniMessage().deserialize(miniMessageText);
+        Component truncated = TextLayout.truncateEllipsis(parsed, maxLineWidth);
+        if (truncated == parsed) {
+            return miniMessageText;
+        }
+        return MiniMessage.miniMessage().serialize(truncated);
+    }
+
     /** The component with its line breaks written in, wrapped at {@code maxLineWidth} font px. */
     public static Component wrap(Component text, int maxLineWidth, TextWrap wrap) {
         TextLayout.Lines laid = TextLayout.lay(TextLayout.glyphs(text), maxLineWidth, wrap);

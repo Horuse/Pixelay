@@ -1,11 +1,101 @@
 package dev.horuse.pixelay.utils;
 
+import java.util.Locale;
+
 /**
- * Utility methods for ARGB color operations and interpolation.
+ * Utility methods for ARGB color operations, CSS color parsing, and interpolation.
  */
 public final class ColorUtils {
 
     private ColorUtils() {}
+
+    /**
+     * Parses a CSS color string into a 32-bit {@code 0xAARRGGBB} integer.
+     * Supports:
+     * <ul>
+     *   <li>{@code "transparent"} or {@code "none"} -&gt; {@code 0}</li>
+     *   <li>{@code "#RGB"}, {@code "#RGBA"}, {@code "#RRGGBB"}, {@code "#RRGGBBAA"}</li>
+     *   <li>{@code "0xAARRGGBB"} or {@code "0xRRGGBB"}</li>
+     *   <li>{@code "rgb(r, g, b)"} and {@code "rgba(r, g, b, a)"} (where {@code a} is {@code 0..1} or {@code 0..255})</li>
+     * </ul>
+     */
+    public static int parse(String cssColor) {
+        if (cssColor == null || cssColor.isBlank()) {
+            return 0;
+        }
+        String s = cssColor.trim().toLowerCase(Locale.ROOT);
+        if (s.equals("transparent") || s.equals("none")) {
+            return 0;
+        }
+        if (s.startsWith("#")) {
+            String hex = s.substring(1);
+            return switch (hex.length()) {
+                case 3 -> {
+                    int r = Character.digit(hex.charAt(0), 16) * 17;
+                    int g = Character.digit(hex.charAt(1), 16) * 17;
+                    int b = Character.digit(hex.charAt(2), 16) * 17;
+                    yield (0xFF << 24) | (r << 16) | (g << 8) | b;
+                }
+                case 4 -> {
+                    int r = Character.digit(hex.charAt(0), 16) * 17;
+                    int g = Character.digit(hex.charAt(1), 16) * 17;
+                    int b = Character.digit(hex.charAt(2), 16) * 17;
+                    int a = Character.digit(hex.charAt(3), 16) * 17;
+                    yield (a << 24) | (r << 16) | (g << 8) | b;
+                }
+                case 6 -> 0xFF000000 | Integer.parseUnsignedInt(hex, 16);
+                case 8 -> {
+                    int rrggbbaa = Integer.parseUnsignedInt(hex, 16);
+                    int rgb = rrggbbaa >>> 8;
+                    int a = rrggbbaa & 0xFF;
+                    yield (a << 24) | rgb;
+                }
+                default -> 0;
+            };
+        }
+        if (s.startsWith("0x")) {
+            String hex = s.substring(2);
+            int val = Integer.parseUnsignedInt(hex, 16);
+            return hex.length() <= 6 ? 0xFF000000 | val : val;
+        }
+        if (s.startsWith("rgba(") && s.endsWith(")")) {
+            String[] parts = s.substring(5, s.length() - 1).split(",");
+            if (parts.length == 4) {
+                int r = Math.clamp(Integer.parseInt(parts[0].trim()), 0, 255);
+                int g = Math.clamp(Integer.parseInt(parts[1].trim()), 0, 255);
+                int b = Math.clamp(Integer.parseInt(parts[2].trim()), 0, 255);
+                double rawA = Double.parseDouble(parts[3].trim());
+                int a =
+                    rawA <= 1.0
+                        ? Math.clamp((int) Math.round(rawA * 255.0), 0, 255)
+                        : Math.clamp((int) Math.round(rawA), 0, 255);
+                return (a << 24) | (r << 16) | (g << 8) | b;
+            }
+        }
+        if (s.startsWith("rgb(") && s.endsWith(")")) {
+            String[] parts = s.substring(4, s.length() - 1).split(",");
+            if (parts.length == 3) {
+                int r = Math.clamp(Integer.parseInt(parts[0].trim()), 0, 255);
+                int g = Math.clamp(Integer.parseInt(parts[1].trim()), 0, 255);
+                int b = Math.clamp(Integer.parseInt(parts[2].trim()), 0, 255);
+                return (0xFF << 24) | (r << 16) | (g << 8) | b;
+            }
+        }
+        return 0;
+    }
+
+    /** Multiplies the alpha channel of {@code argb} by {@code opacity} ({@code 0.0..1.0}). */
+    public static int withOpacity(int argb, double opacity) {
+        if (argb == 0 || opacity >= 0.999) {
+            return argb;
+        }
+        if (opacity <= 0.001) {
+            return 0;
+        }
+        int a = (argb >>> 24) & 0xFF;
+        int scaledA = Math.clamp((int) Math.round(a * opacity), 0, 255);
+        return (scaledA << 24) | (argb & 0x00FFFFFF);
+    }
 
     /**
      * Linearly interpolates between two ARGB colors.

@@ -34,8 +34,13 @@ public final class Grid extends Container<Grid> {
     /** {@code {row, column}} (0-based) per child, computed once per layout pass. */
     private int[][] placements;
 
-    Grid(LayoutItem... items) {
+    public Grid(LayoutItem... items) {
         super(items);
+    }
+
+    @Override
+    public String tagName() {
+        return "grid";
     }
 
     /** Explicit column tracks (CSS {@code grid-template-columns}). */
@@ -44,10 +49,18 @@ public final class Grid extends Container<Grid> {
         return this;
     }
 
+    public List<Track> columns() {
+        return List.of(columns);
+    }
+
     /** Explicit row tracks (CSS {@code grid-template-rows}). */
     public Grid rows(Track... tracks) {
         this.rows = tracks;
         return this;
+    }
+
+    public List<Track> rows() {
+        return List.of(rows);
     }
 
     /** Size of implicitly created columns (CSS {@code grid-auto-columns}). */
@@ -56,10 +69,18 @@ public final class Grid extends Container<Grid> {
         return this;
     }
 
+    public Track autoColumns() {
+        return autoColumns;
+    }
+
     /** Size of implicitly created rows (CSS {@code grid-auto-rows}). */
     public Grid autoRows(Track track) {
         this.autoRows = track;
         return this;
+    }
+
+    public Track autoRows() {
+        return autoRows;
     }
 
     /** Direction of auto-placement (CSS {@code grid-auto-flow}); default {@code ROW}. */
@@ -68,16 +89,28 @@ public final class Grid extends Container<Grid> {
         return this;
     }
 
+    public Flow autoFlow() {
+        return flow;
+    }
+
     /** Vertical placement of every item inside its area (CSS {@code align-items}); default stretch. */
     public Grid align(Align align) {
         this.alignItems = align;
         return this;
     }
 
+    public Align alignItems() {
+        return alignItems;
+    }
+
     /** Horizontal placement of every item inside its area (CSS {@code justify-items}); default stretch. */
     public Grid justifyItems(Align align) {
         this.justifyItems = align;
         return this;
+    }
+
+    public Align justifyItems() {
+        return justifyItems;
     }
 
     @Override
@@ -95,10 +128,11 @@ public final class Grid extends Container<Grid> {
 
     @Override
     protected double minContentWidth() {
-        int[][] placements = placements();
-        double[] widths = new double[trackCount(true)];
-        for (int i = 0; i < children.size(); i++) {
-            Box<?> child = children.get(i);
+        List<Box<?>> flow = flowChildren();
+        int[][] placements = placements(flow);
+        double[] widths = new double[trackCount(flow, true)];
+        for (int i = 0; i < flow.size(); i++) {
+            Box<?> child = flow.get(i);
             if (child.columnSpan == 1) {
                 int column = placements[i][1];
                 widths[column] = Math.max(widths[column], child.minOuterWidth());
@@ -115,14 +149,23 @@ public final class Grid extends Container<Grid> {
 
     @Override
     protected void arrangeContent(Rect content) {
-        int[][] placements = placements();
-        double[] widths = trackSizes(true, content.width(), null);
-        double[] heights = trackSizes(false, content.height(), widths);
-        double[] xs = offsets(widths, content.x());
-        double[] ys = offsets(heights, content.y());
+        double sx = visualScaleX();
+        double sy = visualScaleY();
+        Rect unscaled = new Rect(
+            content.x(),
+            content.y(),
+            sx > 1e-4 ? content.width() / sx : content.width(),
+            sy > 1e-4 ? content.height() / sy : content.height()
+        );
+        List<Box<?>> flow = flowChildren();
+        int[][] placements = placements(flow);
+        double[] widths = trackSizes(true, unscaled.width(), null);
+        double[] heights = trackSizes(false, unscaled.height(), widths);
+        double[] xs = offsets(widths, unscaled.x());
+        double[] ys = offsets(heights, unscaled.y());
 
-        for (int i = 0; i < children.size(); i++) {
-            Box<?> child = children.get(i);
+        for (int i = 0; i < flow.size(); i++) {
+            Box<?> child = flow.get(i);
             int row = placements[i][0];
             int column = placements[i][1];
             int lastRow = Math.min(heights.length, row + child.rowSpan) - 1;
@@ -144,17 +187,24 @@ public final class Grid extends Container<Grid> {
                 horizontal == Align.STRETCH && !child.hasFixedWidth(),
                 vertical == Align.STRETCH && !child.hasFixedHeight()
             );
-            child.arrange(child.effectiveMargin().shrink(placed), overflowsHere());
+            Rect unscaledChild = child.effectiveMargin().shrink(placed);
+            Rect scaledChild = new Rect(
+                content.x() + (unscaledChild.x() - content.x()) * sx,
+                content.y() + (unscaledChild.y() - content.y()) * sy,
+                unscaledChild.width() * sx,
+                unscaledChild.height() * sy
+            );
+            arrangeChild(child, scaledChild, overflowsHere());
         }
     }
 
     // --- track sizing ---
 
-    private int trackCount(boolean horizontal) {
-        int[][] placements = placements();
+    private int trackCount(List<Box<?>> flow, boolean horizontal) {
+        int[][] placements = placements(flow);
         int count = (horizontal ? columns : rows).length;
-        for (int i = 0; i < children.size(); i++) {
-            Box<?> child = children.get(i);
+        for (int i = 0; i < flow.size(); i++) {
+            Box<?> child = flow.get(i);
             int start = horizontal ? placements[i][1] : placements[i][0];
             count = Math.max(count, start + (horizontal ? child.columnSpan : child.rowSpan));
         }
@@ -173,8 +223,9 @@ public final class Grid extends Container<Grid> {
      * the space px tracks leave ({@code fit-content}); rows measure items wrapped to their column width.
      */
     private double[] trackSizes(boolean horizontal, double available, double[] columnWidths) {
-        int[][] placements = placements();
-        int count = trackCount(horizontal);
+        List<Box<?>> flow = flowChildren();
+        int[][] placements = placements(flow);
+        int count = trackCount(flow, horizontal);
         Track[] tracks = new Track[count];
         double[] sizes = new double[count];
         double frTotal = 0;
@@ -194,17 +245,17 @@ public final class Grid extends Container<Grid> {
         double autoLimit = available < 0 ? UNBOUNDED : Math.max(0, available - fixed);
 
         // span 1 items size their own content-sized track
-        for (int i = 0; i < children.size(); i++) {
-            Box<?> child = children.get(i);
+        for (int i = 0; i < flow.size(); i++) {
+            Box<?> child = flow.get(i);
             int t = horizontal ? placements[i][1] : placements[i][0];
             if ((horizontal ? child.columnSpan : child.rowSpan) == 1 && contentSized(tracks[t], available)) {
-                sizes[t] = Math.max(sizes[t], itemSize(child, i, horizontal, autoLimit, columnWidths));
+                sizes[t] = Math.max(sizes[t], itemSize(flow, child, i, horizontal, autoLimit, columnWidths));
             }
         }
 
         // spanning items: share what their tracks still lack between the content-sized ones
-        for (int i = 0; i < children.size(); i++) {
-            Box<?> child = children.get(i);
+        for (int i = 0; i < flow.size(); i++) {
+            Box<?> child = flow.get(i);
             int span = horizontal ? child.columnSpan : child.rowSpan;
             if (span <= 1) {
                 continue;
@@ -218,7 +269,7 @@ public final class Grid extends Container<Grid> {
                     growable.add(t);
                 }
             }
-            double missing = itemSize(child, i, horizontal, autoLimit, columnWidths) - covered;
+            double missing = itemSize(flow, child, i, horizontal, autoLimit, columnWidths) - covered;
             if (missing > 0 && !growable.isEmpty()) {
                 for (int t : growable) {
                     sizes[t] += missing / growable.size();
@@ -227,7 +278,7 @@ public final class Grid extends Container<Grid> {
         }
 
         if (horizontal && autoLimit >= 0) {
-            fitAutoColumns(tracks, sizes, placements, autoLimit);
+            fitAutoColumns(flow, tracks, sizes, placements, autoLimit);
         }
 
         if (available >= 0 && frTotal > 0) {
@@ -245,7 +296,13 @@ public final class Grid extends Container<Grid> {
      * Auto columns are each measured within the whole space left by px tracks; together they may not
      * fit, so they are shrunk proportionally, never below the min-content width of their items.
      */
-    private void fitAutoColumns(Track[] tracks, double[] sizes, int[][] placements, double autoLimit) {
+    private void fitAutoColumns(
+        List<Box<?>> flow,
+        Track[] tracks,
+        double[] sizes,
+        int[][] placements,
+        double autoLimit
+    ) {
         double autoTotal = 0;
         double[] floors = new double[sizes.length];
         for (int t = 0; t < sizes.length; t++) {
@@ -256,8 +313,8 @@ public final class Grid extends Container<Grid> {
         if (autoTotal <= autoLimit) {
             return;
         }
-        for (int i = 0; i < children.size(); i++) {
-            Box<?> child = children.get(i);
+        for (int i = 0; i < flow.size(); i++) {
+            Box<?> child = flow.get(i);
             int t = placements[i][1];
             if (child.columnSpan == 1 && tracks[t].kind() == Track.Kind.AUTO) {
                 floors[t] = Math.max(floors[t], child.minOuterWidth());
@@ -275,12 +332,19 @@ public final class Grid extends Container<Grid> {
         return track.kind() == Track.Kind.AUTO || (track.kind() == Track.Kind.FR && available < 0);
     }
 
-    private double itemSize(Box<?> child, int index, boolean horizontal, double autoLimit, double[] columnWidths) {
+    private double itemSize(
+        List<Box<?>> flow,
+        Box<?> child,
+        int index,
+        boolean horizontal,
+        double autoLimit,
+        double[] columnWidths
+    ) {
         if (horizontal) {
             return child.outer(autoLimit).width();
         }
         double width =
-            columnWidths == null ? UNBOUNDED : spanWidth(placements()[index][1], child.columnSpan, columnWidths);
+            columnWidths == null ? UNBOUNDED : spanWidth(placements(flow)[index][1], child.columnSpan, columnWidths);
         return child.outer(width).height();
     }
 
@@ -294,15 +358,15 @@ public final class Grid extends Container<Grid> {
 
     // --- placement ---
 
-    private int[][] placements() {
+    private int[][] placements(List<Box<?>> flow) {
         if (placements != null) {
             return placements;
         }
 
-        boolean byRow = flow == Flow.ROW;
+        boolean byRow = this.flow == Flow.ROW;
         // The flow wraps after the explicit tracks of the other axis; lines beyond them add implicit tracks.
         int minorCount = Math.max(1, byRow ? columns.length : rows.length);
-        for (Box<?> child : children) {
+        for (Box<?> child : flow) {
             int fixedMinor = (byRow ? child.gridColumn : child.gridRow) - 1;
             int minorSpan = byRow ? child.columnSpan : child.rowSpan;
             if (fixedMinor >= 0) {
@@ -311,11 +375,11 @@ public final class Grid extends Container<Grid> {
         }
 
         Occupancy occupancy = new Occupancy(minorCount);
-        placements = new int[children.size()][];
+        placements = new int[flow.size()][];
 
         // 1) both lines given: placed as is
-        for (int i = 0; i < children.size(); i++) {
-            Box<?> child = children.get(i);
+        for (int i = 0; i < flow.size(); i++) {
+            Box<?> child = flow.get(i);
             int major = majorLine(child, byRow);
             int minor = minorLine(child, byRow);
             if (major >= 0 && minor >= 0) {
@@ -324,8 +388,8 @@ public final class Grid extends Container<Grid> {
         }
 
         // 2) only the flow-axis line given: first free spot along that line
-        for (int i = 0; i < children.size(); i++) {
-            Box<?> child = children.get(i);
+        for (int i = 0; i < flow.size(); i++) {
+            Box<?> child = flow.get(i);
             int major = majorLine(child, byRow);
             if (major < 0 || minorLine(child, byRow) >= 0) {
                 continue;
@@ -344,8 +408,8 @@ public final class Grid extends Container<Grid> {
         // 3) the rest: sparse auto-placement with a cursor
         int cursorMajor = 0;
         int cursorMinor = 0;
-        for (int i = 0; i < children.size(); i++) {
-            Box<?> child = children.get(i);
+        for (int i = 0; i < flow.size(); i++) {
+            Box<?> child = flow.get(i);
             if (majorLine(child, byRow) >= 0) {
                 continue;
             }
