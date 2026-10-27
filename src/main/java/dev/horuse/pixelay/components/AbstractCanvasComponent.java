@@ -57,6 +57,8 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     private volatile double rotateDeg;
     private volatile double rotateXDeg;
     private volatile double rotateYDeg;
+    private volatile double rotatePivotX = Double.NaN;
+    private volatile double rotatePivotY = Double.NaN;
 
     protected AbstractCanvasComponent(double pixelX, double pixelY, double heightPx) {
         this.pixelX = pixelX;
@@ -322,14 +324,18 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         double scaleY,
         double rotateDeg,
         double rotateXDeg,
-        double rotateYDeg
+        double rotateYDeg,
+        double pivotX,
+        double pivotY
     ) {
         if (
             Math.abs(this.visualScaleX - scaleX) < 1e-4 &&
             Math.abs(this.visualScaleY - scaleY) < 1e-4 &&
             Math.abs(this.rotateDeg - rotateDeg) < 1e-3 &&
             Math.abs(this.rotateXDeg - rotateXDeg) < 1e-3 &&
-            Math.abs(this.rotateYDeg - rotateYDeg) < 1e-3
+            Math.abs(this.rotateYDeg - rotateYDeg) < 1e-3 &&
+            (Math.abs(rotateDeg) < 1e-3 ||
+                (Math.abs(this.rotatePivotX - pivotX) < 1e-2 && Math.abs(this.rotatePivotY - pivotY) < 1e-2))
         ) {
             return;
         }
@@ -338,6 +344,8 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         this.rotateDeg = rotateDeg;
         this.rotateXDeg = rotateXDeg;
         this.rotateYDeg = rotateYDeg;
+        this.rotatePivotX = pivotX;
+        this.rotatePivotY = pivotY;
         layoutVersion++;
     }
 
@@ -364,5 +372,15 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     @Override
     public double rotateYDeg() {
         return rotateYDeg;
+    }
+
+    @Override
+    public double rotatePivotX() {
+        return rotatePivotX;
+    }
+
+    @Override
+    public double rotatePivotY() {
+        return rotatePivotY;
     }
 }

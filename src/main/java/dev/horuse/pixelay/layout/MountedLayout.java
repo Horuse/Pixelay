@@ -317,7 +317,9 @@ public final class MountedLayout implements CanvasComponent {
                         Layers.at(box.paintStep, viewer),
                         box.visualRotateDeg(),
                         box.visualRotateXDeg(),
-                        box.visualRotateYDeg()
+                        box.visualRotateYDeg(),
+                        box.visualPivotX(),
+                        box.visualPivotY()
                     );
             }
             syncBoxBorders(box, viewer, bg);
@@ -380,10 +382,12 @@ public final class MountedLayout implements CanvasComponent {
         double rotZ = box.visualRotateDeg();
         double rotX = box.visualRotateXDeg();
         double rotY = box.visualRotateYDeg();
-        edges[0].sync(canvas, topRect, borderArgb, depth, rotZ, rotX, rotY);
-        edges[1].sync(canvas, rightRect, borderArgb, depth, rotZ, rotX, rotY);
-        edges[2].sync(canvas, bottomRect, borderArgb, depth, rotZ, rotX, rotY);
-        edges[3].sync(canvas, leftRect, borderArgb, depth, rotZ, rotX, rotY);
+        double pivX = box.visualPivotX();
+        double pivY = box.visualPivotY();
+        edges[0].sync(canvas, topRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
+        edges[1].sync(canvas, rightRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
+        edges[2].sync(canvas, bottomRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
+        edges[3].sync(canvas, leftRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
     }
 
     private int compositedBackground(Box<?> box) {

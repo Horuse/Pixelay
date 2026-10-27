@@ -136,4 +136,14 @@ public interface CanvasDrawable {
     default double rotateYDeg() {
         return 0.0;
     }
+
+    /** Pivot X in canvas px around which {@link #rotateDeg()} revolves (or {@code Double.NaN} for self center). */
+    default double rotatePivotX() {
+        return Double.NaN;
+    }
+
+    /** Pivot Y in canvas px around which {@link #rotateDeg()} revolves (or {@code Double.NaN} for self center). */
+    default double rotatePivotY() {
+        return Double.NaN;
+    }
 }

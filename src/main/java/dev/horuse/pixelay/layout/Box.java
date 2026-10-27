@@ -81,6 +81,8 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     private double visualRotateDeg;
     private double visualRotateXDeg;
     private double visualRotateYDeg;
+    private double visualPivotX;
+    private double visualPivotY;
     protected int zIndex;
     private MountedLayout directMount;
     /** Result of the last arrange: does this box (or an ancestor) not fit its space. */
@@ -287,7 +289,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
 
     /** @param insideOverflow an ancestor already does not fit its space */
     final void arrange(Rect rect, boolean insideOverflow) {
-        arrange(rect, insideOverflow, 1.0, 1.0, 0.0, 0.0, 0.0);
+        arrange(rect, insideOverflow, 1.0, 1.0, 0.0, 0.0, 0.0, Double.NaN, Double.NaN);
     }
 
     /** Arranges {@code child} inside this container, propagating this container's visual scale and rotation. */
@@ -299,7 +301,9 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
             this.visualScaleY,
             this.visualRotateDeg,
             this.visualRotateXDeg,
-            this.visualRotateYDeg
+            this.visualRotateYDeg,
+            this.visualPivotX,
+            this.visualPivotY
         );
     }
 
@@ -310,7 +314,9 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         double inheritedScaleY,
         double inheritedRotateDeg,
         double inheritedRotateXDeg,
-        double inheritedRotateYDeg
+        double inheritedRotateYDeg,
+        double inheritedPivotX,
+        double inheritedPivotY
     ) {
         if (hidden) {
             this.rect = new Rect(rect.x(), rect.y(), 0, 0);
@@ -320,6 +326,8 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
             this.visualRotateDeg = 0.0;
             this.visualRotateXDeg = 0.0;
             this.visualRotateYDeg = 0.0;
+            this.visualPivotX = 0.0;
+            this.visualPivotY = 0.0;
             arrangeContent(this.rect);
             arrangeAbsoluteChildren(this.rect);
             return;
@@ -353,6 +361,13 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         }
         rect = new Rect(x, y, w, h);
         this.rect = rect;
+        if (tf.hasRotation() || Double.isNaN(inheritedPivotX)) {
+            this.visualPivotX = rect.x() + rect.width() * tf.originX();
+            this.visualPivotY = rect.y() + rect.height() * tf.originY();
+        } else {
+            this.visualPivotX = inheritedPivotX;
+            this.visualPivotY = inheritedPivotY;
+        }
         Size natural = measure(rect.width());
         boolean selfOverflow =
             Math.abs(sx - 1.0) <= 1e-4 &&
@@ -390,6 +405,14 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
 
     double visualRotateYDeg() {
         return visualRotateYDeg;
+    }
+
+    double visualPivotX() {
+        return visualPivotX;
+    }
+
+    double visualPivotY() {
+        return visualPivotY;
     }
 
     /** Hook overridden by {@link Container} to arrange any {@link Position#ABSOLUTE} children inside {@code bounds}. */

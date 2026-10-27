@@ -37,6 +37,8 @@ public final class TextBackground {
     private double lastRotateDeg;
     private double lastRotateXDeg;
     private double lastRotateYDeg;
+    private double lastPivotX = Double.NaN;
+    private double lastPivotY = Double.NaN;
 
     /** @param viewer the only player who sees the panel, or {@code null} for a server entity everyone sees */
     public TextBackground(Player viewer) {
@@ -67,7 +69,7 @@ public final class TextBackground {
      * remove it.
      */
     public void sync(Canvas canvas, Rect bounds, int argb, float depth) {
-        sync(canvas, bounds, argb, depth, 0.0, 0.0, 0.0);
+        sync(canvas, bounds, argb, depth, 0.0, 0.0, 0.0, Double.NaN, Double.NaN);
     }
 
     public void sync(
@@ -79,6 +81,20 @@ public final class TextBackground {
         double rotateXDeg,
         double rotateYDeg
     ) {
+        sync(canvas, bounds, argb, depth, rotateDeg, rotateXDeg, rotateYDeg, Double.NaN, Double.NaN);
+    }
+
+    public void sync(
+        Canvas canvas,
+        Rect bounds,
+        int argb,
+        float depth,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg,
+        double pivotX,
+        double pivotY
+    ) {
         boolean empty = bounds == null || bounds.width() <= 0 || bounds.height() <= 0 || argb >>> 24 == 0;
         if (empty) {
             remove();
@@ -87,7 +103,9 @@ public final class TextBackground {
         boolean sameRot =
             Math.abs(rotateDeg - lastRotateDeg) < 1e-3 &&
             Math.abs(rotateXDeg - lastRotateXDeg) < 1e-3 &&
-            Math.abs(rotateYDeg - lastRotateYDeg) < 1e-3;
+            Math.abs(rotateYDeg - lastRotateYDeg) < 1e-3 &&
+            (Math.abs(rotateDeg) < 1e-3 ||
+                (Math.abs(pivotX - lastPivotX) < 1e-2 && Math.abs(pivotY - lastPivotY) < 1e-2));
         if (exists() && bounds.equals(box) && depth == lastDepth && sameRot) {
             if (argb != color) {
                 if (viewer != null) {
@@ -103,7 +121,7 @@ public final class TextBackground {
         double y = bounds.y();
         double width = bounds.width();
         double height = bounds.height();
-        Location origin = ColorPanel.origin(canvas, x, y, width, height, depth);
+        Location origin = ColorPanel.origin(canvas, x, y, width, height, depth, rotateDeg, pivotX, pivotY);
         Quaternionf rotation = ColorPanel.rotated(canvas.contentRotation(), rotateDeg, rotateXDeg, rotateYDeg);
         if (viewer != null) {
             if (fakeId == 0) {
@@ -119,7 +137,9 @@ public final class TextBackground {
                     depth,
                     rotateDeg,
                     rotateXDeg,
-                    rotateYDeg
+                    rotateYDeg,
+                    pivotX,
+                    pivotY
                 );
             } else {
                 org.bukkit.util.Vector translation = origin.toVector().subtract(fakeOrigin);
@@ -158,6 +178,8 @@ public final class TextBackground {
         lastRotateDeg = rotateDeg;
         lastRotateXDeg = rotateXDeg;
         lastRotateYDeg = rotateYDeg;
+        lastPivotX = pivotX;
+        lastPivotY = pivotY;
     }
 
     public void remove() {

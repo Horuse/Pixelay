@@ -222,7 +222,9 @@ public final class Text extends Box<Text> {
             visualScaleY(),
             visualRotateDeg(),
             visualRotateXDeg(),
-            visualRotateYDeg()
+            visualRotateYDeg(),
+            visualPivotX(),
+            visualPivotY()
         );
         component.place(x, y, h, v);
         component.setFit(fit);

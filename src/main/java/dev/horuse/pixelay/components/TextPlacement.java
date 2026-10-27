@@ -65,8 +65,34 @@ public final class TextPlacement {
         // stacks the lines up from it, so the entity stands at the end of the last normal line (plus the
         // configured gap), wherever the box is anchored: the drawing always fills the box.
         double firstLineTop = boxTop - metrics.topPx() * fontPxY;
-        double x = boxCenterX + (TRAILING_SPACING_FONT_PX / 2.0 - CLIENT_TEXT_OFFSET_FONT_PX) * fontPxX;
-        double y = firstLineTop + normalBottomPx(metrics) * fontPxY + bottomGapPx(drawable) * drawable.visualScaleY();
+        double localDx = (TRAILING_SPACING_FONT_PX / 2.0 - CLIENT_TEXT_OFFSET_FONT_PX) * fontPxX;
+        double localDy =
+            firstLineTop +
+            normalBottomPx(metrics) * fontPxY +
+            bottomGapPx(drawable) * drawable.visualScaleY() -
+            (boxTop + height / 2.0);
+        double boxCenterY = boxTop + height / 2.0;
+        double x;
+        double y;
+        double rotDeg = drawable.rotateDeg();
+        if (Math.abs(rotDeg) < 1e-4) {
+            x = boxCenterX + localDx;
+            y = boxCenterY + localDy;
+        } else {
+            double px = Double.isNaN(drawable.rotatePivotX()) ? boxCenterX : drawable.rotatePivotX();
+            double py = Double.isNaN(drawable.rotatePivotY()) ? boxCenterY : drawable.rotatePivotY();
+            double rad = Math.toRadians(rotDeg);
+            double cos = Math.cos(rad);
+            double sin = Math.sin(rad);
+            double relX = boxCenterX - px;
+            double relY = boxCenterY - py;
+            double rotCenterX = px + relX * cos - relY * sin;
+            double rotCenterY = py + relX * sin + relY * cos;
+            double rotLocalDx = localDx * cos - localDy * sin;
+            double rotLocalDy = localDx * sin + localDy * cos;
+            x = rotCenterX + rotLocalDx;
+            y = rotCenterY + rotLocalDy;
+        }
         return new Placement(
             explicitOr(drawable, width, height),
             x,
