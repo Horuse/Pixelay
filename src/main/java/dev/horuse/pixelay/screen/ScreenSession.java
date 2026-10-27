@@ -4,6 +4,7 @@ import dev.horuse.pixelay.CanvasSurface;
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.clicks.CanvasClickCatcher;
 import dev.horuse.pixelay.components.CanvasCursor;
+import dev.horuse.pixelay.components.ColorPanel;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.Layers;
@@ -97,6 +98,9 @@ public final class ScreenSession {
     private volatile double cursorY;
     private String hovered;
     private boolean closed;
+    private boolean closing;
+    private int faderId;
+    private BukkitTask transitionTask;
     private int lastHeldSlot = -1;
     private int lastScrollDirection;
     private long lastScrollTime;
@@ -236,6 +240,9 @@ public final class ScreenSession {
         clickCatcher.spawn(canvas);
 
         task = Bukkit.getScheduler().runTaskTimer(Pixelay.plugin(), this::tick, 1, 1);
+        if (options.fadeIn() != null && options.fadeIn().durationMs() > 0) {
+            startFadeIn();
+        }
         if (options.onOpen() != null) {
             options.onOpen().accept(this);
         }
@@ -344,7 +351,7 @@ public final class ScreenSession {
     }
 
     private void click(Player clicker) {
-        if (!closed && clicker.isOnline()) {
+        if (!closed && !closing && clicker.isOnline()) {
             MountedLayout layout = currentLayout();
             ScrollView dragging = layout.activeDraggingScrollView();
             if (dragging != null) {
@@ -498,10 +505,35 @@ public final class ScreenSession {
         if (closed) {
             return;
         }
+        if (
+            !closing &&
+            reason == CloseReason.CLOSED &&
+            options.fadeOut() != null &&
+            options.fadeOut().type() != ScreenTransition.Type.NONE &&
+            options.fadeOut().durationMs() > 0 &&
+            player.isOnline()
+        ) {
+            startFadeOut(reason);
+            return;
+        }
+        finalizeClose(reason);
+    }
+
+    private void finalizeClose(CloseReason reason) {
+        if (closed) {
+            return;
+        }
         closed = true;
+        closing = false;
+        cancelTransitionTask();
+        if (faderId != 0) {
+            PacketUtils.destroy(player, faderId);
+            faderId = 0;
+        }
         SESSIONS.remove(player.getUniqueId(), this);
         if (task != null) {
             task.cancel();
+            task = null;
         }
         Pixelay.manager().unregister(surface);
         currentLayout().pointerLeft(player);
@@ -528,6 +560,87 @@ public final class ScreenSession {
         }
         if (options.onClose() != null) {
             options.onClose().accept(this, reason);
+        }
+    }
+
+    private void startFadeIn() {
+        long duration = options.fadeIn().durationMs();
+        int baseColor = options.fadeIn().overlayColor();
+        float depth = Layers.at(Layers.MAX_STEP + 5, player);
+        faderId = ColorPanel.spawn(player, canvas, 0, 0, options.pixelWidth(), options.pixelHeight(), baseColor, depth);
+        long startTime = System.currentTimeMillis();
+        transitionTask = Bukkit.getScheduler().runTaskTimer(
+            Pixelay.plugin(),
+            () -> {
+                if (closed || !player.isOnline()) {
+                    cancelTransitionTask();
+                    return;
+                }
+                long elapsed = System.currentTimeMillis() - startTime;
+                if (elapsed >= duration) {
+                    if (faderId != 0) {
+                        PacketUtils.destroy(player, faderId);
+                        faderId = 0;
+                    }
+                    cancelTransitionTask();
+                    return;
+                }
+                double progress = (double) elapsed / duration;
+                int alpha = (int) Math.round(255 * (1.0 - progress));
+                int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
+                ColorPanel.updateColor(player, faderId, argb);
+            },
+            1,
+            1
+        );
+    }
+
+    private void startFadeOut(CloseReason reason) {
+        closing = true;
+        long duration = options.fadeOut().durationMs();
+        int baseColor = options.fadeOut().overlayColor();
+        float depth = Layers.at(Layers.MAX_STEP + 5, player);
+        if (faderId == 0) {
+            faderId = ColorPanel.spawn(
+                player,
+                canvas,
+                0,
+                0,
+                options.pixelWidth(),
+                options.pixelHeight(),
+                baseColor & 0x00FFFFFF,
+                depth
+            );
+        }
+        long startTime = System.currentTimeMillis();
+        transitionTask = Bukkit.getScheduler().runTaskTimer(
+            Pixelay.plugin(),
+            () -> {
+                if (closed || !player.isOnline()) {
+                    cancelTransitionTask();
+                    finalizeClose(reason);
+                    return;
+                }
+                long elapsed = System.currentTimeMillis() - startTime;
+                if (elapsed >= duration) {
+                    cancelTransitionTask();
+                    finalizeClose(reason);
+                    return;
+                }
+                double progress = (double) elapsed / duration;
+                int alpha = (int) Math.round(255 * progress);
+                int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
+                ColorPanel.updateColor(player, faderId, argb);
+            },
+            1,
+            1
+        );
+    }
+
+    private void cancelTransitionTask() {
+        if (transitionTask != null) {
+            transitionTask.cancel();
+            transitionTask = null;
         }
     }
 
@@ -645,6 +758,8 @@ public final class ScreenSession {
         boolean hideOthers,
         boolean suppressChat,
         boolean restore,
+        ScreenTransition fadeIn,
+        ScreenTransition fadeOut,
         Consumer<ScreenSession> onOpen,
         BiConsumer<ScreenSession, CloseReason> onClose,
         BiConsumer<ScreenSession, String> onHover
@@ -673,6 +788,8 @@ public final class ScreenSession {
         private boolean hideOthers = true;
         private boolean suppressChat = true;
         private boolean restore = true;
+        private ScreenTransition fadeIn = ScreenTransition.none();
+        private ScreenTransition fadeOut = ScreenTransition.none();
         private Consumer<ScreenSession> onOpen;
         private BiConsumer<ScreenSession, CloseReason> onClose;
         private BiConsumer<ScreenSession, String> onHover;
@@ -791,6 +908,35 @@ public final class ScreenSession {
             return this;
         }
 
+        /** Configures matching fade in and fade out screen transitions. */
+        public Builder transition(ScreenTransition transition) {
+            this.fadeIn = transition != null ? transition : ScreenTransition.none();
+            this.fadeOut = this.fadeIn;
+            return this;
+        }
+
+        /** Configures a screen transition when opening the session. */
+        public Builder fadeIn(ScreenTransition transition) {
+            this.fadeIn = Objects.requireNonNullElse(transition, ScreenTransition.none());
+            return this;
+        }
+
+        /** Configures a simple black fade-in with the given duration in milliseconds. */
+        public Builder fadeIn(long durationMs) {
+            return fadeIn(ScreenTransition.fade(durationMs));
+        }
+
+        /** Configures a screen transition when closing the session. */
+        public Builder fadeOut(ScreenTransition transition) {
+            this.fadeOut = Objects.requireNonNullElse(transition, ScreenTransition.none());
+            return this;
+        }
+
+        /** Configures a simple black fade-out with the given duration in milliseconds. */
+        public Builder fadeOut(long durationMs) {
+            return fadeOut(ScreenTransition.fade(durationMs));
+        }
+
         private Options snapshot() {
             return new Options(
                 camera.clone(),
@@ -810,6 +956,8 @@ public final class ScreenSession {
                 hideOthers,
                 suppressChat,
                 restore,
+                fadeIn,
+                fadeOut,
                 onOpen,
                 onClose,
                 onHover
