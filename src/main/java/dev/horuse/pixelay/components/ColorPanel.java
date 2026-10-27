@@ -100,6 +100,71 @@ public final class ColorPanel {
         double pivotX,
         double pivotY
     ) {
+        return spawn(
+            viewer,
+            canvas,
+            x,
+            y,
+            width,
+            height,
+            argb,
+            depth,
+            rotateDeg,
+            rotateXDeg,
+            rotateYDeg,
+            pivotX,
+            pivotY,
+            FULL_BRIGHTNESS
+        );
+    }
+
+    /** Spawns a panel over canvas px with brightness override (used for screen transition shader signatures). */
+    public static int spawn(
+        Player viewer,
+        Canvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        int argb,
+        float depth,
+        int brightnessOverride
+    ) {
+        return spawn(
+            viewer,
+            canvas,
+            x,
+            y,
+            width,
+            height,
+            argb,
+            depth,
+            0.0,
+            0.0,
+            0.0,
+            Double.NaN,
+            Double.NaN,
+            brightnessOverride
+        );
+    }
+
+    /** Spawns a panel over canvas px {@code (x, y, width, height)} with optional Euler rotation degrees and brightness override. */
+    public static int spawn(
+        Player viewer,
+        Canvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        int argb,
+        float depth,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg,
+        double pivotX,
+        double pivotY,
+        int brightnessOverride
+    ) {
         int id = FakeEntityIds.next();
         Location origin = origin(canvas, x, y, width, height, depth, rotateDeg, rotateXDeg, rotateYDeg, pivotX, pivotY);
         PacketUtils.spawnEntity(viewer, id, EntityTypes.TEXT_DISPLAY, origin.getX(), origin.getY(), origin.getZ());
@@ -122,7 +187,7 @@ public final class ColorPanel {
         );
         data.add(new EntityData<>(idx.rightRotation(), EntityDataTypes.QUATERNION, new Quaternion4f(0f, 0f, 0f, 1f)));
         data.add(new EntityData<>(idx.billboard(), EntityDataTypes.BYTE, (byte) 0));
-        data.add(new EntityData<>(idx.brightnessOverride(), EntityDataTypes.INT, FULL_BRIGHTNESS));
+        data.add(new EntityData<>(idx.brightnessOverride(), EntityDataTypes.INT, brightnessOverride));
         data.add(new EntityData<>(idx.viewRange(), EntityDataTypes.FLOAT, Pixelay.settings().text().viewRange()));
         data.add(new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, Component.text(" ")));
         data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, argb));

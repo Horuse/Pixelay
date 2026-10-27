@@ -15,6 +15,7 @@ import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.Layers;
+import dev.horuse.pixelay.layout.Easing;
 import dev.horuse.pixelay.layout.MountedLayout;
 import dev.horuse.pixelay.layout.ScrollView;
 import dev.horuse.pixelay.listeners.ChatSuppression;
@@ -185,11 +186,15 @@ public final class ScreenSession {
             options.fadeIn().type() != ScreenTransition.Type.NONE &&
             options.fadeIn().durationMs() > 0
         ) {
-            long totalDuration = options.fadeIn().durationMs();
+            ScreenTransition transition = options.fadeIn();
+            int typeCode = transition.type().shaderCode();
+            int brightnessOverride = (typeCode << 4) | (13 << 20);
+            long totalDuration = transition.durationMs();
             long coverDuration = Math.min(250, Math.max(50, totalDuration / 2));
             long revealDuration = Math.max(50, totalDuration - coverDuration);
-            int baseColor = options.fadeIn().overlayColor();
-            int preFader = spawnPlayerFader(player, baseColor & 0x00FFFFFF);
+            int baseColor = transition.overlayColor();
+            Easing easing = transition.easing();
+            int preFader = spawnPlayerFader(player, baseColor & 0x00FFFFFF, brightnessOverride);
             long startTime = System.currentTimeMillis();
             transitionTask = Bukkit.getScheduler().runTaskTimer(
                 Pixelay.plugin(),
@@ -202,11 +207,12 @@ public final class ScreenSession {
                     long elapsed = System.currentTimeMillis() - startTime;
                     if (elapsed >= coverDuration) {
                         cancelTransitionTask();
-                        performOpen(preFader, revealDuration, baseColor);
+                        performOpen(preFader, revealDuration, baseColor, brightnessOverride, easing);
                         return;
                     }
-                    double progress = (double) elapsed / coverDuration;
-                    int alpha = (int) Math.round(255 * progress);
+                    double rawProgress = (double) elapsed / coverDuration;
+                    double progress = easing.ease(rawProgress);
+                    int alpha = Math.max(0, Math.min(255, (int) Math.round(255 * progress)));
                     int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
                     ColorPanel.updateColor(player, preFader, argb);
                 },
@@ -214,11 +220,11 @@ public final class ScreenSession {
                 1
             );
         } else {
-            performOpen(0, 0, 0);
+            performOpen(0, 0, 0, 0xF000F0, Easing.LINEAR);
         }
     }
 
-    private void performOpen(int preFader, long revealDuration, int baseColor) {
+    private void performOpen(int preFader, long revealDuration, int baseColor, int brightnessOverride, Easing easing) {
         ScreenSession previous = SESSIONS.put(player.getUniqueId(), this);
         if (previous != null) {
             previous.close(CloseReason.CLOSED);
@@ -265,8 +271,9 @@ public final class ScreenSession {
                 0,
                 options.pixelWidth(),
                 options.pixelHeight(),
-                baseColor,
-                depth
+                (0xFF << 24) | (baseColor & 0x00FFFFFF),
+                depth,
+                brightnessOverride
             );
             PacketUtils.destroy(player, preFader);
         }
@@ -274,7 +281,7 @@ public final class ScreenSession {
         camera = new ScreenCamera(player, view, shaderCursor != null ? SHADER_SEAT_HEIGHT : 0, lookOrigin);
         camera.spawn(() -> {
             if (preFader != 0 && revealDuration > 0) {
-                startFadeIn(revealDuration, baseColor);
+                startFadeIn(revealDuration, baseColor, easing);
             }
         });
         if (shaderCursor != null) {
@@ -580,14 +587,20 @@ public final class ScreenSession {
             startFadeOut(reason);
             return;
         }
-        finalizeClose(reason, 0, 0);
+        finalizeClose(reason, 0, 0, 0xF000F0, Easing.LINEAR);
     }
 
     private void finalizeClose(CloseReason reason) {
-        finalizeClose(reason, 0, 0);
+        finalizeClose(reason, 0, 0, 0xF000F0, Easing.LINEAR);
     }
 
-    private void finalizeClose(CloseReason reason, long restoreDuration, int baseColor) {
+    private void finalizeClose(
+        CloseReason reason,
+        long restoreDuration,
+        int baseColor,
+        int brightnessOverride,
+        Easing easing
+    ) {
         if (closed) {
             return;
         }
@@ -622,8 +635,8 @@ public final class ScreenSession {
             player.setGameMode(previousMode);
             player.teleport(previousLocation);
             if (restoreDuration > 0) {
-                int postFader = spawnPlayerFader(player, baseColor);
-                runPostFaderReveal(player, postFader, baseColor, restoreDuration, () -> {
+                int postFader = spawnPlayerFader(player, (0xFF << 24) | (baseColor & 0x00FFFFFF), brightnessOverride);
+                runPostFaderReveal(player, postFader, baseColor, restoreDuration, easing, () -> {
                     if (options.onClose() != null) {
                         options.onClose().accept(this, reason);
                     }
@@ -642,7 +655,7 @@ public final class ScreenSession {
         }
     }
 
-    private void startFadeIn(long duration, int baseColor) {
+    private void startFadeIn(long duration, int baseColor, Easing easing) {
         long startTime = System.currentTimeMillis();
         transitionTask = Bukkit.getScheduler().runTaskTimer(
             Pixelay.plugin(),
@@ -660,8 +673,9 @@ public final class ScreenSession {
                     cancelTransitionTask();
                     return;
                 }
-                double progress = (double) elapsed / duration;
-                int alpha = (int) Math.round(255 * (1.0 - progress));
+                double rawProgress = (double) elapsed / duration;
+                double progress = easing.ease(rawProgress);
+                int alpha = Math.max(0, Math.min(255, (int) Math.round(255 * (1.0 - progress))));
                 int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
                 ColorPanel.updateColor(player, faderId, argb);
             },
@@ -672,10 +686,14 @@ public final class ScreenSession {
 
     private void startFadeOut(CloseReason reason) {
         closing = true;
-        long totalDuration = options.fadeOut().durationMs();
+        ScreenTransition transition = options.fadeOut();
+        int typeCode = transition.type().shaderCode();
+        int brightnessOverride = (typeCode << 4) | (13 << 20);
+        long totalDuration = transition.durationMs();
         long coverDuration = Math.min(250, Math.max(50, totalDuration / 2));
         long restoreDuration = Math.max(50, totalDuration - coverDuration);
-        int baseColor = options.fadeOut().overlayColor();
+        int baseColor = transition.overlayColor();
+        Easing easing = transition.easing();
         float depth = Layers.at(Layers.MAX_STEP + 5, player);
         if (faderId == 0) {
             faderId = ColorPanel.spawn(
@@ -686,7 +704,8 @@ public final class ScreenSession {
                 options.pixelWidth(),
                 options.pixelHeight(),
                 baseColor & 0x00FFFFFF,
-                depth
+                depth,
+                brightnessOverride
             );
         }
         long startTime = System.currentTimeMillis();
@@ -695,17 +714,18 @@ public final class ScreenSession {
             () -> {
                 if (closed || !player.isOnline()) {
                     cancelTransitionTask();
-                    finalizeClose(reason, 0, 0);
+                    finalizeClose(reason, 0, 0, 0xF000F0, Easing.LINEAR);
                     return;
                 }
                 long elapsed = System.currentTimeMillis() - startTime;
                 if (elapsed >= coverDuration) {
                     cancelTransitionTask();
-                    finalizeClose(reason, restoreDuration, baseColor);
+                    finalizeClose(reason, restoreDuration, baseColor, brightnessOverride, easing);
                     return;
                 }
-                double progress = (double) elapsed / coverDuration;
-                int alpha = (int) Math.round(255 * progress);
+                double rawProgress = (double) elapsed / coverDuration;
+                double progress = easing.ease(rawProgress);
+                int alpha = Math.max(0, Math.min(255, (int) Math.round(255 * progress)));
                 int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
                 ColorPanel.updateColor(player, faderId, argb);
             },
@@ -714,7 +734,7 @@ public final class ScreenSession {
         );
     }
 
-    private static int spawnPlayerFader(Player player, int argb) {
+    private static int spawnPlayerFader(Player player, int argb, int brightnessOverride) {
         int id = FakeEntityIds.next();
         Location eye = player.getEyeLocation();
         Vector dir = eye.getDirection().normalize();
@@ -731,7 +751,7 @@ public final class ScreenSession {
         data.add(new EntityData<>(idx.leftRotation(), EntityDataTypes.QUATERNION, new Quaternion4f(0f, 0f, 0f, 1f)));
         data.add(new EntityData<>(idx.rightRotation(), EntityDataTypes.QUATERNION, new Quaternion4f(0f, 0f, 0f, 1f)));
         data.add(new EntityData<>(idx.billboard(), EntityDataTypes.BYTE, (byte) 3));
-        data.add(new EntityData<>(idx.brightnessOverride(), EntityDataTypes.INT, 0xF000F0));
+        data.add(new EntityData<>(idx.brightnessOverride(), EntityDataTypes.INT, brightnessOverride));
         data.add(new EntityData<>(idx.viewRange(), EntityDataTypes.FLOAT, 10f));
         data.add(new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, Component.text(" ")));
         data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, argb));
@@ -739,7 +759,14 @@ public final class ScreenSession {
         return id;
     }
 
-    private void runPostFaderReveal(Player player, int postFader, int baseColor, long duration, Runnable onDone) {
+    private void runPostFaderReveal(
+        Player player,
+        int postFader,
+        int baseColor,
+        long duration,
+        Easing easing,
+        Runnable onDone
+    ) {
         long startTime = System.currentTimeMillis();
         Bukkit.getScheduler().runTaskTimer(
             Pixelay.plugin(),
@@ -761,8 +788,9 @@ public final class ScreenSession {
                     }
                     return;
                 }
-                double progress = (double) elapsed / duration;
-                int alpha = (int) Math.round(255 * (1.0 - progress));
+                double rawProgress = (double) elapsed / duration;
+                double progress = easing.ease(rawProgress);
+                int alpha = Math.max(0, Math.min(255, (int) Math.round(255 * (1.0 - progress))));
                 int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
                 ColorPanel.updateColor(player, postFader, argb);
             },
