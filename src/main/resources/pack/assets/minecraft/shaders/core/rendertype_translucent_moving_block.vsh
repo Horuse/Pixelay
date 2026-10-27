@@ -25,6 +25,6 @@ void main() {
 
     sphericalVertexDistance = fog_spherical_distance(Position);
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
-    vertexColor = Color * texelFetch(Sampler2, UV2 / 16, 0);
+    vertexColor = (UV2 == ivec2(240, 240)) ? Color : Color * texelFetch(Sampler2, UV2 / 16, 0);
     texCoord0 = UV0;
 }

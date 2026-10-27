@@ -94,10 +94,21 @@ public class CanvasItem extends CanvasModel<ItemStack> {
         );
     }
 
+    /**
+     * Keep a slight Z thickness ({@code 0.02} blocks) instead of {@code 0.0005}: in Minecraft's renderer,
+     * Display entity normals are transformed by {@code inverse(transpose(scale))}. A near-zero Z scale
+     * crushes the side normals of 2D item quads, making {@code minecraft_mix_light} shade items dark even
+     * at brightness 15/15 when viewed from South/North before the resource-pack shader is loaded.
+     */
+    @Override
+    protected float modelThickness(float width, float height) {
+        return Math.min(0.02f, Math.min(width, height));
+    }
+
     /** An item model is centred on its entity and fills a 1x1 block square in the GUI display, like a slot. */
     @Override
     protected Vector3f modelOffset(float width, float height, float thickness) {
-        return new Vector3f(width / 2, height / 2, thickness / 2);
+        return new Vector3f(width / 2, height / 2, 0f);
     }
 
     @Override

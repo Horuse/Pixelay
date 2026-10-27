@@ -30,6 +30,6 @@ void main() {
 
     sphericalVertexDistance = fog_spherical_distance(pos);
     cylindricalVertexDistance = fog_cylindrical_distance(pos);
-    vertexColor = Color * minecraft_sample_lightmap(Sampler2, UV2);
+    vertexColor = (UV2 == ivec2(240, 240)) ? Color : Color * minecraft_sample_lightmap(Sampler2, UV2);
     texCoord0 = UV0;
 }

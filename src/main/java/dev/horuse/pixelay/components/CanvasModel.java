@@ -321,6 +321,15 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     }
 
     /**
+     * Thickness (Z scale) of the model in blocks along the canvas normal. Defaults to half a layer step
+     * so blocks are flattened onto their layer; subclasses (like {@link CanvasItem}) may override if a
+     * near-zero Z scale distorts their vertex normals.
+     */
+    protected float modelThickness(float width, float height) {
+        return Layers.at(0.5, viewer);
+    }
+
+    /**
      * The model fitted into its box. The entity never moves (its yaw and pitch are 0, so the translation is in
      * world axes): the box corner relative to it, plus the model's own offset turned with the canvas.
      */
@@ -328,8 +337,7 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         CanvasResolution res = canvas.resolution();
         float width = (float) ((widthPx * res.blockWidth()) / res.pixelWidth());
         float height = (float) ((heightPx * res.blockHeight()) / res.pixelHeight());
-        // Half a step: the flattened model stays between its own layer and the next one.
-        float thickness = Layers.at(0.5, viewer);
+        float thickness = modelThickness(width, height);
         Quaternionf rotation = canvas.contentRotation();
         Vector corner = cornerWorld().toVector().subtract(entityPos);
         Vector3f translation = rotation
