@@ -100,24 +100,6 @@ public class CanvasItem extends CanvasModel<ItemStack> {
         return new Vector3f(width / 2, height / 2, 0f);
     }
 
-    /**
-     * Keep a slight Z thickness ({@code 0.02} blocks) instead of {@code 0.0005}: in Minecraft's renderer,
-     * Display entity normals are transformed by {@code inverse(transpose(scale))}. A near-zero Z scale
-     * crushes the side normals of 2D item quads, making {@code minecraft_mix_light} shade items dark even
-     * at brightness 15/15.
-     */
-    @Override
-    protected float modelThickness(float width, float height) {
-        return Math.min(0.02f, Math.min(width, height));
-    }
-
-    /**
-     * Tilts 2D item icons slightly towards the sky ({@code -35°} pitch) so Minecraft's overhead directional
-     * lights ({@code Light0_Direction} / {@code Light1_Direction}) illuminate them at ~96–100% brightness
-     * in all cardinal directions (including East/West where vertical faces otherwise drop to 50% brightness).
-     * Because an item icon is small (e.g. ~0.1 blocks high) and sits on the top layer of its card, its Z tilt
-     * never intersects the screen camera.
-     */
     @Override
     protected float normalPitchTiltRad() {
         return Pixelay.settings().text().fullBrightness() ? (float) Math.toRadians(-35.0) : 0f;

@@ -321,29 +321,12 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     }
 
     /**
-     * Thickness (Z scale) of the model in blocks along the canvas normal. Defaults to half a layer step
-     * so blocks are flattened onto their layer; subclasses (like {@link CanvasItem}) may override if a
-     * near-zero Z scale distorts their vertex normals.
-     */
-    protected float modelThickness(float width, float height) {
-        return Layers.at(0.5, viewer);
-    }
-
-    /**
      * Optional pitch tilt (radians) applied to the model's normal matrix so that flat models on vertical
      * canvases catch Minecraft's overhead directional light ({@code Light0_Direction} / {@code Light1_Direction})
      * instead of being shaded dark at East/West/North/South yaw angles when no custom core shader is active.
      */
     protected float normalPitchTiltRad() {
         return 0f;
-    }
-
-    /**
-     * Extra local translation (in canvas right, up, normal blocks) when {@link #normalPitchTiltRad()} is
-     * active, to keep the model's visual centre and Z-depth aligned with its canvas layer.
-     */
-    protected Vector3f pitchTiltOffset(float width, float height, float tiltRad) {
-        return new Vector3f();
     }
 
     /**
@@ -354,14 +337,13 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         CanvasResolution res = canvas.resolution();
         float width = (float) ((widthPx * res.blockWidth()) / res.pixelWidth());
         float height = (float) ((heightPx * res.blockHeight()) / res.pixelHeight());
-        float thickness = modelThickness(width, height);
+        float thickness = Layers.at(0.5, viewer);
         float tilt = normalPitchTiltRad();
         float adjHeight = tilt != 0f ? height / (float) Math.cos(tilt) : height;
         Quaternionf rotation = canvas.contentRotation();
         Vector corner = cornerWorld().toVector().subtract(entityPos);
-        Vector3f localOffset = modelOffset(width, height, thickness).add(pitchTiltOffset(width, height, tilt));
         Vector3f translation = rotation
-            .transform(localOffset)
+            .transform(modelOffset(width, height, thickness))
             .add((float) corner.getX(), (float) corner.getY(), (float) corner.getZ());
         Quaternionf rightRot = modelRotation();
         if (rotateDeg != 0.0) {

@@ -92,16 +92,6 @@ public class CanvasBlock extends CanvasModel<BlockData> {
         return new Vector3f();
     }
 
-    /**
-     * In {@code BlockDisplay}, directional shading applies per-face in local block space (independent of
-     * {@code leftRotation}), so tilting a block in pitch would only cause its top/bottom edges to poke through
-     * adjacent Z layers without changing face brightness. Keep {@code BlockDisplay} 100% flat on its layer.
-     */
-    @Override
-    protected float normalPitchTiltRad() {
-        return 0f;
-    }
-
     @Override
     protected Quaternionf modelRotation() {
         return new Quaternionf();
