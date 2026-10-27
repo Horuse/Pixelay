@@ -26,6 +26,6 @@ void main() {
 
     sphericalVertexDistance = fog_spherical_distance(Position);
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
-    vertexColor = pixelay_is_full_brightness(UV2) ? Color : Color * texelFetch(Sampler2, UV2 / 16, 0);
+    vertexColor = pixelay_is_full_brightness(UV2, ProjMat) ? Color : Color * texelFetch(Sampler2, UV2 / 16, 0);
     texCoord0 = UV0;
 }
