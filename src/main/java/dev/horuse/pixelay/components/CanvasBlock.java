@@ -92,6 +92,24 @@ public class CanvasBlock extends CanvasModel<BlockData> {
         return new Vector3f();
     }
 
+    /**
+     * Tilts the block's front face slightly towards the sky (+Y) so {@code Light0_Direction} /
+     * {@code Light1_Direction} illuminate it brightly in all cardinal directions, and compensates the Z shift
+     * of the block's vertical midpoint so it stays on its canvas layer.
+     */
+    @Override
+    protected float normalPitchTiltRad() {
+        return Pixelay.settings().text().fullBrightness() ? (float) Math.toRadians(-35.0) : 0f;
+    }
+
+    @Override
+    protected Vector3f pitchTiltOffset(float width, float height, float tiltRad) {
+        if (tiltRad == 0f) {
+            return new Vector3f();
+        }
+        return new Vector3f(0f, 0f, -0.5f * height * (float) Math.tan(tiltRad));
+    }
+
     @Override
     protected Quaternionf modelRotation() {
         return new Quaternionf();

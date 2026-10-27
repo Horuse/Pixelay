@@ -308,7 +308,7 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         return visible.intersect(new Rect(left, top, widthPx, heightPx)).isEmpty();
     }
 
-    private T currentContent() {
+    protected final T currentContent() {
         T value = content.get();
         return value != null ? value : empty();
     }
@@ -330,6 +330,30 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     }
 
     /**
+     * When {@code text.full-brightness} is enabled, tilts the model's front face slightly towards the sky
+     * ({@code -35°} pitch around the canvas X axis) and stretches its local Y scale by {@code 1 / cos(35°)}
+     * so its 2D projection on the canvas remains the exact {@code width x height} square.
+     * <p>
+     * Why this is needed: in vanilla Minecraft, {@code ItemDisplay} and {@code BlockDisplay} entities are
+     * shaded by world directional lights ({@code Light0_Direction} and {@code Light1_Direction}) whose
+     * strongest component comes from straight up (+Y). A vertical face with horizontal normal {@code (y = 0)}
+     * only receives 50% brightness when facing East/West and 74% when facing North/South, making items and
+     * blocks look dark/grey on a light UI background even with {@code Brightness(15, 15)}. Tilting the normal
+     * upward by 35° raises {@code minecraft_mix_light} to ~95%–100% in every cardinal direction.
+     */
+    protected float normalPitchTiltRad() {
+        return Pixelay.settings().text().fullBrightness() ? (float) Math.toRadians(-35.0) : 0f;
+    }
+
+    /**
+     * Extra local translation (in canvas right, up, normal blocks) when {@link #normalPitchTiltRad()} is
+     * active, to keep the model's visual centre and Z-depth aligned with its canvas layer.
+     */
+    protected Vector3f pitchTiltOffset(float width, float height, float tiltRad) {
+        return new Vector3f();
+    }
+
+    /**
      * The model fitted into its box. The entity never moves (its yaw and pitch are 0, so the translation is in
      * world axes): the box corner relative to it, plus the model's own offset turned with the canvas.
      */
@@ -338,13 +362,14 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         float width = (float) ((widthPx * res.blockWidth()) / res.pixelWidth());
         float height = (float) ((heightPx * res.blockHeight()) / res.pixelHeight());
         float thickness = modelThickness(width, height);
+        float tilt = normalPitchTiltRad();
+        float adjHeight = tilt != 0f ? height / (float) Math.cos(tilt) : height;
         Quaternionf rotation = canvas.contentRotation();
         Vector corner = cornerWorld().toVector().subtract(entityPos);
+        Vector3f localOffset = modelOffset(width, height, thickness).add(pitchTiltOffset(width, height, tilt));
         Vector3f translation = rotation
-            .transform(modelOffset(width, height, thickness))
+            .transform(localOffset)
             .add((float) corner.getX(), (float) corner.getY(), (float) corner.getZ());
-        // Clipped away: scaled to nothing, so it comes back in place without a respawn.
-        Vector3f scale = clippedAway() ? new Vector3f() : new Vector3f(width, height, thickness);
         Quaternionf rightRot = modelRotation();
         if (rotateDeg != 0.0) {
             rightRot.rotateZ((float) Math.toRadians(-rotateDeg));
@@ -355,6 +380,11 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         if (rotateYDeg != 0.0) {
             rightRot.rotateY((float) Math.toRadians(rotateYDeg));
         }
+        if (tilt != 0f) {
+            rotation.rotateX(tilt);
+        }
+        // Clipped away: scaled to nothing, so it comes back in place without a respawn.
+        Vector3f scale = clippedAway() ? new Vector3f() : new Vector3f(width, adjHeight, thickness);
         return new Transformation(translation, rotation, scale, rightRot);
     }
 

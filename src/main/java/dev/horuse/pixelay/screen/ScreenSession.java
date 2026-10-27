@@ -657,7 +657,7 @@ public final class ScreenSession {
 
         private final Player player;
         private Location camera;
-        private double distance = 3;
+        private double distance = 1.5;
         private double pixelWidth = 1920;
         private double pixelHeight = 1080;
         private double verticalFov = 70;
@@ -687,7 +687,7 @@ public final class ScreenSession {
             return this;
         }
 
-        /** Blocks between the camera and the canvas (default 3). Keep the space between them free of blocks. */
+        /** Blocks between the camera and the canvas (default 1.5). Keep the space between them free of blocks. */
         public Builder distance(double blocks) {
             this.distance = blocks;
             return this;
