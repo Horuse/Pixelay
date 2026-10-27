@@ -111,6 +111,18 @@ public class CanvasItem extends CanvasModel<ItemStack> {
         return Math.min(0.02f, Math.min(width, height));
     }
 
+    /**
+     * Tilts 2D item icons slightly towards the sky ({@code -35°} pitch) so Minecraft's overhead directional
+     * lights ({@code Light0_Direction} / {@code Light1_Direction}) illuminate them at ~96–100% brightness
+     * in all cardinal directions (including East/West where vertical faces otherwise drop to 50% brightness).
+     * Because an item icon is small (e.g. ~0.1 blocks high) and sits on the top layer of its card, its Z tilt
+     * never intersects the screen camera.
+     */
+    @Override
+    protected float normalPitchTiltRad() {
+        return Pixelay.settings().text().fullBrightness() ? (float) Math.toRadians(-35.0) : 0f;
+    }
+
     @Override
     protected Quaternionf modelRotation() {
         return new Quaternionf(FRONT);

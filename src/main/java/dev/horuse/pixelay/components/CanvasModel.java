@@ -330,19 +330,12 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     }
 
     /**
-     * When {@code text.full-brightness} is enabled, tilts the model's front face slightly towards the sky
-     * ({@code -35°} pitch around the canvas X axis) and stretches its local Y scale by {@code 1 / cos(35°)}
-     * so its 2D projection on the canvas remains the exact {@code width x height} square.
-     * <p>
-     * Why this is needed: in vanilla Minecraft, {@code ItemDisplay} and {@code BlockDisplay} entities are
-     * shaded by world directional lights ({@code Light0_Direction} and {@code Light1_Direction}) whose
-     * strongest component comes from straight up (+Y). A vertical face with horizontal normal {@code (y = 0)}
-     * only receives 50% brightness when facing East/West and 74% when facing North/South, making items and
-     * blocks look dark/grey on a light UI background even with {@code Brightness(15, 15)}. Tilting the normal
-     * upward by 35° raises {@code minecraft_mix_light} to ~95%–100% in every cardinal direction.
+     * Optional pitch tilt (radians) applied to the model's normal matrix so that flat models on vertical
+     * canvases catch Minecraft's overhead directional light ({@code Light0_Direction} / {@code Light1_Direction})
+     * instead of being shaded dark at East/West/North/South yaw angles when no custom core shader is active.
      */
     protected float normalPitchTiltRad() {
-        return Pixelay.settings().text().fullBrightness() ? (float) Math.toRadians(-35.0) : 0f;
+        return 0f;
     }
 
     /**
