@@ -172,7 +172,8 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
                 visualRotateXDeg(),
                 visualRotateYDeg(),
                 visualPivotX(),
-                visualPivotY()
+                visualPivotY(),
+                visualTransformationDurationTicks()
             );
         }
     }

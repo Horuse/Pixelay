@@ -211,10 +211,27 @@ public final class ColorPanel {
         Quaternionf rotation,
         Integer argb
     ) {
+        update(viewer, id, canvas, width, height, translation, rotation, argb, 0);
+    }
+
+    /** Moves, resizes, rotates, and optionally recolors an existing panel with client interpolation duration in ticks. */
+    public static void update(
+        Player viewer,
+        int id,
+        Canvas canvas,
+        double width,
+        double height,
+        org.bukkit.util.Vector translation,
+        Quaternionf rotation,
+        Integer argb,
+        int transformationDuration
+    ) {
         PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
         List<EntityData<?>> data = new ArrayList<>();
         data.add(new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0));
-        data.add(new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0));
+        data.add(
+            new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, Math.max(0, transformationDuration))
+        );
         data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)));
         data.add(
             new EntityData<>(

@@ -319,7 +319,8 @@ public final class MountedLayout implements CanvasComponent {
                         box.visualRotateXDeg(),
                         box.visualRotateYDeg(),
                         box.visualPivotX(),
-                        box.visualPivotY()
+                        box.visualPivotY(),
+                        box.visualTransformationDurationTicks()
                     );
             }
             syncBoxBorders(box, viewer, bg);
@@ -384,10 +385,11 @@ public final class MountedLayout implements CanvasComponent {
         double rotY = box.visualRotateYDeg();
         double pivX = box.visualPivotX();
         double pivY = box.visualPivotY();
-        edges[0].sync(canvas, topRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
-        edges[1].sync(canvas, rightRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
-        edges[2].sync(canvas, bottomRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
-        edges[3].sync(canvas, leftRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
+        int durationTicks = box.visualTransformationDurationTicks();
+        edges[0].sync(canvas, topRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY, durationTicks);
+        edges[1].sync(canvas, rightRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY, durationTicks);
+        edges[2].sync(canvas, bottomRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY, durationTicks);
+        edges[3].sync(canvas, leftRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY, durationTicks);
     }
 
     private int compositedBackground(Box<?> box) {

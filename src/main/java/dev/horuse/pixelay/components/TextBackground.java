@@ -95,6 +95,21 @@ public final class TextBackground {
         double pivotX,
         double pivotY
     ) {
+        sync(canvas, bounds, argb, depth, rotateDeg, rotateXDeg, rotateYDeg, pivotX, pivotY, 0);
+    }
+
+    public void sync(
+        Canvas canvas,
+        Rect bounds,
+        int argb,
+        float depth,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg,
+        double pivotX,
+        double pivotY,
+        int transformationDurationTicks
+    ) {
         boolean empty = bounds == null || bounds.width() <= 0 || bounds.height() <= 0 || argb >>> 24 == 0;
         if (empty) {
             remove();
@@ -151,7 +166,8 @@ public final class TextBackground {
                     height,
                     translation,
                     rotation,
-                    argb != color ? argb : null
+                    argb != color ? argb : null,
+                    transformationDurationTicks
                 );
             }
         } else {
@@ -168,6 +184,8 @@ public final class TextBackground {
                     entity.setBackgroundColor(Color.fromARGB(argb));
                 }
             }
+            entity.setInterpolationDuration(transformationDurationTicks);
+            entity.setInterpolationDelay(0);
             entity.setTransformation(
                 new Transformation(new Vector3f(), new Quaternionf(rotation), scale, new Quaternionf())
             );

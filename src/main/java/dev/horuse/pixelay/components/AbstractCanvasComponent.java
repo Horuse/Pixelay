@@ -59,6 +59,7 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     private volatile double rotateYDeg;
     private volatile double rotatePivotX = Double.NaN;
     private volatile double rotatePivotY = Double.NaN;
+    private volatile int transformationDuration;
 
     protected AbstractCanvasComponent(double pixelX, double pixelY, double heightPx) {
         this.pixelX = pixelX;
@@ -372,6 +373,16 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     @Override
     public double rotateYDeg() {
         return rotateYDeg;
+    }
+
+    @Override
+    public void setTransformationDuration(int ticks) {
+        this.transformationDuration = Math.max(0, ticks);
+    }
+
+    @Override
+    public int transformationDuration() {
+        return transformationDuration;
     }
 
     @Override
