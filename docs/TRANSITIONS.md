@@ -98,7 +98,6 @@ Pixelay supports multiple transition effects defined in `ScreenTransition`:
 - `ScreenTransition.fade(durationMs)` — Smooth color fade (default: pure black `#000000`).
 - `ScreenTransition.circleWipe(durationMs)` — Circular iris expanding from center.
 - `ScreenTransition.linearWipe(durationMs)` — Directional wipe sweeping across screen.
-- `ScreenTransition.dissolve(durationMs)` — Procedural noise dissolve.
 
 ---
 

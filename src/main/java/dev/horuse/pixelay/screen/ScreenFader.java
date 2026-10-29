@@ -113,7 +113,7 @@ final class ScreenFader {
 
     private void spawn(double u) {
         switch (transition.type()) {
-            case FADE, DISSOLVE -> {
+            case FADE -> {
                 id1 = ColorPanel.spawn(player, canvas, x, y, width, height, argb(alpha(u)), depth);
                 origin1 = ColorPanel.origin(canvas, x, y, width, height, depth);
             }
@@ -163,7 +163,7 @@ final class ScreenFader {
             return;
         }
         switch (transition.type()) {
-            case FADE, DISSOLVE -> ColorPanel.updateColor(player, id1, argb(alpha(u)));
+            case FADE -> ColorPanel.updateColor(player, id1, argb(alpha(u)));
             case CURTAIN -> {
                 double open = Math.abs(u - 1);
                 double half = halfWidth();
