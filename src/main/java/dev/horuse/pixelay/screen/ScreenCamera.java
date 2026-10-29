@@ -130,12 +130,19 @@ final class ScreenCamera {
         });
     }
 
-    /** Gives the player their own view back and removes the camera. */
-    void remove() {
+    /**
+     * Removes the camera.
+     *
+     * @param restoreView give the player their own view back; {@code false} when a next screen's camera
+     *     already holds the view and must not be overridden
+     */
+    void remove(boolean restoreView) {
         removed = true;
         if (player.isOnline()) {
             PacketUtils.destroy(player, clickTargetId);
-            PacketUtils.sendCamera(player, player);
+            if (restoreView) {
+                PacketUtils.sendCamera(player, player);
+            }
         }
         if (seat != null && seat != anchor) {
             seat.eject();
