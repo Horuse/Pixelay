@@ -118,8 +118,9 @@ public final class ScreenSession {
         this.view.setPitch(0);
         Vector forward = new Vector(-Math.sin(Math.toRadians(facingYaw)), 0, Math.cos(Math.toRadians(facingYaw)));
         this.canvasCenter = view.clone().add(forward.multiply(options.distance()));
-        this.previousMode = player.getGameMode();
-        this.previousLocation = player.getLocation().clone();
+        ScreenSession existing = SESSIONS.get(player.getUniqueId());
+        this.previousMode = existing != null ? existing.previousMode : player.getGameMode();
+        this.previousLocation = existing != null ? existing.previousLocation : player.getLocation().clone();
     }
 
     public static Builder builder(Player player) {
@@ -172,6 +173,10 @@ public final class ScreenSession {
         return closed;
     }
 
+    public Location view() {
+        return view.clone();
+    }
+
     // --- opening -----------------------------------------------------------------------------------------
 
     private void open() {
@@ -180,7 +185,7 @@ public final class ScreenSession {
 
     private void performOpen() {
         ScreenSession previous = SESSIONS.put(player.getUniqueId(), this);
-        if (previous != null) {
+        if (previous != null && !previous.closed) {
             previous.close(CloseReason.CLOSED);
             SESSIONS.put(player.getUniqueId(), this);
         }
@@ -191,7 +196,7 @@ public final class ScreenSession {
         }
         // The shader measures the look from yaw 0: the player starts there, the camera keeps facing the canvas.
         lookOrigin = shaderCursor != null ? 0 : facingYaw;
-        Location start = view.clone();
+        Location start = shaderCursor != null ? view.clone().add(0, SHADER_SEAT_HEIGHT, 0) : view.clone();
         start.setYaw(lookOrigin);
         start.setPitch(0f);
         player.teleport(start);
@@ -514,10 +519,18 @@ public final class ScreenSession {
     // --- closing -----------------------------------------------------------------------------------------
 
     public void close() {
-        close(CloseReason.CLOSED);
+        close(CloseReason.CLOSED, null);
+    }
+
+    public void close(Runnable onClosed) {
+        close(CloseReason.CLOSED, onClosed);
     }
 
     void close(CloseReason reason) {
+        close(reason, null);
+    }
+
+    void close(CloseReason reason, Runnable onClosed) {
         if (closed) {
             return;
         }
@@ -529,10 +542,10 @@ public final class ScreenSession {
             options.fadeOut().durationMs() > 0 &&
             player.isOnline()
         ) {
-            startFadeOut(reason);
+            startFadeOut(reason, onClosed);
             return;
         }
-        finalizeClose(reason);
+        finalizeClose(reason, onClosed);
     }
 
     private static final double OVERLAY_MULT = 4.0;
@@ -596,7 +609,17 @@ public final class ScreenSession {
                 faderId2 = ColorPanel.spawn(player, canvas, rightX, overY, halfW, overH, fullAlpha, depth);
                 fader2Origin = ColorPanel.origin(canvas, rightX, overY, halfW, overH, depth);
             }
-            case FADE, DISSOLVE, LINEAR_WIPE_LEFT, LINEAR_WIPE_RIGHT, LINEAR_WIPE_UP, LINEAR_WIPE_DOWN, CIRCLE_WIPE -> {
+            case
+                FADE,
+                DISSOLVE,
+                LINEAR_WIPE_LEFT,
+                LINEAR_WIPE_RIGHT,
+                LINEAR_WIPE_UP,
+                LINEAR_WIPE_DOWN,
+                CORNER_WIPE_TOP_LEFT,
+                CORNER_WIPE_TOP_RIGHT,
+                CORNER_WIPE_BOTTOM_LEFT,
+                CORNER_WIPE_BOTTOM_RIGHT -> {
                 faderId1 = ColorPanel.spawn(player, canvas, overX, overY, overW, overH, fullAlpha, depth);
                 fader1Origin = ColorPanel.origin(canvas, overX, overY, overW, overH, depth);
             }
@@ -704,6 +727,74 @@ public final class ScreenSession {
                             1
                         );
                     }
+                    case CORNER_WIPE_TOP_LEFT -> {
+                        double curX = overX + overW * progress;
+                        double curY = overY + overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case CORNER_WIPE_TOP_RIGHT -> {
+                        double curX = overX - overW * progress;
+                        double curY = overY + overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case CORNER_WIPE_BOTTOM_LEFT -> {
+                        double curX = overX + overW * progress;
+                        double curY = overY - overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case CORNER_WIPE_BOTTOM_RIGHT -> {
+                        double curX = overX - overW * progress;
+                        double curY = overY - overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
                     case CURTAIN -> {
                         double halfW = overW / 2.0 + 4.0;
                         double curLeftX = overX - (overW / 2.0) * progress;
@@ -737,26 +828,6 @@ public final class ScreenSession {
                             1
                         );
                     }
-                    case CIRCLE_WIPE -> {
-                        double factor = Math.max(0.001, 1.0 - progress);
-                        double curW = overW * factor;
-                        double curH = overH * factor;
-                        double curX = (options.pixelWidth() - curW) / 2.0;
-                        double curY = (options.pixelHeight() - curH) / 2.0;
-                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, curW, curH, depth);
-                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
-                        ColorPanel.update(
-                            player,
-                            faderId1,
-                            canvas,
-                            curW,
-                            curH,
-                            trans,
-                            canvas.contentRotation(),
-                            null,
-                            1
-                        );
-                    }
                     default -> {
                         cancelTransitionTask();
                         cleanupFaders();
@@ -768,7 +839,7 @@ public final class ScreenSession {
         );
     }
 
-    private void startFadeOut(CloseReason reason) {
+    private void startFadeOut(CloseReason reason, Runnable onClosed) {
         closing = true;
         cancelTransitionTask();
         cleanupFaders();
@@ -811,6 +882,30 @@ public final class ScreenSession {
                 faderId1 = ColorPanel.spawn(player, canvas, overX, startY, overW, overH, fullAlpha, depth);
                 fader1Origin = ColorPanel.origin(canvas, overX, startY, overW, overH, depth);
             }
+            case CORNER_WIPE_TOP_LEFT -> {
+                double startX = overX - overW;
+                double startY = overY - overH;
+                faderId1 = ColorPanel.spawn(player, canvas, startX, startY, overW, overH, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, startX, startY, overW, overH, depth);
+            }
+            case CORNER_WIPE_TOP_RIGHT -> {
+                double startX = overX + overW;
+                double startY = overY - overH;
+                faderId1 = ColorPanel.spawn(player, canvas, startX, startY, overW, overH, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, startX, startY, overW, overH, depth);
+            }
+            case CORNER_WIPE_BOTTOM_LEFT -> {
+                double startX = overX - overW;
+                double startY = overY + overH;
+                faderId1 = ColorPanel.spawn(player, canvas, startX, startY, overW, overH, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, startX, startY, overW, overH, depth);
+            }
+            case CORNER_WIPE_BOTTOM_RIGHT -> {
+                double startX = overX + overW;
+                double startY = overY + overH;
+                faderId1 = ColorPanel.spawn(player, canvas, startX, startY, overW, overH, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, startX, startY, overW, overH, depth);
+            }
             case CURTAIN -> {
                 double halfW = overW / 2.0 + 4.0;
                 double leftStartX = overX - overW / 2.0;
@@ -820,14 +915,8 @@ public final class ScreenSession {
                 faderId2 = ColorPanel.spawn(player, canvas, rightStartX, overY, halfW, overH, fullAlpha, depth);
                 fader2Origin = ColorPanel.origin(canvas, rightStartX, overY, halfW, overH, depth);
             }
-            case CIRCLE_WIPE -> {
-                double curX = (options.pixelWidth() - 1.0) / 2.0;
-                double curY = (options.pixelHeight() - 1.0) / 2.0;
-                faderId1 = ColorPanel.spawn(player, canvas, curX, curY, 1.0, 1.0, fullAlpha, depth);
-                fader1Origin = ColorPanel.origin(canvas, curX, curY, 1.0, 1.0, depth);
-            }
             default -> {
-                finalizeClose(reason);
+                finalizeClose(reason, onClosed);
                 return;
             }
         }
@@ -837,13 +926,13 @@ public final class ScreenSession {
             () -> {
                 if (closed || !player.isOnline()) {
                     cancelTransitionTask();
-                    finalizeClose(reason);
+                    finalizeClose(reason, onClosed);
                     return;
                 }
                 long elapsed = System.currentTimeMillis() - startTime;
                 if (elapsed >= duration) {
                     cancelTransitionTask();
-                    finalizeClose(reason);
+                    finalizeClose(reason, onClosed);
                     return;
                 }
                 double rawProgress = (double) elapsed / duration;
@@ -923,6 +1012,82 @@ public final class ScreenSession {
                             1
                         );
                     }
+                    case CORNER_WIPE_TOP_LEFT -> {
+                        double startX = overX - overW;
+                        double startY = overY - overH;
+                        double curX = startX + overW * progress;
+                        double curY = startY + overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case CORNER_WIPE_TOP_RIGHT -> {
+                        double startX = overX + overW;
+                        double startY = overY - overH;
+                        double curX = startX - overW * progress;
+                        double curY = startY + overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case CORNER_WIPE_BOTTOM_LEFT -> {
+                        double startX = overX - overW;
+                        double startY = overY + overH;
+                        double curX = startX + overW * progress;
+                        double curY = startY - overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case CORNER_WIPE_BOTTOM_RIGHT -> {
+                        double startX = overX + overW;
+                        double startY = overY + overH;
+                        double curX = startX - overW * progress;
+                        double curY = startY - overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
                     case CURTAIN -> {
                         double halfW = overW / 2.0 + 4.0;
                         double leftStartX = overX - overW / 2.0;
@@ -957,28 +1122,9 @@ public final class ScreenSession {
                             1
                         );
                     }
-                    case CIRCLE_WIPE -> {
-                        double curW = Math.max(1.0, overW * progress);
-                        double curH = Math.max(1.0, overH * progress);
-                        double curX = (options.pixelWidth() - curW) / 2.0;
-                        double curY = (options.pixelHeight() - curH) / 2.0;
-                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, curW, curH, depth);
-                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
-                        ColorPanel.update(
-                            player,
-                            faderId1,
-                            canvas,
-                            curW,
-                            curH,
-                            trans,
-                            canvas.contentRotation(),
-                            null,
-                            1
-                        );
-                    }
                     default -> {
                         cancelTransitionTask();
-                        finalizeClose(reason);
+                        finalizeClose(reason, onClosed);
                     }
                 }
             },
@@ -987,16 +1133,14 @@ public final class ScreenSession {
         );
     }
 
-    private void finalizeClose(CloseReason reason) {
+    private void finalizeClose(CloseReason reason, Runnable onClosed) {
         if (closed) {
             return;
         }
         closed = true;
         closing = false;
         cancelTransitionTask();
-        cleanupFaders();
 
-        SESSIONS.remove(player.getUniqueId(), this);
         if (task != null) {
             task.cancel();
             task = null;
@@ -1013,16 +1157,32 @@ public final class ScreenSession {
         if (options.suppressChat()) {
             ChatSuppression.restore(player);
         }
-        camera.remove();
-        showOthers();
-        releaseChunks();
-        if (player.isOnline() && options.restore()) {
-            player.setGameMode(previousMode);
-            player.teleport(previousLocation);
+
+        if (onClosed != null) {
+            onClosed.run();
         }
-        if (shaderCursor != null) {
-            shaderCursor.stop();
+
+        ScreenSession nextSession = SESSIONS.get(player.getUniqueId());
+        boolean hasNextSession = nextSession != null && nextSession != this;
+
+        if (!hasNextSession) {
+            SESSIONS.remove(player.getUniqueId(), this);
+            if (player.isOnline() && options.restore()) {
+                player.teleport(previousLocation);
+                player.setGameMode(previousMode);
+            }
+            if (shaderCursor != null) {
+                shaderCursor.stop();
+            }
+            camera.remove();
+            showOthers();
+            releaseChunks();
+            cleanupFaders();
+        } else {
+            camera.remove();
+            cleanupFaders();
         }
+
         if (options.onClose() != null) {
             options.onClose().accept(this, reason);
         }

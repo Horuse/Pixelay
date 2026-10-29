@@ -5,31 +5,24 @@ import java.util.Objects;
 
 /**
  * Defines a screen transition effect when opening or closing a {@link ScreenSession}.
- * Supports GPU hardware shader transitions (Fade, Circle Wipe/Iris, Directional Linear Wipes,
+ * Supports client-side GPU hardware transitions (Fade, Directional Linear Wipes, Diagonal Corner Wipes,
  * Dissolve, Curtain/Split) with customizable durations, overlay colors, and easing curves.
  */
 public final class ScreenTransition {
 
     public enum Type {
-        NONE(-1),
-        FADE(0),
-        CIRCLE_WIPE(1),
-        LINEAR_WIPE_LEFT(2),
-        LINEAR_WIPE_RIGHT(3),
-        LINEAR_WIPE_DOWN(4),
-        LINEAR_WIPE_UP(5),
-        DISSOLVE(6),
-        CURTAIN(7);
-
-        private final int shaderCode;
-
-        Type(int shaderCode) {
-            this.shaderCode = shaderCode;
-        }
-
-        public int shaderCode() {
-            return shaderCode;
-        }
+        NONE,
+        FADE,
+        LINEAR_WIPE_LEFT,
+        LINEAR_WIPE_RIGHT,
+        LINEAR_WIPE_DOWN,
+        LINEAR_WIPE_UP,
+        CORNER_WIPE_TOP_LEFT,
+        CORNER_WIPE_TOP_RIGHT,
+        CORNER_WIPE_BOTTOM_LEFT,
+        CORNER_WIPE_BOTTOM_RIGHT,
+        DISSOLVE,
+        CURTAIN,
     }
 
     public static final Type LINEAR_WIPE = Type.LINEAR_WIPE_RIGHT;
@@ -66,18 +59,6 @@ public final class ScreenTransition {
         return new ScreenTransition(Type.FADE, durationMs, overlayColor, easing);
     }
 
-    public static ScreenTransition circleWipe(long durationMs) {
-        return new ScreenTransition(Type.CIRCLE_WIPE, durationMs, 0xFF000000, Easing.EASE_OUT);
-    }
-
-    public static ScreenTransition circleWipe(long durationMs, int overlayColor) {
-        return new ScreenTransition(Type.CIRCLE_WIPE, durationMs, overlayColor, Easing.EASE_OUT);
-    }
-
-    public static ScreenTransition circleWipe(long durationMs, int overlayColor, Easing easing) {
-        return new ScreenTransition(Type.CIRCLE_WIPE, durationMs, overlayColor, easing);
-    }
-
     public static ScreenTransition linearWipe(long durationMs) {
         return new ScreenTransition(Type.LINEAR_WIPE_RIGHT, durationMs, 0xFF000000, Easing.EASE_IN_OUT);
     }
@@ -89,6 +70,28 @@ public final class ScreenTransition {
     public static ScreenTransition linearWipe(long durationMs, Type direction, int overlayColor, Easing easing) {
         return new ScreenTransition(
             direction != null ? direction : Type.LINEAR_WIPE_RIGHT,
+            durationMs,
+            overlayColor,
+            easing
+        );
+    }
+
+    public static ScreenTransition cornerWipe(long durationMs) {
+        return new ScreenTransition(Type.CORNER_WIPE_TOP_LEFT, durationMs, 0xFF000000, Easing.EASE_IN_OUT);
+    }
+
+    public static ScreenTransition cornerWipe(long durationMs, Type corner) {
+        return new ScreenTransition(
+            corner != null ? corner : Type.CORNER_WIPE_TOP_LEFT,
+            durationMs,
+            0xFF000000,
+            Easing.EASE_IN_OUT
+        );
+    }
+
+    public static ScreenTransition cornerWipe(long durationMs, Type corner, int overlayColor, Easing easing) {
+        return new ScreenTransition(
+            corner != null ? corner : Type.CORNER_WIPE_TOP_LEFT,
             durationMs,
             overlayColor,
             easing

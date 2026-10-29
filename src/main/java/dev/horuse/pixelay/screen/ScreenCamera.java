@@ -23,7 +23,7 @@ final class ScreenCamera {
     /** Ticks after opening during which the camera packets are re-sent (the client resets after a game mode change). */
     private static final int RESEND_TICKS = 10;
     /** Delay before mounting: the client must finish switching to spectator first. */
-    private static final long MOUNT_DELAY_TICKS = 5;
+    private static final long MOUNT_DELAY_TICKS = 2;
     /** Size (blocks) of the click catcher box around the camera. */
     private static final float CLICK_TARGET_SIZE = 1.5f;
 
@@ -59,6 +59,7 @@ final class ScreenCamera {
     void spawn(Runnable onMounted) {
         anchor = spawnStand(view);
         seat = seatHeight > 0 ? spawnStand(seatLocation()) : anchor;
+        mount();
         Bukkit.getScheduler().runTaskLater(
             Pixelay.plugin(),
             () -> {
@@ -67,7 +68,7 @@ final class ScreenCamera {
                     onMounted.run();
                 }
             },
-            MOUNT_DELAY_TICKS
+            1
         );
     }
 
