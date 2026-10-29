@@ -127,6 +127,28 @@ final class ScreenFader {
                 id2 = ColorPanel.spawn(player, canvas, right, y, half, height, argb(255), depth);
                 origin2 = ColorPanel.origin(canvas, right, y, half, height, depth);
             }
+            case CORNER_WIPE_TOP_LEFT, CORNER_WIPE_TOP_RIGHT, CORNER_WIPE_BOTTOM_LEFT, CORNER_WIPE_BOTTOM_RIGHT -> {
+                double size = diagonalSize();
+                double px = diagonalX(u);
+                double py = diagonalY(u);
+                // A square turned 45°: its leading edge is a straight line across the screen's diagonal.
+                id1 = ColorPanel.spawn(
+                    player,
+                    canvas,
+                    px,
+                    py,
+                    size,
+                    size,
+                    argb(255),
+                    depth,
+                    45.0,
+                    0.0,
+                    0.0,
+                    px + size / 2,
+                    py + size / 2
+                );
+                origin1 = ColorPanel.origin(canvas, px, py, size, size, depth);
+            }
             default -> {
                 double px = wipeX(u);
                 double py = wipeY(u);
@@ -145,16 +167,42 @@ final class ScreenFader {
             case CURTAIN -> {
                 double open = Math.abs(u - 1);
                 double half = halfWidth();
-                move(id1, origin1, leftX(open), y, half);
-                move(id2, origin2, rightX(open), y, half);
+                move(id1, origin1, leftX(open), y, half, height);
+                move(id2, origin2, rightX(open), y, half, height);
             }
-            default -> move(id1, origin1, wipeX(u), wipeY(u), width);
+            case CORNER_WIPE_TOP_LEFT, CORNER_WIPE_TOP_RIGHT, CORNER_WIPE_BOTTOM_LEFT, CORNER_WIPE_BOTTOM_RIGHT -> {
+                double size = diagonalSize();
+                move(id1, origin1, diagonalX(u), diagonalY(u), size, size);
+            }
+            default -> move(id1, origin1, wipeX(u), wipeY(u), width, height);
         }
     }
 
-    private void move(int id, Location origin, double px, double py, double w) {
-        Location at = ColorPanel.origin(canvas, px, py, w, height, depth);
-        ColorPanel.update(player, id, canvas, w, height, at.toVector().subtract(origin.toVector()));
+    /** Shifts a panel (its rotation stays as spawned): only the move of its unrotated box matters. */
+    private void move(int id, Location origin, double px, double py, double w, double h) {
+        Location at = ColorPanel.origin(canvas, px, py, w, h, depth);
+        ColorPanel.update(player, id, canvas, w, h, at.toVector().subtract(origin.toVector()));
+    }
+
+    /** Side of the turned square: wide enough to cover the whole overlay when centred on it. */
+    private double diagonalSize() {
+        return 2 * (width + height);
+    }
+
+    /** How far the square's centre travels per phase unit: from fully off one corner to fully covering. */
+    private double diagonalTravel() {
+        double extent = (width + height) / (2 * Math.sqrt(2));
+        return diagonalSize() / 2 + extent;
+    }
+
+    private double diagonalX(double u) {
+        double centre = x + width / 2 + (dirX() / Math.sqrt(2)) * (u - 1) * diagonalTravel();
+        return centre - diagonalSize() / 2;
+    }
+
+    private double diagonalY(double u) {
+        double centre = y + height / 2 + (dirY() / Math.sqrt(2)) * (u - 1) * diagonalTravel();
+        return centre - diagonalSize() / 2;
     }
 
     private double halfWidth() {
