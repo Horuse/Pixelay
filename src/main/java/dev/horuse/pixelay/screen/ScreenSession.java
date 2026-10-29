@@ -1,17 +1,10 @@
 package dev.horuse.pixelay.screen;
 
-import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
-import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
-import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
-import com.github.retrooper.packetevents.util.Quaternion4f;
-import com.github.retrooper.packetevents.util.Vector3f;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import dev.horuse.pixelay.CanvasSurface;
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.clicks.CanvasClickCatcher;
 import dev.horuse.pixelay.components.CanvasCursor;
 import dev.horuse.pixelay.components.ColorPanel;
-import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.CanvasResolution;
 import dev.horuse.pixelay.data.Layers;
@@ -20,7 +13,6 @@ import dev.horuse.pixelay.layout.MountedLayout;
 import dev.horuse.pixelay.layout.ScrollView;
 import dev.horuse.pixelay.listeners.ChatSuppression;
 import dev.horuse.pixelay.pack.PixelayPack;
-import dev.horuse.pixelay.utils.FakeEntityIds;
 import dev.horuse.pixelay.utils.PacketUtils;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -35,7 +27,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -109,7 +100,10 @@ public final class ScreenSession {
     private String hovered;
     private boolean closed;
     private boolean closing;
-    private int faderId;
+    private int faderId1;
+    private int faderId2;
+    private Location fader1Origin;
+    private Location fader2Origin;
     private BukkitTask transitionTask;
     private int lastHeldSlot = -1;
     private int lastScrollDirection;
@@ -181,50 +175,10 @@ public final class ScreenSession {
     // --- opening -----------------------------------------------------------------------------------------
 
     private void open() {
-        if (
-            options.fadeIn() != null &&
-            options.fadeIn().type() != ScreenTransition.Type.NONE &&
-            options.fadeIn().durationMs() > 0
-        ) {
-            ScreenTransition transition = options.fadeIn();
-            int typeCode = transition.type().shaderCode();
-            int brightnessOverride = (typeCode << 4) | (13 << 20);
-            long totalDuration = transition.durationMs();
-            long coverDuration = Math.min(250, Math.max(50, totalDuration / 2));
-            long revealDuration = Math.max(50, totalDuration - coverDuration);
-            int baseColor = transition.overlayColor();
-            Easing easing = transition.easing();
-            int preFader = spawnPlayerFader(player, baseColor & 0x00FFFFFF, brightnessOverride);
-            long startTime = System.currentTimeMillis();
-            transitionTask = Bukkit.getScheduler().runTaskTimer(
-                Pixelay.plugin(),
-                () -> {
-                    if (!player.isOnline()) {
-                        cancelTransitionTask();
-                        PacketUtils.destroy(player, preFader);
-                        return;
-                    }
-                    long elapsed = System.currentTimeMillis() - startTime;
-                    if (elapsed >= coverDuration) {
-                        cancelTransitionTask();
-                        performOpen(preFader, revealDuration, baseColor, brightnessOverride, easing);
-                        return;
-                    }
-                    double rawProgress = (double) elapsed / coverDuration;
-                    double progress = easing.ease(rawProgress);
-                    int alpha = Math.max(0, Math.min(255, (int) Math.round(255 * progress)));
-                    int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
-                    ColorPanel.updateColor(player, preFader, argb);
-                },
-                1,
-                1
-            );
-        } else {
-            performOpen(0, 0, 0, 0xF000F0, Easing.LINEAR);
-        }
+        performOpen();
     }
 
-    private void performOpen(int preFader, long revealDuration, int baseColor, int brightnessOverride, Easing easing) {
+    private void performOpen() {
         ScreenSession previous = SESSIONS.put(player.getUniqueId(), this);
         if (previous != null) {
             previous.close(CloseReason.CLOSED);
@@ -262,26 +216,17 @@ public final class ScreenSession {
         content.spawn(canvas);
         Pixelay.manager().register(surface);
 
-        if (preFader != 0) {
-            float depth = Layers.at(Layers.MAX_STEP + 5, player);
-            faderId = ColorPanel.spawn(
-                player,
-                canvas,
-                0,
-                0,
-                options.pixelWidth(),
-                options.pixelHeight(),
-                (0xFF << 24) | (baseColor & 0x00FFFFFF),
-                depth,
-                brightnessOverride
-            );
-            PacketUtils.destroy(player, preFader);
+        ScreenTransition fadeIn = options.fadeIn();
+        boolean hasTransition =
+            fadeIn != null && fadeIn.type() != ScreenTransition.Type.NONE && fadeIn.durationMs() > 0;
+        if (hasTransition) {
+            setupInitialFader(fadeIn);
         }
 
         camera = new ScreenCamera(player, view, shaderCursor != null ? SHADER_SEAT_HEIGHT : 0, lookOrigin);
         camera.spawn(() -> {
-            if (preFader != 0 && revealDuration > 0) {
-                startFadeIn(revealDuration, baseColor, easing);
+            if (hasTransition) {
+                startFadeIn(fadeIn);
             }
         });
         if (shaderCursor != null) {
@@ -587,30 +532,470 @@ public final class ScreenSession {
             startFadeOut(reason);
             return;
         }
-        finalizeClose(reason, 0, 0, 0xF000F0, Easing.LINEAR);
+        finalizeClose(reason);
+    }
+
+    private static final double OVERLAY_MULT = 4.0;
+
+    private double overlayWidth() {
+        return options.pixelWidth() * OVERLAY_MULT;
+    }
+
+    private double overlayHeight() {
+        return options.pixelHeight() * OVERLAY_MULT;
+    }
+
+    private double overlayX() {
+        return (options.pixelWidth() - overlayWidth()) / 2.0;
+    }
+
+    private double overlayY() {
+        return (options.pixelHeight() - overlayHeight()) / 2.0;
+    }
+
+    private float overlayDepth() {
+        return Layers.at(Layers.MAX_STEP + 5, player);
+    }
+
+    private void cleanupFaders() {
+        if (faderId1 != 0) {
+            PacketUtils.destroy(player, faderId1);
+            faderId1 = 0;
+            fader1Origin = null;
+        }
+        if (faderId2 != 0) {
+            PacketUtils.destroy(player, faderId2);
+            faderId2 = 0;
+            fader2Origin = null;
+        }
+    }
+
+    private void cancelTransitionTask() {
+        if (transitionTask != null) {
+            transitionTask.cancel();
+            transitionTask = null;
+        }
+    }
+
+    private void setupInitialFader(ScreenTransition fadeIn) {
+        int baseColor = fadeIn.overlayColor();
+        int fullAlpha = (0xFF << 24) | (baseColor & 0x00FFFFFF);
+        double overW = overlayWidth();
+        double overH = overlayHeight();
+        double overX = overlayX();
+        double overY = overlayY();
+        float depth = overlayDepth();
+
+        switch (fadeIn.type()) {
+            case CURTAIN -> {
+                double halfW = overW / 2.0 + 4.0;
+                double leftX = overX;
+                double rightX = overX + overW / 2.0 - 4.0;
+                faderId1 = ColorPanel.spawn(player, canvas, leftX, overY, halfW, overH, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, leftX, overY, halfW, overH, depth);
+                faderId2 = ColorPanel.spawn(player, canvas, rightX, overY, halfW, overH, fullAlpha, depth);
+                fader2Origin = ColorPanel.origin(canvas, rightX, overY, halfW, overH, depth);
+            }
+            case FADE, DISSOLVE, LINEAR_WIPE_LEFT, LINEAR_WIPE_RIGHT, LINEAR_WIPE_UP, LINEAR_WIPE_DOWN, CIRCLE_WIPE -> {
+                faderId1 = ColorPanel.spawn(player, canvas, overX, overY, overW, overH, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, overX, overY, overW, overH, depth);
+            }
+            default -> {
+            }
+        }
+    }
+
+    private void startFadeIn(ScreenTransition transition) {
+        long duration = transition.durationMs();
+        int baseColor = transition.overlayColor();
+        Easing easing = transition.easing();
+        ScreenTransition.Type type = transition.type();
+        long startTime = System.currentTimeMillis();
+        double overW = overlayWidth();
+        double overH = overlayHeight();
+        double overX = overlayX();
+        double overY = overlayY();
+        float depth = overlayDepth();
+
+        transitionTask = Bukkit.getScheduler().runTaskTimer(
+            Pixelay.plugin(),
+            () -> {
+                if (closed || !player.isOnline()) {
+                    cancelTransitionTask();
+                    cleanupFaders();
+                    return;
+                }
+                long elapsed = System.currentTimeMillis() - startTime;
+                if (elapsed >= duration) {
+                    cancelTransitionTask();
+                    cleanupFaders();
+                    return;
+                }
+                double rawProgress = (double) elapsed / duration;
+                double progress = Math.max(0.0, Math.min(1.0, easing.ease(rawProgress)));
+
+                switch (type) {
+                    case FADE, DISSOLVE -> {
+                        int alpha = Math.max(0, Math.min(255, (int) Math.round(255 * (1.0 - progress))));
+                        int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
+                        ColorPanel.updateColor(player, faderId1, argb);
+                    }
+                    case LINEAR_WIPE_LEFT -> {
+                        double curX = overX - overW * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, overY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case LINEAR_WIPE_RIGHT -> {
+                        double curX = overX + overW * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, overY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case LINEAR_WIPE_UP -> {
+                        double curY = overY - overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, overX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case LINEAR_WIPE_DOWN -> {
+                        double curY = overY + overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, overX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case CURTAIN -> {
+                        double halfW = overW / 2.0 + 4.0;
+                        double curLeftX = overX - (overW / 2.0) * progress;
+                        Location curLeftOrigin = ColorPanel.origin(canvas, curLeftX, overY, halfW, overH, depth);
+                        org.bukkit.util.Vector leftTrans = curLeftOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            halfW,
+                            overH,
+                            leftTrans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+
+                        double rightStartX = overX + overW / 2.0 - 4.0;
+                        double curRightX = rightStartX + (overW / 2.0) * progress;
+                        Location curRightOrigin = ColorPanel.origin(canvas, curRightX, overY, halfW, overH, depth);
+                        org.bukkit.util.Vector rightTrans = curRightOrigin.toVector().subtract(fader2Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId2,
+                            canvas,
+                            halfW,
+                            overH,
+                            rightTrans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case CIRCLE_WIPE -> {
+                        double factor = Math.max(0.001, 1.0 - progress);
+                        double curW = overW * factor;
+                        double curH = overH * factor;
+                        double curX = (options.pixelWidth() - curW) / 2.0;
+                        double curY = (options.pixelHeight() - curH) / 2.0;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, curW, curH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            curW,
+                            curH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    default -> {
+                        cancelTransitionTask();
+                        cleanupFaders();
+                    }
+                }
+            },
+            1,
+            1
+        );
+    }
+
+    private void startFadeOut(CloseReason reason) {
+        closing = true;
+        cancelTransitionTask();
+        cleanupFaders();
+
+        ScreenTransition transition = options.fadeOut();
+        long duration = transition.durationMs();
+        int baseColor = transition.overlayColor();
+        Easing easing = transition.easing();
+        ScreenTransition.Type type = transition.type();
+        long startTime = System.currentTimeMillis();
+        double overW = overlayWidth();
+        double overH = overlayHeight();
+        double overX = overlayX();
+        double overY = overlayY();
+        float depth = overlayDepth();
+        int fullAlpha = (0xFF << 24) | (baseColor & 0x00FFFFFF);
+
+        switch (type) {
+            case FADE, DISSOLVE -> {
+                faderId1 = ColorPanel.spawn(player, canvas, overX, overY, overW, overH, baseColor & 0x00FFFFFF, depth);
+                fader1Origin = ColorPanel.origin(canvas, overX, overY, overW, overH, depth);
+            }
+            case LINEAR_WIPE_LEFT -> {
+                double startX = overX + overW;
+                faderId1 = ColorPanel.spawn(player, canvas, startX, overY, overW, overH, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, startX, overY, overW, overH, depth);
+            }
+            case LINEAR_WIPE_RIGHT -> {
+                double startX = overX - overW;
+                faderId1 = ColorPanel.spawn(player, canvas, startX, overY, overW, overH, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, startX, overY, overW, overH, depth);
+            }
+            case LINEAR_WIPE_UP -> {
+                double startY = overY + overH;
+                faderId1 = ColorPanel.spawn(player, canvas, overX, startY, overW, overH, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, overX, startY, overW, overH, depth);
+            }
+            case LINEAR_WIPE_DOWN -> {
+                double startY = overY - overH;
+                faderId1 = ColorPanel.spawn(player, canvas, overX, startY, overW, overH, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, overX, startY, overW, overH, depth);
+            }
+            case CURTAIN -> {
+                double halfW = overW / 2.0 + 4.0;
+                double leftStartX = overX - overW / 2.0;
+                double rightStartX = overX + overW;
+                faderId1 = ColorPanel.spawn(player, canvas, leftStartX, overY, halfW, overH, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, leftStartX, overY, halfW, overH, depth);
+                faderId2 = ColorPanel.spawn(player, canvas, rightStartX, overY, halfW, overH, fullAlpha, depth);
+                fader2Origin = ColorPanel.origin(canvas, rightStartX, overY, halfW, overH, depth);
+            }
+            case CIRCLE_WIPE -> {
+                double curX = (options.pixelWidth() - 1.0) / 2.0;
+                double curY = (options.pixelHeight() - 1.0) / 2.0;
+                faderId1 = ColorPanel.spawn(player, canvas, curX, curY, 1.0, 1.0, fullAlpha, depth);
+                fader1Origin = ColorPanel.origin(canvas, curX, curY, 1.0, 1.0, depth);
+            }
+            default -> {
+                finalizeClose(reason);
+                return;
+            }
+        }
+
+        transitionTask = Bukkit.getScheduler().runTaskTimer(
+            Pixelay.plugin(),
+            () -> {
+                if (closed || !player.isOnline()) {
+                    cancelTransitionTask();
+                    finalizeClose(reason);
+                    return;
+                }
+                long elapsed = System.currentTimeMillis() - startTime;
+                if (elapsed >= duration) {
+                    cancelTransitionTask();
+                    finalizeClose(reason);
+                    return;
+                }
+                double rawProgress = (double) elapsed / duration;
+                double progress = Math.max(0.0, Math.min(1.0, easing.ease(rawProgress)));
+
+                switch (type) {
+                    case FADE, DISSOLVE -> {
+                        int alpha = Math.max(0, Math.min(255, (int) Math.round(255 * progress)));
+                        int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
+                        ColorPanel.updateColor(player, faderId1, argb);
+                    }
+                    case LINEAR_WIPE_LEFT -> {
+                        double startX = overX + overW;
+                        double curX = startX - overW * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, overY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case LINEAR_WIPE_RIGHT -> {
+                        double startX = overX - overW;
+                        double curX = startX + overW * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, overY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case LINEAR_WIPE_UP -> {
+                        double startY = overY + overH;
+                        double curY = startY - overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, overX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case LINEAR_WIPE_DOWN -> {
+                        double startY = overY - overH;
+                        double curY = startY + overH * progress;
+                        Location curOrigin = ColorPanel.origin(canvas, overX, curY, overW, overH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            overW,
+                            overH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case CURTAIN -> {
+                        double halfW = overW / 2.0 + 4.0;
+                        double leftStartX = overX - overW / 2.0;
+                        double curLeftX = leftStartX + (overW / 2.0) * progress;
+                        Location curLeftOrigin = ColorPanel.origin(canvas, curLeftX, overY, halfW, overH, depth);
+                        org.bukkit.util.Vector leftTrans = curLeftOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            halfW,
+                            overH,
+                            leftTrans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+
+                        double rightStartX = overX + overW;
+                        double curRightX = rightStartX - (overW / 2.0 + 4.0) * progress;
+                        Location curRightOrigin = ColorPanel.origin(canvas, curRightX, overY, halfW, overH, depth);
+                        org.bukkit.util.Vector rightTrans = curRightOrigin.toVector().subtract(fader2Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId2,
+                            canvas,
+                            halfW,
+                            overH,
+                            rightTrans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    case CIRCLE_WIPE -> {
+                        double curW = Math.max(1.0, overW * progress);
+                        double curH = Math.max(1.0, overH * progress);
+                        double curX = (options.pixelWidth() - curW) / 2.0;
+                        double curY = (options.pixelHeight() - curH) / 2.0;
+                        Location curOrigin = ColorPanel.origin(canvas, curX, curY, curW, curH, depth);
+                        org.bukkit.util.Vector trans = curOrigin.toVector().subtract(fader1Origin.toVector());
+                        ColorPanel.update(
+                            player,
+                            faderId1,
+                            canvas,
+                            curW,
+                            curH,
+                            trans,
+                            canvas.contentRotation(),
+                            null,
+                            1
+                        );
+                    }
+                    default -> {
+                        cancelTransitionTask();
+                        finalizeClose(reason);
+                    }
+                }
+            },
+            1,
+            1
+        );
     }
 
     private void finalizeClose(CloseReason reason) {
-        finalizeClose(reason, 0, 0, 0xF000F0, Easing.LINEAR);
-    }
-
-    private void finalizeClose(
-        CloseReason reason,
-        long restoreDuration,
-        int baseColor,
-        int brightnessOverride,
-        Easing easing
-    ) {
         if (closed) {
             return;
         }
         closed = true;
         closing = false;
         cancelTransitionTask();
-        if (faderId != 0) {
-            PacketUtils.destroy(player, faderId);
-            faderId = 0;
-        }
+        cleanupFaders();
+
         SESSIONS.remove(player.getUniqueId(), this);
         if (task != null) {
             task.cancel();
@@ -634,175 +1019,12 @@ public final class ScreenSession {
         if (player.isOnline() && options.restore()) {
             player.setGameMode(previousMode);
             player.teleport(previousLocation);
-            if (restoreDuration > 0) {
-                int postFader = spawnPlayerFader(player, (0xFF << 24) | (baseColor & 0x00FFFFFF), brightnessOverride);
-                runPostFaderReveal(player, postFader, baseColor, restoreDuration, easing, () -> {
-                    if (options.onClose() != null) {
-                        options.onClose().accept(this, reason);
-                    }
-                });
-                if (shaderCursor != null) {
-                    shaderCursor.stop();
-                }
-                return;
-            }
         }
         if (shaderCursor != null) {
             shaderCursor.stop();
         }
         if (options.onClose() != null) {
             options.onClose().accept(this, reason);
-        }
-    }
-
-    private void startFadeIn(long duration, int baseColor, Easing easing) {
-        long startTime = System.currentTimeMillis();
-        transitionTask = Bukkit.getScheduler().runTaskTimer(
-            Pixelay.plugin(),
-            () -> {
-                if (closed || !player.isOnline()) {
-                    cancelTransitionTask();
-                    return;
-                }
-                long elapsed = System.currentTimeMillis() - startTime;
-                if (elapsed >= duration) {
-                    if (faderId != 0) {
-                        PacketUtils.destroy(player, faderId);
-                        faderId = 0;
-                    }
-                    cancelTransitionTask();
-                    return;
-                }
-                double rawProgress = (double) elapsed / duration;
-                double progress = easing.ease(rawProgress);
-                int alpha = Math.max(0, Math.min(255, (int) Math.round(255 * (1.0 - progress))));
-                int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
-                ColorPanel.updateColor(player, faderId, argb);
-            },
-            1,
-            1
-        );
-    }
-
-    private void startFadeOut(CloseReason reason) {
-        closing = true;
-        ScreenTransition transition = options.fadeOut();
-        int typeCode = transition.type().shaderCode();
-        int brightnessOverride = (typeCode << 4) | (13 << 20);
-        long totalDuration = transition.durationMs();
-        long coverDuration = Math.min(250, Math.max(50, totalDuration / 2));
-        long restoreDuration = Math.max(50, totalDuration - coverDuration);
-        int baseColor = transition.overlayColor();
-        Easing easing = transition.easing();
-        float depth = Layers.at(Layers.MAX_STEP + 5, player);
-        if (faderId == 0) {
-            faderId = ColorPanel.spawn(
-                player,
-                canvas,
-                0,
-                0,
-                options.pixelWidth(),
-                options.pixelHeight(),
-                baseColor & 0x00FFFFFF,
-                depth,
-                brightnessOverride
-            );
-        }
-        long startTime = System.currentTimeMillis();
-        transitionTask = Bukkit.getScheduler().runTaskTimer(
-            Pixelay.plugin(),
-            () -> {
-                if (closed || !player.isOnline()) {
-                    cancelTransitionTask();
-                    finalizeClose(reason, 0, 0, 0xF000F0, Easing.LINEAR);
-                    return;
-                }
-                long elapsed = System.currentTimeMillis() - startTime;
-                if (elapsed >= coverDuration) {
-                    cancelTransitionTask();
-                    finalizeClose(reason, restoreDuration, baseColor, brightnessOverride, easing);
-                    return;
-                }
-                double rawProgress = (double) elapsed / coverDuration;
-                double progress = easing.ease(rawProgress);
-                int alpha = Math.max(0, Math.min(255, (int) Math.round(255 * progress)));
-                int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
-                ColorPanel.updateColor(player, faderId, argb);
-            },
-            1,
-            1
-        );
-    }
-
-    private static int spawnPlayerFader(Player player, int argb, int brightnessOverride) {
-        int id = FakeEntityIds.next();
-        Location eye = player.getEyeLocation();
-        Vector dir = eye.getDirection().normalize();
-        Location at = eye.clone().add(dir.multiply(0.2));
-        PacketUtils.spawnEntity(player, id, EntityTypes.TEXT_DISPLAY, at.getX(), at.getY(), at.getZ());
-        PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
-        List<EntityData<?>> data = new ArrayList<>();
-        data.add(new EntityData<>(0, EntityDataTypes.BYTE, (byte) 0));
-        data.add(new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0));
-        data.add(new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0));
-        data.add(new EntityData<>(idx.positionInterpolationDuration(), EntityDataTypes.INT, 0));
-        data.add(new EntityData<>(idx.translation(), EntityDataTypes.VECTOR3F, new Vector3f(0f, 0f, 0f)));
-        data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, new Vector3f(15f, 15f, 1f)));
-        data.add(new EntityData<>(idx.leftRotation(), EntityDataTypes.QUATERNION, new Quaternion4f(0f, 0f, 0f, 1f)));
-        data.add(new EntityData<>(idx.rightRotation(), EntityDataTypes.QUATERNION, new Quaternion4f(0f, 0f, 0f, 1f)));
-        data.add(new EntityData<>(idx.billboard(), EntityDataTypes.BYTE, (byte) 3));
-        data.add(new EntityData<>(idx.brightnessOverride(), EntityDataTypes.INT, brightnessOverride));
-        data.add(new EntityData<>(idx.viewRange(), EntityDataTypes.FLOAT, 10f));
-        data.add(new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, Component.text(" ")));
-        data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, argb));
-        PacketUtils.send(player, new WrapperPlayServerEntityMetadata(id, data));
-        return id;
-    }
-
-    private void runPostFaderReveal(
-        Player player,
-        int postFader,
-        int baseColor,
-        long duration,
-        Easing easing,
-        Runnable onDone
-    ) {
-        long startTime = System.currentTimeMillis();
-        Bukkit.getScheduler().runTaskTimer(
-            Pixelay.plugin(),
-            task -> {
-                if (!player.isOnline()) {
-                    task.cancel();
-                    PacketUtils.destroy(player, postFader);
-                    if (onDone != null) {
-                        onDone.run();
-                    }
-                    return;
-                }
-                long elapsed = System.currentTimeMillis() - startTime;
-                if (elapsed >= duration) {
-                    PacketUtils.destroy(player, postFader);
-                    task.cancel();
-                    if (onDone != null) {
-                        onDone.run();
-                    }
-                    return;
-                }
-                double rawProgress = (double) elapsed / duration;
-                double progress = easing.ease(rawProgress);
-                int alpha = Math.max(0, Math.min(255, (int) Math.round(255 * (1.0 - progress))));
-                int argb = (alpha << 24) | (baseColor & 0x00FFFFFF);
-                ColorPanel.updateColor(player, postFader, argb);
-            },
-            1,
-            1
-        );
-    }
-
-    private void cancelTransitionTask() {
-        if (transitionTask != null) {
-            transitionTask.cancel();
-            transitionTask = null;
         }
     }
 
