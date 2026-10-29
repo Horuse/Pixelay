@@ -2,7 +2,7 @@
 
 Pixelay provides two distinct layers of animation and transition technologies:
 1. **Native Client GPU Interpolation (Unlimited / High-Refresh FPS)**: Sub-tick hardware GPU interpolation of transforms (`scale`, `translate`, `rotate`) on Display entities, running at the player's full monitor refresh rate (60 Hz, 144 Hz, 240 Hz, 360 Hz+).
-2. **Screen Transitions**: Cinematic screen entry and exit transitions (fade, wipe, iris, dissolve) driven by both server-side faders and GLSL core shaders.
+2. **Screen Transitions**: Two-phase entry and exit transitions (fade, linear wipes, diagonal corner wipes, curtain) drawn with packet-only display panels.
 
 ---
 
@@ -94,59 +94,25 @@ Or configure both at once:
 
 ### Transition Types
 
-Pixelay supports multiple transition effects defined in `ScreenTransition`:
-- `ScreenTransition.fade(durationMs)` — Smooth color fade (default: pure black `#000000`).
-- `ScreenTransition.circleWipe(durationMs)` — Circular iris expanding from center.
-- `ScreenTransition.linearWipe(durationMs)` — Directional wipe sweeping across screen.
+Defined in `ScreenTransition` (each with a configurable duration, overlay color and easing):
+- `ScreenTransition.fade(durationMs)` — smooth darken, then smooth reveal (default: pure black `#000000`).
+- `ScreenTransition.linearWipe(durationMs, direction, color, easing)` — a panel sweeps across the screen; `direction` is one of `LINEAR_WIPE_LEFT`, `LINEAR_WIPE_RIGHT`, `LINEAR_WIPE_UP`, `LINEAR_WIPE_DOWN`.
+- `ScreenTransition.cornerWipe(durationMs, corner, color, easing)` — a straight edge turned 45° sweeps diagonally from a corner; `corner` is one of `CORNER_WIPE_TOP_LEFT`, `CORNER_WIPE_TOP_RIGHT`, `CORNER_WIPE_BOTTOM_LEFT`, `CORNER_WIPE_BOTTOM_RIGHT`.
+- `ScreenTransition.curtain(durationMs)` — two halves close in from the sides, then open back out.
 
----
+### How It Works
 
-## 3. Shader Transitions (`pixelay_transition.glsl`)
+Every transition has two phases, each lasting `durationMs`, with a black hold in between:
 
-For resource pack environments (such as custom core shaders or StarMine), Pixelay includes `assets/minecraft/shaders/include/pixelay_transition.glsl`.
-
-### Available GLSL Functions
-
-```glsl
-#moj_import <minecraft:pixelay_transition.glsl>
-
-// 1. Color Fade
-vec4 pixelay_transition_fade(float progress, vec4 screenColor, vec4 overlayColor);
-
-// 2. Circle / Iris Wipe
-vec4 pixelay_transition_circle(vec2 uv, float progress, float aspectRatio, vec4 screenColor, vec4 overlayColor);
-
-// 3. Directional Linear Wipe
-vec4 pixelay_transition_linear(vec2 uv, float progress, vec2 dir, vec4 screenColor, vec4 overlayColor);
-
-// 4. Procedural Noise Dissolve
-vec4 pixelay_transition_dissolve(vec2 uv, vec2 screenSize, float progress, vec4 screenColor, vec4 overlayColor);
+```mermaid
+flowchart LR
+    A["Cover (in)"] --> B["Fully covered: player is seated / restored"] --> C["Hold until the client settles"] --> D["Reveal (out)"]
 ```
 
-### Analysis: Complex Transitions with Custom Images & Animations
+- **Opening from the world**: a veil spawned right in front of the player's eyes covers the world; behind it the player is teleported, switched to spectator and mounted on the camera, and a veil over the canvas appears before any content. After a short hold the veil reveals the screen.
+- **Closing**: a veil covers the screen; behind it the player is restored to their previous location and game mode, a veil in front of their eyes takes over, and after the hold it reveals the world.
+- **Switching screens** (`session.close(() -> openNext())`): the old screen covers, the new one starts covered and only reveals; the view never returns to the player in between.
 
-Can we perform complex transitions with custom images, textures, or animations? **Yes!** Here is how:
+A wipe keeps moving in one direction through both phases: it enters from one side while covering and leaves through the opposite side while revealing.
 
-#### 1. Texture Mask Wipe (Grayscale Gradient Maps)
-In game graphics (e.g. Zelda, Kingdom Hearts), wipes use a grayscale gradient texture as a threshold map:
-- The texture contains a grayscale pattern (e.g. a swirl, diagonal stripes, or diamond gradient) where black is `0.0` and white is `1.0`.
-- In the shader:
-  ```glsl
-  float mask = texture(TransitionMaskSampler, uv).r;
-  float t = smoothstep(progress - 0.05, progress + 0.05, mask);
-  fragColor = mix(screenColor, overlayColor, t);
-  ```
-- Any custom pattern can be designed in Photoshop/Figma as a 512×512 PNG.
-
-#### 2. Sprite Sheet / Flipbook Animations
-For animated logos, portal rings, or comic transitions:
-- Put animation frames in an atlas (e.g. 4×4 grid = 16 frames).
-- Derive the frame index from `progress`:
-  ```glsl
-  int frame = int(clamp(progress * 16.0, 0.0, 15.0));
-  vec2 frameUV = (uv + vec2(frame % 4, frame / 4)) * 0.25;
-  vec4 animTex = texture(SpriteAtlas, frameUV);
-  ```
-
-#### 3. GameTime Continuous Synchronization
-Because `GameTime` includes `partialTick` on the client, time-based shader animations (`sin(GameTime)`, procedural ripples, CRT distortion) run at the player's monitor refresh rate (144+ FPS) with zero server bandwidth.
+The veil is drawn as `TextDisplay` background panels (`ScreenFader`), larger than the canvas so it also covers wider-than-16:9 screens and higher fields of view. No resource pack or shader is needed.

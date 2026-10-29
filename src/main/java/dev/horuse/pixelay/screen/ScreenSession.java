@@ -567,7 +567,7 @@ public final class ScreenSession {
         finalizeClose(reason, onClosed);
     }
 
-    private static final double OVERLAY_MULT = 8.0;
+    private static final double OVERLAY_MULT = 2.0;
 
     private double overlayWidth() {
         return options.pixelWidth() * OVERLAY_MULT;
