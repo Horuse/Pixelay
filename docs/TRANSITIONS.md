@@ -109,10 +109,14 @@ flowchart LR
     A["Cover (in)"] --> B["Fully covered: player is seated / restored"] --> C["Hold until the client settles"] --> D["Reveal (out)"]
 ```
 
-- **Opening from the world**: a veil spawned right in front of the player's eyes covers the world; behind it the player is teleported, switched to spectator and mounted on the camera, and a veil over the canvas appears before any content. After a short hold the veil reveals the screen.
-- **Closing**: a veil covers the screen; behind it the player is restored to their previous location and game mode, a veil in front of their eyes takes over, and after the hold it reveals the world.
-- **Switching screens** (`session.close(() -> openNext())`): the old screen covers, the new one starts covered and only reveals; the view never returns to the player in between.
+#### Core Shader Transitions (Resource Pack)
+When Pixelay's resource pack is loaded:
+- **True Full-Screen 2D GUI Layer**: Transitions are rendered via a dedicated title glyph (`\uE000` with font `pixelay:transition`) expanded to full-screen NDC in `rendertype_text.vsh`. Because titles render near the end of the frame in Minecraft's 2D GUI pipeline, the transition draws completely **above the player's 1st-person hand, hearts, and hotbar**.
+- **No World Entities**: Zero 3D entities are spawned in the Minecraft world blocks during opening or closing. The player will never see a 3D black billboard hanging in the world.
+- **Native GPU Sub-Tick Smoothness (144+ FPS)**: Progress is driven smoothly across every video frame rendered by the GPU using client-side title alpha interpolation and GLSL smoothstep anti-aliasing.
+- **Seamless Game Mode Masking**: Player teleportation and game mode switching (Survival ⇄ Spectator) execute only when the screen is 100% covered, ensuring no abrupt hand or HUD disappearing glitches.
 
-A wipe keeps moving in one direction through both phases: it enters from one side while covering and leaves through the opposite side while revealing.
-
-The veil is drawn as `TextDisplay` background panels (`ScreenFader`), larger than the canvas so it also covers wider-than-16:9 screens and higher fields of view. No resource pack or shader is needed.
+#### Entity Fallback (`ScreenFader`)
+For setups without the resource pack:
+- The veil falls back to packet-level `TextDisplay` background panels (`ScreenFader`).
+- Sized with a safety margin (1.6×) to cover ultra-wide aspect ratios and high FOVs.

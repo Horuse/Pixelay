@@ -196,6 +196,17 @@ public final class ScreenSession {
             performOpen(true);
             return;
         }
+        if (ShaderTransition.available()) {
+            ShaderTransition trans = new ShaderTransition(player, fadeIn, ShaderTransition.Mode.IN);
+            trans.play(() -> {
+                if (closed || !player.isOnline()) {
+                    ShaderTransition.clear(player);
+                    return;
+                }
+                performOpen(true);
+            });
+            return;
+        }
         Location eye = player.getEyeLocation();
         ScreenFader cover = worldFader(eye, fadeIn, 0);
         fader = cover;
@@ -237,7 +248,7 @@ public final class ScreenSession {
 
         scale = shaderCursor != null ? shaderScale() : clampScale(options.scale());
         canvas = new Canvas(canvasCenter, canvasYaw(), resolution(scale));
-        if (covered) {
+        if (covered && !ShaderTransition.available()) {
             // Before any content: the screen is black from the first frame the camera shows it.
             fader = screenFader(options.fadeIn(), 1);
         }
@@ -249,8 +260,25 @@ public final class ScreenSession {
         camera = new ScreenCamera(player, view, shaderCursor != null ? SHADER_SEAT_HEIGHT : 0, lookOrigin);
         ScreenFader veil = fader;
         camera.spawn(() -> {
-            if (covered && veil == fader && !closing && !closed) {
-                veil.revealAfter(REVEAL_HOLD_TICKS, null);
+            if (covered && !closing && !closed) {
+                if (ShaderTransition.available()) {
+                    Bukkit.getScheduler().runTaskLater(
+                        Pixelay.plugin(),
+                        () -> {
+                            if (!closing && !closed && player.isOnline()) {
+                                ShaderTransition out = new ShaderTransition(
+                                    player,
+                                    options.fadeIn(),
+                                    ShaderTransition.Mode.OUT
+                                );
+                                out.play(() -> ShaderTransition.clear(player));
+                            }
+                        },
+                        REVEAL_HOLD_TICKS
+                    );
+                } else if (veil == fader && fader != null) {
+                    veil.revealAfter(REVEAL_HOLD_TICKS, null);
+                }
             }
         });
         if (shaderCursor != null) {
@@ -642,7 +670,13 @@ public final class ScreenSession {
     private void startFadeOut(CloseReason reason, Runnable onClosed) {
         closing = true;
         removeFader();
-        ScreenFader veil = screenFader(options.fadeOut(), 0);
+        ScreenTransition fadeOut = options.fadeOut();
+        if (ShaderTransition.available()) {
+            ShaderTransition trans = new ShaderTransition(player, fadeOut, ShaderTransition.Mode.IN);
+            trans.play(() -> finalizeClose(reason, onClosed));
+            return;
+        }
+        ScreenFader veil = screenFader(fadeOut, 0);
         fader = veil;
         veil.animate(0, 1, () -> finalizeClose(reason, onClosed));
     }
@@ -655,11 +689,15 @@ public final class ScreenSession {
         closing = false;
         ScreenFader veil = fader;
         fader = null;
-        boolean veiled = veil != null && reason == CloseReason.CLOSED && player.isOnline();
+        boolean shaderTrans = ShaderTransition.available();
+        boolean veiled = (veil != null || shaderTrans) && reason == CloseReason.CLOSED && player.isOnline();
         if (camera == null) {
             // Closed while the world was still being covered: nothing was set up yet.
             if (veil != null) {
                 veil.remove();
+            }
+            if (shaderTrans) {
+                ShaderTransition.clear(player);
             }
             SESSIONS.remove(player.getUniqueId(), this);
             if (options.onClose() != null) {
@@ -707,22 +745,54 @@ public final class ScreenSession {
                 showOthers();
                 releaseChunks();
 
-                Location eye = player.getEyeLocation();
-                ScreenFader reveal = worldFader(eye, options.fadeOut(), 1);
-                fader = reveal;
-                if (veil != null) {
-                    veil.remove();
-                }
-                reveal.revealAfter(REVEAL_HOLD_TICKS, () -> {
-                    fader = null;
-                    SESSIONS.remove(player.getUniqueId(), this);
-                    if (options.onClose() != null) {
-                        options.onClose().accept(this, reason);
+                if (shaderTrans) {
+                    Bukkit.getScheduler().runTaskLater(
+                        Pixelay.plugin(),
+                        () -> {
+                            if (!player.isOnline()) {
+                                ShaderTransition.clear(player);
+                                SESSIONS.remove(player.getUniqueId(), this);
+                                if (options.onClose() != null) {
+                                    options.onClose().accept(this, reason);
+                                }
+                                return;
+                            }
+                            ShaderTransition reveal = new ShaderTransition(
+                                player,
+                                options.fadeOut(),
+                                ShaderTransition.Mode.OUT
+                            );
+                            reveal.play(() -> {
+                                ShaderTransition.clear(player);
+                                SESSIONS.remove(player.getUniqueId(), this);
+                                if (options.onClose() != null) {
+                                    options.onClose().accept(this, reason);
+                                }
+                            });
+                        },
+                        REVEAL_HOLD_TICKS
+                    );
+                } else {
+                    Location eye = player.getEyeLocation();
+                    ScreenFader reveal = worldFader(eye, options.fadeOut(), 1);
+                    fader = reveal;
+                    if (veil != null) {
+                        veil.remove();
                     }
-                });
+                    reveal.revealAfter(REVEAL_HOLD_TICKS, () -> {
+                        fader = null;
+                        SESSIONS.remove(player.getUniqueId(), this);
+                        if (options.onClose() != null) {
+                            options.onClose().accept(this, reason);
+                        }
+                    });
+                }
             } else {
                 if (veil != null) {
                     veil.remove();
+                }
+                if (shaderTrans) {
+                    ShaderTransition.clear(player);
                 }
                 camera.remove(true);
                 if (player.isOnline() && options.restore()) {
