@@ -196,16 +196,23 @@ public final class ScreenSession {
             performOpen(true);
             return;
         }
-        ScreenFader cover = worldFader(fadeIn, 0);
+        Location worldView = player.getLocation().clone();
+        worldView.setPitch(0f);
+        player.setGameMode(GameMode.SPECTATOR);
+        ScreenCamera worldCam = new ScreenCamera(player, worldView, 0, worldView.getYaw());
+        worldCam.spawn();
+        ScreenFader cover = worldFader(worldView, fadeIn, 0);
         fader = cover;
         cover.animate(0, 1, () -> {
             if (closed || !player.isOnline()) {
                 cover.remove();
+                worldCam.remove(true);
+                player.setGameMode(previousMode);
                 return;
             }
-            performOpen(true);
-            // The screen veil is up in the same tick: the world one can go.
+            worldCam.remove(false);
             cover.remove();
+            performOpen(true);
         });
     }
 
@@ -250,7 +257,7 @@ public final class ScreenSession {
         ScreenFader veil = fader;
         camera.spawn(() -> {
             if (covered && veil == fader && !closing && !closed) {
-                veil.revealAfter(REVEAL_HOLD_TICKS);
+                veil.revealAfter(REVEAL_HOLD_TICKS, null);
             }
         });
         if (shaderCursor != null) {
@@ -567,7 +574,7 @@ public final class ScreenSession {
         finalizeClose(reason, onClosed);
     }
 
-    private static final double OVERLAY_MULT = 2.0;
+    private static final double OVERLAY_MULT = 1.6;
 
     private double overlayWidth() {
         return options.pixelWidth() * OVERLAY_MULT;
@@ -590,7 +597,7 @@ public final class ScreenSession {
     }
 
     /** Ticks the veil stays fully closed after the switch, so the client settles before the reveal. */
-    private static final long REVEAL_HOLD_TICKS = 6;
+    private static final long REVEAL_HOLD_TICKS = 2;
 
     private static boolean animated(ScreenTransition transition) {
         return transition != null && transition.type() != ScreenTransition.Type.NONE && transition.durationMs() > 0;
@@ -611,12 +618,11 @@ public final class ScreenSession {
         );
     }
 
-    /** A veil in the world, right in front of the player's eyes (before the camera / after it is gone). */
-    private ScreenFader worldFader(ScreenTransition transition, double u) {
-        Location eye = player.getEyeLocation();
-        float yaw = eye.getYaw();
+    /** A veil in the world, right in front of the world camera view. */
+    private ScreenFader worldFader(Location at, ScreenTransition transition, double u) {
+        float yaw = at.getYaw();
         Vector forward = new Vector(-Math.sin(Math.toRadians(yaw)), 0, Math.cos(Math.toRadians(yaw)));
-        Canvas front = new Canvas(eye.clone().add(forward.multiply(options.distance())), 180 - yaw, resolution(1.0));
+        Canvas front = new Canvas(at.clone().add(forward.multiply(options.distance())), 180 - yaw, resolution(1.0));
         return new ScreenFader(
             player,
             front,
@@ -693,24 +699,53 @@ public final class ScreenSession {
         boolean hasNextSession = nextSession != null && nextSession != this;
 
         if (!hasNextSession) {
-            SESSIONS.remove(player.getUniqueId(), this);
-            if (player.isOnline() && options.restore()) {
-                player.teleport(previousLocation);
-                player.setGameMode(previousMode);
-            }
-            if (shaderCursor != null) {
-                shaderCursor.stop();
-            }
-            camera.remove(true);
-            showOthers();
-            releaseChunks();
             if (veiled) {
-                // Back in the world behind a black veil, held until the client settled, then revealed.
-                ScreenFader reveal = worldFader(options.fadeOut(), 1);
-                veil.remove();
-                reveal.revealAfter(REVEAL_HOLD_TICKS);
-            } else if (veil != null) {
-                veil.remove();
+                if (veil != null) {
+                    veil.remove();
+                }
+                camera.remove(false);
+                Location worldView = previousLocation.clone();
+                worldView.setPitch(0f);
+                player.teleport(worldView);
+                ScreenCamera worldCam = new ScreenCamera(player, worldView, 0, worldView.getYaw());
+                worldCam.spawn();
+                ScreenFader reveal = worldFader(worldView, options.fadeOut(), 1);
+                fader = reveal;
+                reveal.revealAfter(REVEAL_HOLD_TICKS, () -> {
+                    fader = null;
+                    worldCam.remove(true);
+                    if (player.isOnline() && options.restore()) {
+                        player.teleport(previousLocation);
+                        player.setGameMode(previousMode);
+                    }
+                    if (shaderCursor != null) {
+                        shaderCursor.stop();
+                    }
+                    showOthers();
+                    releaseChunks();
+                    SESSIONS.remove(player.getUniqueId(), this);
+                    if (options.onClose() != null) {
+                        options.onClose().accept(this, reason);
+                    }
+                });
+            } else {
+                if (veil != null) {
+                    veil.remove();
+                }
+                camera.remove(true);
+                if (player.isOnline() && options.restore()) {
+                    player.teleport(previousLocation);
+                    player.setGameMode(previousMode);
+                }
+                if (shaderCursor != null) {
+                    shaderCursor.stop();
+                }
+                showOthers();
+                releaseChunks();
+                SESSIONS.remove(player.getUniqueId(), this);
+                if (options.onClose() != null) {
+                    options.onClose().accept(this, reason);
+                }
             }
         } else {
             // The next session already has its camera and its own veil: keep the player's view on it.
@@ -718,10 +753,9 @@ public final class ScreenSession {
             if (veil != null) {
                 veil.remove();
             }
-        }
-
-        if (options.onClose() != null) {
-            options.onClose().accept(this, reason);
+            if (options.onClose() != null) {
+                options.onClose().accept(this, reason);
+            }
         }
     }
 

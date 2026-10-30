@@ -178,13 +178,15 @@ public final class ColorPanel {
         data.add(new EntityData<>(idx.positionInterpolationDuration(), EntityDataTypes.INT, 0));
         data.add(new EntityData<>(idx.translation(), EntityDataTypes.VECTOR3F, new Vector3f(0f, 0f, 0f)));
         data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)));
-        data.add(
-            new EntityData<>(
-                idx.leftRotation(),
-                EntityDataTypes.QUATERNION,
-                new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
-            )
-        );
+        if (rotation != null) {
+            data.add(
+                new EntityData<>(
+                    idx.leftRotation(),
+                    EntityDataTypes.QUATERNION,
+                    new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
+                )
+            );
+        }
         data.add(new EntityData<>(idx.rightRotation(), EntityDataTypes.QUATERNION, new Quaternion4f(0f, 0f, 0f, 1f)));
         data.add(new EntityData<>(idx.billboard(), EntityDataTypes.BYTE, (byte) 0));
         data.add(new EntityData<>(idx.brightnessOverride(), EntityDataTypes.INT, brightnessOverride));
@@ -216,23 +218,7 @@ public final class ColorPanel {
         double height,
         org.bukkit.util.Vector translation
     ) {
-        PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
-        PacketUtils.send(
-            viewer,
-            new WrapperPlayServerEntityMetadata(
-                id,
-                List.of(
-                    new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0),
-                    new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0),
-                    new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)),
-                    new EntityData<>(
-                        idx.translation(),
-                        EntityDataTypes.VECTOR3F,
-                        new Vector3f((float) translation.getX(), (float) translation.getY(), (float) translation.getZ())
-                    )
-                )
-            )
-        );
+        update(viewer, id, canvas, width, height, translation, null, null, 0);
     }
 
     /** Moves, resizes, and recolors an existing panel in a single metadata packet without recreating it. */
@@ -298,13 +284,15 @@ public final class ColorPanel {
             new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, Math.max(0, transformationDuration))
         );
         data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)));
-        data.add(
-            new EntityData<>(
-                idx.leftRotation(),
-                EntityDataTypes.QUATERNION,
-                new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
-            )
-        );
+        if (rotation != null) {
+            data.add(
+                new EntityData<>(
+                    idx.leftRotation(),
+                    EntityDataTypes.QUATERNION,
+                    new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
+                )
+            );
+        }
         data.add(
             new EntityData<>(
                 idx.translation(),

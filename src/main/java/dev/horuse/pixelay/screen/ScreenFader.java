@@ -8,13 +8,21 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.Vector;
 
 /**
  * A packet-only veil over a canvas, driven by one phase value {@code u}: {@code 0} = not yet in view,
  * {@code 1} = fully covered, {@code 2} = gone out the other side. Covering animates {@code 0 → 1}, revealing
- * {@code 1 → 2}, so a wipe keeps moving in one direction through both phases.
+ * {@code 1 → 2}, so a wipe keeps moving in one continuous direction through both phases.
+ *
+ * <p>Every tick update is sent with client-side GPU interpolation ({@link #INTERPOLATION_TICKS}), rendering
+ * at the player's full monitor refresh rate (60 Hz, 144 Hz, 240 Hz, 360 Hz+).
  */
 final class ScreenFader {
+
+    /** Client-side GPU interpolation duration in ticks (smooths sub-tick frames on the monitor). */
+    private static final int INTERPOLATION_TICKS = 2;
+    private static final double SQRT2 = Math.sqrt(2);
 
     private final Player player;
     private final Canvas canvas;
@@ -55,7 +63,7 @@ final class ScreenFader {
         spawn(u);
     }
 
-    /** Animates the phase from {@code from} to {@code to}, then runs {@code done}. */
+    /** Animates the phase from {@code from} to {@code to}, then runs {@code done} once client interpolation finishes. */
     void animate(double from, double to, Runnable done) {
         cancel();
         long duration = Math.max(1, transition.durationMs());
@@ -72,9 +80,17 @@ final class ScreenFader {
                 apply(from + (to - from) * eased);
                 if (raw >= 1.0) {
                     cancel();
-                    if (done != null) {
-                        done.run();
-                    }
+                    // Wait for the client to finish interpolating the final position before calling done.
+                    task = Bukkit.getScheduler().runTaskLater(
+                        Pixelay.plugin(),
+                        () -> {
+                            task = null;
+                            if (!removed && done != null) {
+                                done.run();
+                            }
+                        },
+                        INTERPOLATION_TICKS
+                    );
                 }
             },
             1,
@@ -83,9 +99,19 @@ final class ScreenFader {
     }
 
     /** Waits {@code ticks} fully covered, then reveals and removes itself. */
-    void revealAfter(long ticks) {
+    void revealAfter(long ticks, Runnable onRevealed) {
         cancel();
-        task = Bukkit.getScheduler().runTaskLater(Pixelay.plugin(), () -> animate(1, 2, this::remove), ticks);
+        task = Bukkit.getScheduler().runTaskLater(
+            Pixelay.plugin(),
+            () ->
+                animate(1, 2, () -> {
+                    remove();
+                    if (onRevealed != null) {
+                        onRevealed.run();
+                    }
+                }),
+            Math.max(1, ticks)
+        );
     }
 
     void remove() {
@@ -97,9 +123,11 @@ final class ScreenFader {
         if (player.isOnline()) {
             if (id1 != 0) {
                 PacketUtils.destroy(player, id1);
+                id1 = 0;
             }
             if (id2 != 0) {
                 PacketUtils.destroy(player, id2);
+                id2 = 0;
             }
         }
     }
@@ -111,6 +139,15 @@ final class ScreenFader {
         }
     }
 
+    // --- layout & movement -------------------------------------------------------------------------------
+
+    private boolean isCorner() {
+        return switch (transition.type()) {
+            case CORNER_WIPE_TOP_LEFT, CORNER_WIPE_TOP_RIGHT, CORNER_WIPE_BOTTOM_LEFT, CORNER_WIPE_BOTTOM_RIGHT -> true;
+            default -> false;
+        };
+    }
+
     private void spawn(double u) {
         switch (transition.type()) {
             case FADE -> {
@@ -119,41 +156,44 @@ final class ScreenFader {
             }
             case CURTAIN -> {
                 double open = Math.abs(u - 1);
-                double half = halfWidth();
-                double left = leftX(open);
-                double right = rightX(open);
-                id1 = ColorPanel.spawn(player, canvas, left, y, half, height, argb(255), depth);
-                origin1 = ColorPanel.origin(canvas, left, y, half, height, depth);
-                id2 = ColorPanel.spawn(player, canvas, right, y, half, height, argb(255), depth);
-                origin2 = ColorPanel.origin(canvas, right, y, half, height, depth);
-            }
-            case CORNER_WIPE_TOP_LEFT, CORNER_WIPE_TOP_RIGHT, CORNER_WIPE_BOTTOM_LEFT, CORNER_WIPE_BOTTOM_RIGHT -> {
-                double size = diagonalSize();
-                double px = diagonalX(u);
-                double py = diagonalY(u);
-                // A square turned 45°: its leading edge is a straight line across the screen's diagonal.
-                id1 = ColorPanel.spawn(
-                    player,
-                    canvas,
-                    px,
-                    py,
-                    size,
-                    size,
-                    argb(255),
-                    depth,
-                    45.0,
-                    0.0,
-                    0.0,
-                    px + size / 2,
-                    py + size / 2
-                );
-                origin1 = ColorPanel.origin(canvas, px, py, size, size, depth);
+                double halfW = halfWidth();
+                double lx = leftX(open);
+                double rx = rightX(open);
+                id1 = ColorPanel.spawn(player, canvas, lx, y, halfW, height, argb(255), depth);
+                origin1 = ColorPanel.origin(canvas, lx, y, halfW, height, depth);
+                id2 = ColorPanel.spawn(player, canvas, rx, y, halfW, height, argb(255), depth);
+                origin2 = ColorPanel.origin(canvas, rx, y, halfW, height, depth);
             }
             default -> {
-                double px = wipeX(u);
-                double py = wipeY(u);
-                id1 = ColorPanel.spawn(player, canvas, px, py, width, height, argb(255), depth);
-                origin1 = ColorPanel.origin(canvas, px, py, width, height, depth);
+                if (isCorner()) {
+                    double size = diagonalSize();
+                    double px = cornerX(u);
+                    double py = cornerY(u);
+                    double pivotX = px + size / 2.0;
+                    double pivotY = py + size / 2.0;
+                    // Spawn turned 45 degrees around its center
+                    id1 = ColorPanel.spawn(
+                        player,
+                        canvas,
+                        px,
+                        py,
+                        size,
+                        size,
+                        argb(255),
+                        depth,
+                        45.0,
+                        0.0,
+                        0.0,
+                        pivotX,
+                        pivotY
+                    );
+                    origin1 = ColorPanel.origin(canvas, px, py, size, size, depth, 45.0, pivotX, pivotY);
+                } else {
+                    double px = wipeX(u);
+                    double py = wipeY(u);
+                    id1 = ColorPanel.spawn(player, canvas, px, py, width, height, argb(255), depth);
+                    origin1 = ColorPanel.origin(canvas, px, py, width, height, depth);
+                }
             }
         }
     }
@@ -166,43 +206,28 @@ final class ScreenFader {
             case FADE -> ColorPanel.updateColor(player, id1, argb(alpha(u)));
             case CURTAIN -> {
                 double open = Math.abs(u - 1);
-                double half = halfWidth();
-                move(id1, origin1, leftX(open), y, half, height);
-                move(id2, origin2, rightX(open), y, half, height);
+                double halfW = halfWidth();
+                move(id1, origin1, leftX(open), y, halfW, height, 0.0);
+                move(id2, origin2, rightX(open), y, halfW, height, 0.0);
             }
-            case CORNER_WIPE_TOP_LEFT, CORNER_WIPE_TOP_RIGHT, CORNER_WIPE_BOTTOM_LEFT, CORNER_WIPE_BOTTOM_RIGHT -> {
-                double size = diagonalSize();
-                move(id1, origin1, diagonalX(u), diagonalY(u), size, size);
+            default -> {
+                if (isCorner()) {
+                    double size = diagonalSize();
+                    move(id1, origin1, cornerX(u), cornerY(u), size, size, 45.0);
+                } else {
+                    move(id1, origin1, wipeX(u), wipeY(u), width, height, 0.0);
+                }
             }
-            default -> move(id1, origin1, wipeX(u), wipeY(u), width, height);
         }
     }
 
-    /** Shifts a panel (its rotation stays as spawned): only the move of its unrotated box matters. */
-    private void move(int id, Location origin, double px, double py, double w, double h) {
-        Location at = ColorPanel.origin(canvas, px, py, w, h, depth);
-        ColorPanel.update(player, id, canvas, w, h, at.toVector().subtract(origin.toVector()));
-    }
-
-    /** Side of the turned square: wide enough to cover the whole overlay when centred on it. */
-    private double diagonalSize() {
-        return 2 * (width + height);
-    }
-
-    /** How far the square's centre travels per phase unit: from fully off one corner to fully covering. */
-    private double diagonalTravel() {
-        double extent = (width + height) / (2 * Math.sqrt(2));
-        return diagonalSize() / 2 + extent;
-    }
-
-    private double diagonalX(double u) {
-        double centre = x + width / 2 + (dirX() / Math.sqrt(2)) * (u - 1) * diagonalTravel();
-        return centre - diagonalSize() / 2;
-    }
-
-    private double diagonalY(double u) {
-        double centre = y + height / 2 + (dirY() / Math.sqrt(2)) * (u - 1) * diagonalTravel();
-        return centre - diagonalSize() / 2;
+    private void move(int id, Location origin, double px, double py, double w, double h, double rotateDeg) {
+        Location at =
+            rotateDeg != 0.0
+                ? ColorPanel.origin(canvas, px, py, w, h, depth, rotateDeg, px + w / 2.0, py + h / 2.0)
+                : ColorPanel.origin(canvas, px, py, w, h, depth);
+        Vector shift = at.toVector().subtract(origin.toVector());
+        ColorPanel.update(player, id, canvas, w, h, shift, null, null, INTERPOLATION_TICKS);
     }
 
     private double halfWidth() {
@@ -210,11 +235,11 @@ final class ScreenFader {
     }
 
     private double leftX(double open) {
-        return x - (width / 2.0) * open;
+        return x - halfWidth() * open;
     }
 
     private double rightX(double open) {
-        return x + width / 2.0 - 4.0 + (width / 2.0) * open;
+        return x + width / 2.0 - 4.0 + halfWidth() * open;
     }
 
     private double wipeX(double u) {
@@ -225,7 +250,28 @@ final class ScreenFader {
         return y + dirY() * (u - 1) * height;
     }
 
-    /** Horizontal travel of a wipe, in canvas px (+ = right). */
+    /** Side length of the 45-degree square: tightly encloses the overlay with a 3% margin. */
+    private double diagonalSize() {
+        return Math.round(((width + height) / SQRT2) * 1.03);
+    }
+
+    /** Distance from overlay center to entry corner, plus half the square size. */
+    private double diagonalTravel() {
+        double dCorner = (width + height) / (2.0 * SQRT2);
+        return dCorner + diagonalSize() / 2.0;
+    }
+
+    private double cornerX(double u) {
+        double centerX = x + width / 2.0 + (u - 1.0) * diagonalTravel() * (dirX() / SQRT2);
+        return centerX - diagonalSize() / 2.0;
+    }
+
+    private double cornerY(double u) {
+        double centerY = y + height / 2.0 + (u - 1.0) * diagonalTravel() * (dirY() / SQRT2);
+        return centerY - diagonalSize() / 2.0;
+    }
+
+    /** Horizontal travel of a wipe (+ = right, - = left). */
     private int dirX() {
         return switch (transition.type()) {
             case LINEAR_WIPE_LEFT, CORNER_WIPE_TOP_RIGHT, CORNER_WIPE_BOTTOM_RIGHT -> -1;
@@ -234,7 +280,7 @@ final class ScreenFader {
         };
     }
 
-    /** Vertical travel of a wipe, in canvas px (+ = down). */
+    /** Vertical travel of a wipe (+ = down, - = up). */
     private int dirY() {
         return switch (transition.type()) {
             case LINEAR_WIPE_UP, CORNER_WIPE_BOTTOM_LEFT, CORNER_WIPE_BOTTOM_RIGHT -> -1;
@@ -244,7 +290,7 @@ final class ScreenFader {
     }
 
     private static int alpha(double u) {
-        return (int) Math.round(255 * Math.max(0.0, Math.min(1.0, 1 - Math.abs(u - 1))));
+        return (int) Math.round(255 * Math.max(0.0, Math.min(1.0, 1.0 - Math.abs(u - 1.0))));
     }
 
     private int argb(int alpha) {
