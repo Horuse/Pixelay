@@ -763,6 +763,9 @@ public final class ScreenSession {
                                 ShaderTransition.Mode.OUT
                             );
                             reveal.play(() -> {
+                                if (player.isOnline() && options.restore()) {
+                                    player.teleport(previousLocation);
+                                }
                                 ShaderTransition.clear(player);
                                 SESSIONS.remove(player.getUniqueId(), this);
                                 if (options.onClose() != null) {
@@ -780,6 +783,9 @@ public final class ScreenSession {
                         veil.remove();
                     }
                     reveal.revealAfter(REVEAL_HOLD_TICKS, () -> {
+                        if (player.isOnline() && options.restore()) {
+                            player.teleport(previousLocation);
+                        }
                         fader = null;
                         SESSIONS.remove(player.getUniqueId(), this);
                         if (options.onClose() != null) {

@@ -62,13 +62,13 @@ final class ShaderTransition {
         TextColor color = TextColor.color(SIGNATURE_RED, green, blue);
         Component titleComponent = Component.text(GLYPH).font(FONT_KEY).color(color);
 
-        // Minecraft's Title system smoothly interpolates vertexColor.a (0.0 -> 1.0) on every GPU video frame
-        int stayTicks = mode == Mode.IN ? 40 : 2;
-        Title.Times times = Title.Times.times(
-            Ticks.duration(durationTicks),
-            Ticks.duration(stayTicks),
-            Ticks.duration(0)
-        );
+        // Mode.IN: fadeIn=durationTicks, stay=40, fadeOut=0. vertexColor.a animates 0.0 -> 1.0, then stays 1.0.
+        // Mode.OUT: fadeIn=0, stay=0, fadeOut=durationTicks. vertexColor.a animates 1.0 -> 0.0.
+        // Starting Mode.OUT at alpha 1.0 ensures Minecraft never drops frame 0 due to "if (alpha <= 8) return;".
+        Title.Times times =
+            mode == Mode.IN
+                ? Title.Times.times(Ticks.duration(durationTicks), Ticks.duration(40), Ticks.duration(0))
+                : Title.Times.times(Ticks.duration(0), Ticks.duration(0), Ticks.duration(durationTicks));
 
         player.showTitle(Title.title(titleComponent, Component.empty(), times));
 

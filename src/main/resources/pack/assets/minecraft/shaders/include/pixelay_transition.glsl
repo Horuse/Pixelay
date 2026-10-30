@@ -62,14 +62,17 @@ float pixelay_trans_ease(float t, int easing) {
 }
 
 // Computes the transition fragment color and alpha, or returns false to discard
-bool pixelay_trans_frag(vec2 uv, float progress, ivec2 params, out vec4 outColor) {
+bool pixelay_trans_frag(vec2 uv, float vertexAlpha, ivec2 params, out vec4 outColor) {
     int type = params.x & 15;
     int mode = (params.x >> 4) & 1; // 0 = IN (cover), 1 = OUT (reveal)
     int easing = (params.x >> 5) & 7;
     int colorIdx = params.y;
 
     vec3 col = pixelay_trans_color(colorIdx);
-    float t = pixelay_trans_ease(progress, easing);
+    // In Mode.IN: vertexAlpha goes 0.0 -> 1.0 during fadeIn.
+    // In Mode.OUT: vertexAlpha goes 1.0 -> 0.0 during fadeOut.
+    float rawProgress = (mode == 0) ? vertexAlpha : (1.0 - vertexAlpha);
+    float t = pixelay_trans_ease(rawProgress, easing);
 
     if (type == PIXELAY_TYPE_FADE) {
         float alpha = (mode == 0) ? t : (1.0 - t);
@@ -101,9 +104,10 @@ bool pixelay_trans_frag(vec2 uv, float progress, ivec2 params, out vec4 outColor
         d = min(uv.x, 1.0 - uv.x) * 2.0;
     }
 
-    // Sub-pixel smooth edge anti-aliasing
-    float aa = 0.005;
-    float edge = smoothstep(t - aa, t + aa, d);
+    // Sub-pixel smooth edge anti-aliasing with expanded margin so edges are 100% clean at boundaries
+    float aa = 0.008;
+    float threshold = mix(-aa * 2.0, 1.0 + aa * 2.0, t);
+    float edge = smoothstep(threshold - aa, threshold + aa, d);
     float a = (mode == 0) ? (1.0 - edge) : edge;
 
     if (a <= 0.001) {
