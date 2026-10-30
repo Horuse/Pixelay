@@ -8,21 +8,14 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /**
- * A flat pixel plane placed in the world — the single source of truth for positioning everything
- * drawn on it.
- *
- * <p>Coordinate system: pixel origin {@code (0,0)} is the top-left corner, {@code x} grows right,
- * {@code y} grows down (like an image editor). The plane is centered on {@link #center} and rotated
- * by {@link #yawDegrees} about the Y axis, so every component derives its world transform from this
- * one object; rotating or moving the canvas moves everything coherently.
+ * Defines a flat pixel plane in the world.
+ * This plane serves as the source of truth for component coordinates.
+ * The coordinate system has its origin at the top-left corner.
+ * The X axis extends to the right and the Y axis extends downward.
  */
 public class Canvas {
 
-    /**
-     * World height (blocks) of a single text line at scale {@code 1.0}. The client renders text
-     * display font pixels at {@code 0.025} blocks each (40 px per block), so a 9px font line is
-     * {@code 9 * 0.025 = 0.225} blocks, and "N px" text uses {@code scale = (N/48) / 0.225}.
-     */
+    /** World height in blocks of a single text line at scale 1.0. */
     public static final float TEXT_HEIGHT_PER_SCALE = 0.225f;
 
     private final Location center;
@@ -55,13 +48,9 @@ public class Canvas {
     }
 
     /**
-     * @param contentFacingYawOffset extra yaw (degrees) applied only to component orientation, to
-     *     align text/icons with a background whose model has a baked facing
-     * @param depthOffset global outward shift (blocks) applied to every component, e.g. when the
-     *     background texture itself is pushed forward off the wall
-     * @param paddingPx inset (canvas px) kept clear at every edge; {@link #anchorX}/{@link
-     *     #anchorY} return coordinates inside it, so anchor-placed content never touches the
-     *     borders
+     * @param contentFacingYawOffset yaw offset in degrees for component orientation
+     * @param depthOffset outward depth offset in blocks from the canvas plane
+     * @param paddingPx inner padding distance in canvas pixels
      */
     public Canvas(
         Location center,
@@ -89,10 +78,7 @@ public class Canvas {
         warnIfPixelsNotSquare(resolution);
     }
 
-    /**
-     * Text is scaled by the pixel height, while boxes, positions and clicks use both pixel sizes: with
-     * pixels wider than tall (or the other way round) texts no longer fill their boxes.
-     */
+    /** Validates that pixel aspect ratio matches block dimensions. */
     private static void warnIfPixelsNotSquare(CanvasResolution resolution) {
         double pixelWidth = resolution.blockWidth() / resolution.pixelWidth();
         double pixelHeight = resolution.blockHeight() / resolution.pixelHeight();
@@ -109,18 +95,12 @@ public class Canvas {
         }
     }
 
-    /**
-     * Converts a pixel coordinate into the world spawn {@link Location} on the text layer (see {@link
-     * Layers}), in front of the canvas surface.
-     */
+    /** Converts a pixel coordinate to a world location on the text layer. */
     public Location pixelToWorld(double pixelX, double pixelY) {
         return pixelToWorld(pixelX, pixelY, Layers.text());
     }
 
-    /**
-     * Converts a pixel coordinate into the world spawn {@link Location} with an explicit outward
-     * offset along the plane normal.
-     */
+    /** Converts a pixel coordinate to a world location with custom layer depth. */
     public Location pixelToWorld(double pixelX, double pixelY, float layerDepth) {
         double localRight =
             ((pixelX - resolution.pixelWidth() / 2.0) / resolution.pixelWidth()) * resolution.blockWidth();
@@ -135,10 +115,7 @@ public class Canvas {
         return new Location(center.getWorld(), x, y, z);
     }
 
-    /**
-     * Converts a canvas pixel coordinate into a 3D world location with layer depth,
-     * rotated around a pivot (pivotX, pivotY) by Euler degrees (rotateDeg, rotateXDeg, rotateYDeg).
-     */
+    /** Converts pixel coordinates to a world location rotated around a pivot point. */
     public Location rotatedPixelToWorld(
         double pixelX,
         double pixelY,
@@ -182,63 +159,55 @@ public class Canvas {
     }
 
     /**
-     * @return world height in blocks for a pixel height on this plane
+     * @return world height in blocks for a given height in pixels
      */
     public float blocksForHeightPx(double heightPx) {
         return (float) ((heightPx / resolution.pixelHeight()) * resolution.blockHeight());
     }
 
     /**
-     * @return the {@link org.bukkit.entity.TextDisplay} scale that renders text {@code heightPx}
-     *     tall
+     * @return text display scale factor for a given height in pixels
      */
     public float scaleForHeightPx(double heightPx) {
         return blocksForHeightPx(heightPx) / TEXT_HEIGHT_PER_SCALE;
     }
 
     /**
-     * @return a fresh copy of the plane rotation (safe to mutate)
+     * @return a copy of the canvas plane rotation
      */
     public Quaternionf rotation() {
         return new Quaternionf(rotation);
     }
 
     /**
-     * @return the rotation components should render with — the plane rotation plus any content
-     *     facing offset (used to align text/icons with a background model's baked facing)
+     * @return the rotation applied to canvas components
      */
     public Quaternionf contentRotation() {
         return new Quaternionf(contentRotation);
     }
 
     /**
-     * @return a copy of the plane's local up axis (world space)
+     * @return a copy of the canvas up direction vector
      */
     public Vector3f up() {
         return new Vector3f(up);
     }
 
     /**
-     * @return a copy of the plane's local right axis (world space)
+     * @return a copy of the canvas right direction vector
      */
     public Vector3f right() {
         return new Vector3f(right);
     }
 
     /**
-     * @return a copy of the plane's outward normal (world space)
+     * @return a copy of the canvas outward normal vector
      */
     public Vector3f normal() {
         return new Vector3f(normal);
     }
 
-    /**
-     * Lets players click this canvas in the world (off by default): invisible click tiles are laid over
-     * its plane while something clickable is spawned, and the clicked pixel comes from the player's look
-     * ray. Leave it off for canvases with their own input, such as a full-screen screen with a cursor:
-     * clicks then come only through {@link dev.horuse.pixelay.clicks.CanvasClicks#click}. Set it before
-     * spawning anything clickable.
-     */
+    /** Enables or disables world click detection tiles on this canvas. */
     public Canvas worldClicks(boolean enabled) {
         this.worldClicks = enabled;
         return this;
@@ -269,7 +238,7 @@ public class Canvas {
     }
 
     /**
-     * @return X of the anchor line for the given horizontal alignment (padding-aware)
+     * @return horizontal anchor coordinate in pixels
      */
     public double anchorX(HAlign align) {
         return switch (align) {
@@ -280,7 +249,7 @@ public class Canvas {
     }
 
     /**
-     * @return Y of the anchor line for the given vertical alignment (padding-aware)
+     * @return vertical anchor coordinate in pixels
      */
     public double anchorY(VAlign align) {
         return switch (align) {
@@ -291,19 +260,13 @@ public class Canvas {
     }
 
     /**
-     * @return the anchor pixel {@code {x, y}} for the given alignment (padding-aware)
+     * @return anchor point coordinates as an array of X and Y
      */
     public double[] anchorPoint(HAlign x, VAlign y) {
         return new double[] { anchorX(x), anchorY(y) };
     }
 
-    /**
-     * Projects a ray (origin + direction) onto the plane, returning the raw pixel coordinates
-     * {@code {pixelX, pixelY}} of the hit even when they fall outside the canvas bounds, or {@code
-     * null} if the ray is parallel to the plane or points away. Used to map a player's look
-     * direction to a canvas position (e.g. cursor hover), letting the caller clamp to the edges or
-     * treat an off-screen hit as "not looking at the canvas".
-     */
+    /** Calculates intersection point between a ray and the canvas plane in pixels. */
     public double[] rayHit(Vector origin, Vector dir) {
         Vector3f o = new Vector3f((float) origin.getX(), (float) origin.getY(), (float) origin.getZ());
         Vector3f d = new Vector3f((float) dir.getX(), (float) dir.getY(), (float) dir.getZ());
@@ -313,7 +276,7 @@ public class Canvas {
             return null;
         }
 
-        // The plane the text is drawn on: the canvas surface (depthOffset) plus the text layer.
+        // Compute canvas surface location including layer depth.
         float outward = depthOffset + Layers.text();
         Vector3f c = new Vector3f((float) center.getX(), (float) center.getY(), (float) center.getZ()).fma(
             outward,
@@ -334,9 +297,7 @@ public class Canvas {
     }
 
     /**
-     * @return the pixel coordinates {@code {pixelX, pixelY}} of the ray's hit on the canvas plane,
-     *     or {@code null} if the ray is parallel to the plane, points away, or hits outside the
-     *     canvas bounds.
+     * @return intersection pixel coordinates if inside bounds, or null
      */
     public double[] rayHitInside(Vector origin, Vector dir) {
         double[] hit = rayHit(origin, dir);

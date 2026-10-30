@@ -11,14 +11,14 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 /**
- * What every text renderer shares: placing the text ({@link TextPlacement}), redrawing only when the text,
- * the placement or the depth changed, the background panel and click registration. Subclasses only create,
- * update and remove their entity.
+ * Common base class for text renderers. Handles text placement ({@link TextPlacement}),
+ * dirty checking, background synchronization, and click registration.
+ * Subclasses create, update, and remove their specific entity types.
  */
 abstract class TextRenderer implements CanvasRenderer {
 
     protected final CanvasDrawable drawable;
-    /** The only player who sees the element, or {@code null} for everyone. */
+    /** The player who sees the element, or {@code null} for all players. */
     protected final Player viewer;
     protected Canvas canvas;
     private final TextBackground background;
@@ -29,7 +29,7 @@ abstract class TextRenderer implements CanvasRenderer {
     private int lastLineWidth;
     private float lastDepth;
     private Rect lastClip;
-    /** Whether the sent text carries cut codes (see {@link TextClip}). */
+    /** Indicates whether sent text carries clip codes (see {@link TextClip}). */
     private boolean coded;
 
     TextRenderer(CanvasDrawable drawable, Player viewer) {
@@ -38,10 +38,10 @@ abstract class TextRenderer implements CanvasRenderer {
         this.background = new TextBackground(viewer);
     }
 
-    /** Creates the entity showing {@code placement}. */
+    /** Spawns the entity representing {@code placement}. */
     protected abstract void spawnEntity(TextPlacement.Placement placement, Location at);
 
-    /** Moves the entity and changes its text. */
+    /** Updates entity position and text content. */
     protected abstract void updateEntity(TextPlacement.Placement placement, Location at);
 
     protected abstract void removeEntity();
@@ -104,7 +104,7 @@ abstract class TextRenderer implements CanvasRenderer {
         return viewer;
     }
 
-    /** The world location of the current placement, on the element's depth layer. */
+    /** Calculates the world location of the placement on its depth layer. */
     protected final Location location() {
         return canvas.rotatedPixelToWorld(
             placement.x(),
@@ -122,12 +122,12 @@ abstract class TextRenderer implements CanvasRenderer {
         return placement;
     }
 
-    /** Text opacity to send: {@link TextClip#CODED_OPACITY} while the text carries cut codes, opaque otherwise. */
+    /** Calculates text opacity: {@link TextClip#CODED_OPACITY} for coded text, or 255 otherwise. */
     protected final byte textOpacity() {
         return (byte) (coded ? TextClip.CODED_OPACITY : 255);
     }
 
-    /** The placement with the text cut at the element's clip (CSS {@code overflow}). */
+    /** Applies clip bounds to the placed text component. */
     private TextPlacement.Placement clipped(TextPlacement.Placement placed) {
         TextClip.Clipped clipped = TextClip.apply(drawable, placed);
         coded = clipped.coded();
@@ -143,7 +143,7 @@ abstract class TextRenderer implements CanvasRenderer {
         );
     }
 
-    /** The debug highlight while debugging (by the viewer, or anyone for shared entities), the configured one otherwise. */
+    /** Synchronizes background panel color based on debug and layout settings. */
     protected final void syncBackground() {
         boolean debugging = viewer != null ? LayoutDebug.isEnabled(viewer) : LayoutDebug.anyEnabled();
         background.sync(canvas, drawable, measuredHitboxPx(), TextBackground.colorOf(drawable, debugging));
@@ -172,7 +172,7 @@ abstract class TextRenderer implements CanvasRenderer {
         if (drawable.onClick() == null || box == null || !TextPlacement.contains(drawable, box, px, py)) {
             return false;
         }
-        // Like in CSS, the element can be clicked only where it is drawn.
+        // Elements accept clicks only within their visible clip bounds.
         Rect clip = drawable.clip();
         if (clip != null && !clip.contains(px, py)) {
             return false;

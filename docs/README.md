@@ -1,6 +1,8 @@
 # Pixelay Documentation
 
-**Pixelay** is an HTML/CSS-inspired UI layout, rendering, and interactivity engine for Minecraft servers (Paper 1.21+ & PacketEvents). It enables developers and future visual editors to build responsive, multi-layered 2D/3D interfaces rendered either in the 3D world or as full-screen interactive sessions (`ScreenSession`) with hardware-smooth cursor tracking.
+**Pixelay** is a UI layout, rendering, and interactivity engine for Minecraft Paper 1.21+ servers. It uses concepts from HTML and CSS.
+Developers can build responsive, multi-layered 2D and 3D interfaces.
+Pixelay renders interfaces in the 3D world or as full-screen interactive sessions (`ScreenSession`) with client-side shader cursor tracking.
 
 ---
 
@@ -8,9 +10,9 @@
 
 1. [**Architecture & Rendering Pipeline**](./architecture.md)
    - How Pixelay projects 2D pixel coordinate spaces onto 3D Minecraft planes
-   - Packet-based fake entities vs. server entities
-   - Automatic Porter-Duff alpha compositing (solving Minecraft's translucent `TextDisplay` depth-occlusion bug)
-   - `ScreenSession` & Core Shader Cursor (`rendertype_text`)
+   - Packet-based fake entities compared with server entities
+   - Automatic Porter-Duff alpha compositing (resolves Minecraft translucent `TextDisplay` depth occlusion)
+   - `ScreenSession` and Core Shader Cursor (`rendertype_text`)
 
 2. [**Layout Engine (HTML/CSS Box Model, Flexbox, Grid, Positioning)**](./layout-engine.md)
    - Two-pass layout engine (`measure` bottom-up, `arrange` top-down)
@@ -18,18 +20,23 @@
    - CSS Flexbox (`row`, `column`, `gap`, `grow`, `shrink`, `align`, `justify` including `SPACE_BETWEEN`, `SPACE_AROUND`, `SPACE_EVENLY`)
    - CSS Grid (`grid`, `px`, `fr`, `auto`, `repeat`, `rowSpan`, `columnSpan`, sparse auto-placement)
    - CSS Positioning (`Position.STATIC`, `Position.RELATIVE`, `Position.ABSOLUTE`, `left`, `top`, `right`, `bottom`, `inset`, `zIndex`)
-   - `Stack` & `ScrollView` (smooth inertial scrolling, scrollbar track/thumb dragging)
+   - `Stack` and `ScrollView` (smooth scrolling, scrollbar track and thumb dragging)
 
 3. [**UI Components & State Styling**](./components.md)
    - Structural elements: `Box`, `Row`, `Column`, `Grid`, `Stack`, `Text`, `Spacer`
    - Interactive controls: `Button`, `Checkbox`, `Toggle`, `ProgressBar`
-   - 2D Drawing & Pixel Art: `Canvas` — programmatic 2D drawing API + interactive player brush painting with 2D greedy meshing
+   - 2D Drawing: `Canvas` programmatic drawing API and interactive player painting with 2D greedy meshing
    - 3D Models: `Item` and `Block`
-   - Pseudo-states (`State.HOVERED`, `State.DISABLED`, `State.SELECTED`, custom states) & CSS `Transition` / `Easing`
+   - Pseudo-states (`State.HOVERED`, `State.DISABLED`, `State.SELECTED`, custom states) and CSS `Transition` / `Easing`
 
-4. [**Web Editor & DOM Serialization Specification**](./web-editor-spec.md)
-   - SOLID introspection & live mutation API across all `Box` and `Container` subclasses
-   - Canonical JSON Document Schema (`tagName`, box model, layout props, state styles, component props)
+4. [**Screen Transitions & Native Client GPU Interpolation**](./TRANSITIONS.md)
+   - Client-side GPU transform interpolation at monitor refresh rate (144+ FPS)
+   - Core shader full-screen transitions drawn in 2D GUI title pass above first-person hand
+   - Two-phase cover and reveal transitions with entity fallback
+
+5. [**Web Editor & DOM Serialization Specification**](./web-editor-spec.md)
+   - Introspection and mutation API across all `Box` and `Container` subclasses
+   - Canonical JSON Document Schema (`tagName`, box model, layout properties, state styles, component properties)
    - Bidirectional mapping between the future Web Editor and `MountedLayout`
 
 ---

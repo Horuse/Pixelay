@@ -12,8 +12,7 @@ import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientVe
 import org.bukkit.entity.Player;
 
 /**
- * Feeds the camera look of players in a {@link ScreenSession} to their cursor, and routes mouse wheel / movement
- * keys to scrolling.
+ * Routes camera look packets to the session cursor, and routes mouse wheel or movement keys to scrolling.
  */
 public class ScreenLookListener implements PacketListener {
 

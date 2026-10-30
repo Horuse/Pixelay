@@ -1,6 +1,6 @@
 package dev.horuse.pixelay.data;
 
-/** An axis-aligned rectangle in canvas px (y grows down). */
+/** An axis-aligned rectangle in canvas pixels. */
 public record Rect(double x, double y, double width, double height) {
     public static final Rect EMPTY = new Rect(0, 0, 0, 0);
 
@@ -20,12 +20,12 @@ public record Rect(double x, double y, double width, double height) {
         return y + height / 2;
     }
 
-    /** Half-open: the right and bottom edges belong to the next box, so neighbours never overlap. */
+    /** Checks if point is inside rectangle using half-open bounds. */
     public boolean contains(double px, double py) {
         return px >= x && px < right() && py >= y && py < bottom();
     }
 
-    /** The common part of both rectangles; empty (zero size) when they do not overlap. */
+    /** Calculates intersection of two rectangles, returning empty if disjoint. */
     public Rect intersect(Rect other) {
         double left = Math.max(x, other.x);
         double top = Math.max(y, other.y);
@@ -34,7 +34,7 @@ public record Rect(double x, double y, double width, double height) {
         return new Rect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
     }
 
-    /** Whether the rectangle covers {@code other} entirely. */
+    /** Checks if this rectangle completely covers another rectangle. */
     public boolean covers(Rect other) {
         return other.x >= x && other.y >= y && other.right() <= right() && other.bottom() <= bottom();
     }

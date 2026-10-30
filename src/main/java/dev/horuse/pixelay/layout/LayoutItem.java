@@ -1,7 +1,6 @@
 package dev.horuse.pixelay.layout;
 
 /**
- * Anything that can be put into a layout: a container ({@link Box}) or a canvas component, which is
- * wrapped into a leaf automatically. Lets {@code row(title, spacer(), button)} mix both freely.
+ * Common interface for elements and containers in a layout.
  */
 public interface LayoutItem {}

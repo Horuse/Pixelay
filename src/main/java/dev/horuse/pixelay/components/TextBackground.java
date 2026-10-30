@@ -18,12 +18,12 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /**
- * The background of a text element ({@code text.background}, or the layout debug highlight), drawn as
- * a separate panel exactly over the element's box. The client's own TextDisplay background is not
- * used: it is uneven (1 font px wider on the left and on top, and it covers the trailing spacing).
+ * Renders the background panel of a text element over its calculated bounds.
+ * Does not use vanilla TextDisplay backgrounds to ensure accurate dimensions.
  * <p>
- * With a viewer the panel is a fake entity sent to that player only; without one it is a server
- * entity visible to everyone. A fully transparent colour removes the panel.
+ * For private viewers, renders as a packet entity.
+ * For public views, renders as a server entity.
+ * A fully transparent color removes the panel.
  */
 public final class TextBackground {
 
@@ -40,12 +40,12 @@ public final class TextBackground {
     private double lastPivotX = Double.NaN;
     private double lastPivotY = Double.NaN;
 
-    /** @param viewer the only player who sees the panel, or {@code null} for a server entity everyone sees */
+    /** @param viewer player who sees the panel, or {@code null} for a shared server entity */
     public TextBackground(Player viewer) {
         this.viewer = viewer;
     }
 
-    /** The colour an element's background should have now. */
+    /** Calculates current background color for the specified drawable. */
     static int colorOf(CanvasDrawable drawable, boolean debugging) {
         if (!drawable.debugBackground()) {
             return 0;
@@ -53,10 +53,10 @@ public final class TextBackground {
         return LayoutDebug.background(drawable.fit(), debugging, Pixelay.settings().text().backgroundArgb());
     }
 
-    /** Shows the panel over the element's box ({@code hitbox} as measured), in place when it already exists. */
+    /** Synchronizes the panel over the measured element bounds. */
     void sync(Canvas canvas, CanvasDrawable drawable, Size hitbox, int argb) {
         Rect bounds = hitbox != null ? TextPlacement.bounds(drawable, hitbox) : null;
-        // Cut like the text it is under (CSS overflow).
+        // Clip background to match text overflow boundaries.
         if (bounds != null && drawable.clip() != null) {
             bounds = bounds.intersect(drawable.clip());
         }
@@ -64,9 +64,8 @@ public final class TextBackground {
     }
 
     /**
-     * Shows the panel over {@code bounds} (canvas px) at {@code depth} blocks
-     * off the plane, in place when it already exists; {@code null}, empty bounds or a transparent colour
-     * remove it.
+     * Synchronizes the panel over {@code bounds} in canvas pixels at {@code depth} blocks.
+     * Null bounds, empty bounds, or transparent colors remove the panel.
      */
     public void sync(Canvas canvas, Rect bounds, int argb, float depth) {
         sync(canvas, bounds, argb, depth, 0.0, 0.0, 0.0, Double.NaN, Double.NaN);

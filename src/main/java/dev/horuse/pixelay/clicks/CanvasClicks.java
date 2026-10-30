@@ -13,17 +13,16 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 /**
- * One click path for every canvas: a click becomes a canvas pixel (the clicking player's look ray hit on
- * the plane), and that pixel goes to the registered {@link ClickTarget}s, the latest first, until one
- * handles it. Where the click comes from does not matter:
+ * Unified click dispatcher for all canvases. A click transforms into canvas pixel coordinates
+ * from the player look ray. Pixelay sends the pixel coordinates to registered {@link ClickTarget} instances,
+ * newest first, until one handles the click. The source can be:
  * <ul>
- *   <li>world canvases with {@link Canvas#worldClicks(boolean)} — invisible tiles over the plane catch
- *       the click (see {@link HitArea});</li>
- *   <li>full-screen screens — the cursor position;</li>
- *   <li>your own code — {@link #click(Canvas, Player, double, double, Player)}.</li>
+ *   <li>World canvases with {@link Canvas#worldClicks(boolean)} via invisible {@link HitArea} tiles</li>
+ *   <li>Full-screen screens at the cursor position</li>
+ *   <li>External plugin code via {@link #click(Canvas, Player, double, double, Player)}</li>
  * </ul>
- * Targets are registered per canvas and viewer ({@code null} = everyone). Main thread only, except
- * {@link #onEntityClick}, which may be called from the network thread.
+ * Register targets per canvas and viewer ({@code null} means all players). Call methods on the main thread only,
+ * except {@link #onEntityClick}.
  */
 public final class CanvasClicks {
 
@@ -33,7 +32,7 @@ public final class CanvasClicks {
 
     private CanvasClicks() {}
 
-    /** A canvas object and a viewer (or nobody); canvases are compared by identity. */
+    /** A canvas instance and an optional viewer UUID. Canvases compare by identity. */
     private record Key(Canvas canvas, UUID viewer) {
         @Override
         public boolean equals(Object o) {
@@ -47,8 +46,8 @@ public final class CanvasClicks {
     }
 
     /**
-     * Makes {@code target} clickable on {@code canvas} for {@code viewer} ({@code null} = everyone),
-     * spawning the canvas' hit tiles on the first registration.
+     * Registers {@code target} on {@code canvas} for {@code viewer} ({@code null} for all players).
+     * Spawns hit tiles on first registration.
      */
     public static void register(Canvas canvas, Player viewer, ClickTarget target) {
         Key key = new Key(canvas, viewer != null ? viewer.getUniqueId() : null);
@@ -61,7 +60,7 @@ public final class CanvasClicks {
         area.targets.add(target);
     }
 
-    /** Removes a target; the hit tiles go away with the last one. */
+    /** Removes a click target. Despawns hit tiles when the target list becomes empty. */
     public static void unregister(Canvas canvas, Player viewer, ClickTarget target) {
         Key key = new Key(canvas, viewer != null ? viewer.getUniqueId() : null);
         HitArea area = AREAS.get(key);
@@ -76,9 +75,9 @@ public final class CanvasClicks {
     }
 
     /**
-     * Routes a click at a known canvas pixel to the targets of {@code viewer} and then to the shared ones.
+     * Routes a click at canvas coordinates to viewer targets, then to shared targets.
      *
-     * @return whether a target handled it
+     * @return true if a target handled the click, false otherwise
      */
     public static boolean click(Canvas canvas, Player viewer, double pixelX, double pixelY, Player player) {
         if (viewer != null && dispatch(AREAS.get(new Key(canvas, viewer.getUniqueId())), pixelX, pixelY, player)) {
@@ -88,9 +87,9 @@ public final class CanvasClicks {
     }
 
     /**
-     * Called by the packet listener for a click on any entity.
+     * Processes an entity click from the packet listener.
      *
-     * @return whether the entity is a hit tile (the packet must then be cancelled)
+     * @return true if the entity is a hit tile, false otherwise
      */
     public static boolean onEntityClick(int entityId, Player player) {
         HitArea area = BY_ENTITY.get(entityId);
@@ -108,8 +107,7 @@ public final class CanvasClicks {
                 return;
             }
             Location eye = player.getEyeLocation();
-            // The packet is taken before the server checks the reach, so a modified client could send it
-            // from anywhere: the clicked point must be in the player's world and within reach.
+            // Packet arrives before reach checks. Verify world and reach distance before dispatching.
             if (!eye.getWorld().equals(area.canvas.center().getWorld())) {
                 return;
             }
@@ -125,7 +123,7 @@ public final class CanvasClicks {
         return true;
     }
 
-    /** Respawns server tiles killed by something else (called by the self-heal task). */
+    /** Respawns destroyed server tiles during self-healing. */
     public static void heal() {
         for (HitArea area : AREAS.values()) {
             if (!area.isValid()) {
@@ -135,7 +133,7 @@ public final class CanvasClicks {
         }
     }
 
-    /** Lays all click tiles again (the text layer they stand on moved). */
+    /** Respawns all click tiles when backing layers move. */
     public static void respawnAll() {
         for (HitArea area : AREAS.values()) {
             area.despawn();
@@ -143,7 +141,7 @@ public final class CanvasClicks {
         }
     }
 
-    /** Drops everything (plugin disable). */
+    /** Clears all click areas and state on plugin disable. */
     public static void clear() {
         AREAS.values().forEach(HitArea::despawn);
         AREAS.clear();
@@ -151,7 +149,7 @@ public final class CanvasClicks {
         DEBOUNCE.clear();
     }
 
-    /** Forgets a player who left: their private tiles are gone with their client. */
+    /** Removes data for a disconnected player and despawns private tiles. */
     public static void remove(Player player) {
         DEBOUNCE.forget(player.getUniqueId());
         AREAS.entrySet().removeIf(entry -> {

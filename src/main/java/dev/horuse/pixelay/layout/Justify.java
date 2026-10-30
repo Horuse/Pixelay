@@ -1,6 +1,6 @@
 package dev.horuse.pixelay.layout;
 
-/** Distribution of children along the main axis when none of them grows (CSS {@code justify-content}). */
+/** Controls distribution of children along the main axis. */
 public enum Justify {
     START,
     CENTER,

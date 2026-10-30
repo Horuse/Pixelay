@@ -13,8 +13,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
 /**
- * Full-screen Core Shader Transitions rendered on the 2D GUI layer directly above the player's hand,
- * hotbar, hearts, and world geometry, at 144+ FPS native monitor refresh rate.
+ * Renders full-screen core shader transitions on the 2D GUI layer.
+ * Transitions render above hands, hotbar, and world geometry at native monitor refresh rates.
  */
 final class ShaderTransition {
 
@@ -38,12 +38,12 @@ final class ShaderTransition {
         this.mode = mode;
     }
 
-    /** Whether shader transitions are available (requires Pixelay resource pack). */
+    /** Checks if shader transitions are available with the active resource pack. */
     static boolean available() {
         return PixelayPack.current() != null;
     }
 
-    /** Plays the shader transition and runs {@code onFinished} once 100% complete. */
+    /** Plays the shader transition and runs {@code onFinished} when complete. */
     void play(Runnable onFinished) {
         cancel();
         if (!player.isOnline()) {
@@ -62,9 +62,9 @@ final class ShaderTransition {
         TextColor color = TextColor.color(SIGNATURE_RED, green, blue);
         Component titleComponent = Component.text(GLYPH).font(FONT_KEY).color(color);
 
-        // Mode.IN: fadeIn=durationTicks, stay=40, fadeOut=0. vertexColor.a animates 0.0 -> 1.0, then stays 1.0.
-        // Mode.OUT: fadeIn=0, stay=0, fadeOut=durationTicks. vertexColor.a animates 1.0 -> 0.0.
-        // Starting Mode.OUT at alpha 1.0 ensures Minecraft never drops frame 0 due to "if (alpha <= 8) return;".
+        // Mode.IN: fadeIn=durationTicks, stay=40, fadeOut=0. Alpha animates from 0.0 to 1.0.
+        // Mode.OUT: fadeIn=0, stay=0, fadeOut=durationTicks. Alpha animates from 1.0 to 0.0.
+        // Mode.OUT starts at alpha 1.0 to prevent dropped frames on client.
         Title.Times times =
             mode == Mode.IN
                 ? Title.Times.times(Ticks.duration(durationTicks), Ticks.duration(40), Ticks.duration(0))

@@ -12,10 +12,10 @@ import dev.horuse.pixelay.utils.PacketUtils;
 import org.bukkit.entity.Player;
 
 /**
- * A per-player canvas cursor: a single client-side Text Display glyph that follows the point the
- * player is looking at (moved each tick via {@link #move}). Used where the vanilla crosshair is
- * hidden (spectator camera), so the player still sees where they point. Spawned through the shared
- * fake packet renderer like any other component.
+ * Per-player canvas cursor. A client-side Text Display glyph tracks the point where the player looks.
+ * {@link #move} updates the position each tick.
+ * The cursor provides aiming reference when the spectator camera hides the vanilla crosshair.
+ * The component spawns through the fake packet renderer.
  */
 public class CanvasCursor extends AbstractCanvasComponent {
 
@@ -23,28 +23,28 @@ public class CanvasCursor extends AbstractCanvasComponent {
     private static final int DEBUG_DOT_COLOR = 0xD0FF00FF;
     private final Player viewer;
     private final String glyph;
-    /** Fake entity id of the debug hot-spot dot, 0 when not shown. */
+    /** Packet entity ID of the debug dot, or 0 when hidden. */
     private int debugDotId;
-    /** Hot spot in font px from the glyph's line-box top-left, or {@code null} to centre the glyph. */
+    /** Hotspot coordinates in font pixels from the top-left, or {@code null} to center the glyph. */
     private final double[] hotspot;
-    /** The cursor is always packet-only: kept typed for {@link FakeRenderer#move}. */
+    /** Typed renderer reference for {@link FakeRenderer#move}. */
     private final FakeRenderer fakeRenderer;
 
-    /** Cursor with the glyph and size from config.yml ({@code cursor.*}), centred on the pointed pixel. */
+    /** Creates a cursor with glyph and size settings from config.yml centered on the target pixel. */
     public CanvasCursor(Player viewer) {
         this(viewer, Pixelay.settings().cursor().glyph(), Pixelay.settings().cursor().heightPx());
     }
 
-    /** Cursor with an explicit MiniMessage glyph and pixel height, centred on the pointed pixel. */
+    /** Creates a cursor with specified glyph and height centered on the target pixel. */
     public CanvasCursor(Player viewer, String glyph, double heightPx) {
         this(viewer, glyph, heightPx, null);
     }
 
     /**
-     * Cursor whose hot spot — e.g. the tip of an arrow — lands exactly on the pointed pixel.
+     * Creates a cursor with an offset hotspot that aligns with the target pixel.
      *
-     * @param hotspotX font px from the left of the glyph
-     * @param hotspotY font px from the top of the line box (negative when the glyph rises above it)
+     * @param hotspotX font pixels from the left of the glyph
+     * @param hotspotY font pixels from the top of the line box (negative when the glyph extends above)
      */
     public CanvasCursor(Player viewer, String glyph, double heightPx, double hotspotX, double hotspotY) {
         this(viewer, glyph, heightPx, new double[] { hotspotX, hotspotY });
@@ -59,7 +59,7 @@ public class CanvasCursor extends AbstractCanvasComponent {
         this.renderer = fakeRenderer;
     }
 
-    /** Repositions the cursor so its hot spot is on the given canvas pixel (spawning it first if needed). */
+    /** Moves the cursor hotspot to target canvas coordinates and spawns the entity if needed. */
     public void move(Canvas canvas, double pixelX, double pixelY) {
         if (hotspot == null) {
             place(pixelX, pixelY, HAlign.CENTER, VAlign.MIDDLE);
@@ -71,14 +71,14 @@ public class CanvasCursor extends AbstractCanvasComponent {
             spawn(canvas);
         }
 
-        // Lifted towards the viewer: text on the same plane would otherwise overlap the cursor at random.
+        // Shift the cursor toward the viewer to prevent z-fighting with canvas text.
         float depth = Layers.cursor(canvas, viewer);
         TextPlacement.Placement placement = TextPlacement.place(this, glyph);
         fakeRenderer.move(canvas.pixelToWorld(placement.x(), placement.y(), depth).toVector());
         updateDebugDot(canvas, pixelX, pixelY, Layers.cursorDot(canvas, viewer));
     }
 
-    /** In layout debug mode, marks the exact pointed pixel (the hot spot) with a small dot. */
+    /** Marks the pointed pixel with a debug dot in layout debug mode. */
     private void updateDebugDot(Canvas canvas, double pixelX, double pixelY, float depth) {
         if (!LayoutDebug.isEnabled(viewer)) {
             removeDebugDot();
@@ -101,8 +101,7 @@ public class CanvasCursor extends AbstractCanvasComponent {
     }
 
     /**
-     * Hides the cursor glyph (e.g. when the player is not looking at the canvas); {@link #move}
-     * respawns it the next time the player looks back.
+     * Hides the cursor glyph when the player looks away. {@link #move} respawns the glyph when the player looks back.
      */
     public void hide() {
         despawn();
@@ -114,17 +113,17 @@ public class CanvasCursor extends AbstractCanvasComponent {
         super.despawn();
     }
 
-    /** The cursor is positioned only by {@link #move}: a refresh must not move it back onto the text plane. */
+    /** No-op refresh. {@link #move} controls cursor positioning. */
     @Override
     public void refresh() {}
 
-    /** The cursor is drawn whole, even over the canvas edge (it is clamped to it anyway). */
+    /** Returns null clip to draw the full cursor across canvas boundaries. */
     @Override
     public Rect clip() {
         return null;
     }
 
-    /** The glyph's text box is not the drawing (the arrow is taller than a line): debug shows a dot instead. */
+    /** Disables background debug rendering because the glyph height exceeds standard lines. */
     @Override
     public boolean debugBackground() {
         return false;

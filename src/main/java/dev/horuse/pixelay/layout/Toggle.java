@@ -8,8 +8,7 @@ import java.util.function.BooleanSupplier;
 import org.bukkit.entity.Player;
 
 /**
- * An interactive HTML switch ({@code <input type="checkbox" role="switch">}) component with a
- * geometric pill track, sliding thumb knob, and optional text label.
+ * Interactive toggle switch component with sliding knob and optional label.
  */
 public final class Toggle extends Container<Toggle> {
 

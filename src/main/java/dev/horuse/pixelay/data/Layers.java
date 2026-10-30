@@ -12,55 +12,43 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.bukkit.entity.Player;
 
 /**
- * Depth of everything Pixelay draws, in blocks in front of the canvas surface (the plane moved out by the
- * canvas' {@code depthOffset}, i.e. the face of your background). Depths are whole {@code layers.step}s, so
- * two things on different steps never fight for depth, whatever the background is.
- * <p>
- * Layouts give their boxes steps in painting order, like CSS: a parent before its children, an earlier
- * sibling before a later one. A box goes one step above every box painted before it that it overlaps, so
- * nested boxes always lie above their parents and the stack only grows where things really overlap. A
- * container takes one step (its background), a component two (its text background and its text above it).
- * Debug panels sit half a step under the box they outline. A component outside a layout takes steps 1
- * and 2; the cursor is one step above the highest step of its canvas.
+ * Controls layer depth offsets for rendered elements in front of the canvas surface.
+ * Elements receive depth steps according to painting order.
+ * Overlapping boxes receive higher steps to prevent rendering conflicts.
+ * Standalone components use default base steps.
  */
 public final class Layers {
 
-    /** Highest step a layout may use; deeper overlap shares it (a warning is logged). */
+    /** Maximum layer step permitted for a layout. */
     public static final int MAX_STEP = 60;
-    /** Steps of a component outside a layout: its text background, then its text. */
+    /** Layer step for background plates of standalone components. */
     public static final int DEFAULT_TEXT_BACKGROUND_STEP = 1;
-    /** Step of the text of a component outside a layout (one above its text background). */
+    /** Layer step for text of standalone components. */
     public static final int DEFAULT_TEXT_STEP = DEFAULT_TEXT_BACKGROUND_STEP + 1;
-    /** Step used by {@code /pixelay debug layers}: layers pulled far apart to see them like 3D devtools. */
+    /** Layer step used by layer inspection debug mode. */
     public static final float EXPLODED_STEP = 0.1f;
-    /**
-     * Highest step of every layout on each canvas, so the cursor sits right above the current top (and not
-     * far in front: parallax). Canvases are compared by identity and forgotten when dropped.
-     */
+    /** Tracks the maximum layer step per canvas to position the cursor. */
     private static final Map<Canvas, Map<Object, Integer>> TOP_STEPS = Collections.synchronizedMap(new WeakHashMap<>());
 
-    /** Players who see the layers pulled apart. */
+    /** Tracks players who currently view exploded layers. */
     private static final Set<UUID> EXPLODED = ConcurrentHashMap.newKeySet();
 
     private Layers() {}
 
-    /** Depth of a step, in blocks. */
+    /** Calculates layer depth in blocks for a step. */
     public static float at(double step) {
         return at(step, null);
     }
 
-    /**
-     * Depth of a step for what {@code viewer} alone sees (fake and per-player entities); {@code null} for
-     * shared entities. Only per-viewer entities are pulled apart by {@code /pixelay debug layers}.
-     */
+    /** Calculates layer depth in blocks for a step and viewer. */
     public static float at(double step, Player viewer) {
         boolean pulledApart = viewer != null && EXPLODED.contains(viewer.getUniqueId());
         return (float) (step * (pulledApart ? EXPLODED_STEP : Pixelay.settings().layers().step()));
     }
 
-    /** @return whether {@code player} now sees the layers of their own (fake and per-player) canvases apart */
+    /** @return true if exploded mode is now enabled for the player */
     public static boolean toggleExploded(Player player) {
-        // Renderers notice the new depths through textDepth() on their next refresh.
+        // Renderers apply new depths on the next refresh.
         return PlayerSet.toggle(EXPLODED, player.getUniqueId());
     }
 
@@ -68,19 +56,19 @@ public final class Layers {
         EXPLODED.remove(player);
     }
 
-    /** The text layer of a component outside a layout: the plane clicks are measured on. */
+    /** Returns the standard text layer depth for click detection. */
     public static float text() {
         return at(DEFAULT_TEXT_STEP);
     }
 
-    /** Called by a layout after each pass with the highest step it uses on the canvas. */
+    /** Updates the highest active step for a layout on a canvas. */
     public static void reportTopStep(Canvas canvas, Object layout, int step) {
         synchronized (TOP_STEPS) {
             TOP_STEPS.computeIfAbsent(canvas, key -> new IdentityHashMap<>()).put(layout, step);
         }
     }
 
-    /** Called by a layout when it leaves the canvas. */
+    /** Removes tracked step data when a layout unmounts. */
     public static void forgetTopStep(Canvas canvas, Object layout) {
         synchronized (TOP_STEPS) {
             Map<Object, Integer> layouts = TOP_STEPS.get(canvas);
@@ -90,10 +78,7 @@ public final class Layers {
         }
     }
 
-    /**
-     * One step above everything on the canvas. The cursor is seen at an angle, so it must stay as close to
-     * the drawing as possible: the farther it is in front of it, the more it drifts off the pointed pixel.
-     */
+    /** Calculates cursor depth one step above the highest canvas element. */
     public static float cursor(Canvas canvas, Player viewer) {
         int top = DEFAULT_TEXT_STEP;
         synchronized (TOP_STEPS) {

@@ -1,11 +1,11 @@
 package dev.horuse.pixelay.debug;
 
-/** Whether an element fits the space its layout gave it. */
+/** Indicates whether an element fits allocated layout space. */
 public enum Fit {
-    /** Fits. */
+    /** Element fits within its bounds. */
     NONE,
-    /** Bigger than its own space: this is where the problem is. */
+    /** Element exceeds its allocated bounds. */
     SELF,
-    /** Fits itself, but sits inside a box that overflows. */
+    /** Element fits its own bounds, but ancestor overflows. */
     INSIDE,
 }

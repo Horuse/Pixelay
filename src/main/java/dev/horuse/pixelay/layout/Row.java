@@ -1,7 +1,7 @@
 package dev.horuse.pixelay.layout;
 
 /**
- * A horizontal flex container (CSS {@code display: flex; flex-direction: row}).
+ * Horizontal flex container arranging children in a row.
  */
 public final class Row extends Flex {
 

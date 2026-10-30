@@ -17,16 +17,14 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 /**
- * Layout debug wireframe overlay ({@code /pixelay debug layout}): draws crisp 100% opaque wireframe
- * outlines (top/right/bottom/left edges) IN FRONT OF all backgrounds and text, so container hierarchy,
- * spacers, click zones, and overflow errors are clearly visible even over dark/opaque UI surfaces.
+ * Renders layout wireframe outlines for debugging.
  */
 final class DebugOverlay {
 
     private static final double VIEW_DISTANCE = 64;
     private static final double WIRE_THICKNESS = 2.0;
 
-    /** Sits above the box's background and text so opaque backgrounds never hide debug outlines. */
+    /** Calculates depth in front of box content so wireframe lines remain visible. */
     private static float depthOf(Box<?> box, Player viewer) {
         return Layers.at(box.paintEnd + 0.5, viewer);
     }
@@ -42,7 +40,7 @@ final class DebugOverlay {
     private record Panel(Rect rect, int color, float depth) {}
 
     private final Map<UUID, int[]> spawned = new HashMap<>();
-    /** What each viewer currently sees, to update panels in place instead of re-spawning them. */
+    /** Tracks displayed panels per viewer to enable in-place updates. */
     private final Map<UUID, List<Panel>> shown = new HashMap<>();
     private final Map<UUID, String> canvases = new HashMap<>();
 
@@ -62,12 +60,12 @@ final class DebugOverlay {
 
         for (Player viewer : viewers) {
             UUID id = viewer.getUniqueId();
-            // Depths are per viewer (debug layers pulls them apart for one player only).
+            // Depths are specific to each viewing player.
             List<Panel> panels = new ArrayList<>();
             collect(root, panels, viewer);
             List<Panel> previous = shown.get(id);
             if (previous != null && sameStructure(previous, panels) && canvasKey.equals(canvases.get(id))) {
-                // Same boxes: only move/resize the ones whose rectangle changed (no flicker, few packets).
+                // Update bounds without rebuilding unchanged elements.
                 int[] entityIds = spawned.get(id);
                 for (int i = 0; i < panels.size(); i++) {
                     Panel panel = panels.get(i);
@@ -76,7 +74,7 @@ final class DebugOverlay {
                     }
                     Rect r = panel.rect();
                     if (entityIds[i] == 0) {
-                        // Was empty when spawned: create it now that it has a size.
+                        // Spawn previously empty panel that now has non-zero size.
                         if (r.width() > 0 && r.height() > 0) {
                             entityIds[i] = ColorPanel.spawn(
                                 viewer,
@@ -90,7 +88,7 @@ final class DebugOverlay {
                             );
                         }
                     } else if (r.width() <= 0 || r.height() <= 0) {
-                        // Became empty: remove it (it is spawned again once it has a size).
+                        // Despawn panel that has zero size.
                         PacketUtils.destroy(viewer, entityIds[i]);
                         entityIds[i] = 0;
                     } else {
@@ -159,7 +157,7 @@ final class DebugOverlay {
         double hBar = Math.min(t, r.height());
         double vBar = Math.min(t, r.width());
         double midH = Math.max(0, r.height() - 2 * hBar);
-        // Top, Bottom, Left, Right wireframe edges
+        // Add rectangular wireframe edge panels.
         panels.add(new Panel(new Rect(r.x(), r.y(), r.width(), hBar), color, depth));
         panels.add(new Panel(new Rect(r.x(), Math.max(r.y(), r.bottom() - hBar), r.width(), hBar), color, depth));
         panels.add(new Panel(new Rect(r.x(), r.y() + hBar, vBar, midH), color, depth));
@@ -182,7 +180,7 @@ final class DebugOverlay {
         return 0;
     }
 
-    /** Same boxes in the same order (rectangles may differ). */
+    /** Checks if two panel lists share identical color order. */
     private static boolean sameStructure(List<Panel> a, List<Panel> b) {
         if (a.size() != b.size()) {
             return false;
@@ -195,7 +193,7 @@ final class DebugOverlay {
         return true;
     }
 
-    /** One entity id per panel, index-aligned with {@code panels} (0 for an empty rectangle). */
+    /** Spawns panel entities for the given player. */
     private int[] spawn(Player viewer, List<Panel> panels, Canvas canvas) {
         int[] ids = new int[panels.size()];
         for (int i = 0; i < panels.size(); i++) {

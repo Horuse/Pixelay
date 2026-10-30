@@ -1,8 +1,8 @@
 package dev.horuse.pixelay.layout;
 
 /**
- * High-performance cubic bezier curve evaluator conforming to the W3C CSS Transitions specification.
- * Solves {@code X(u) = t} using Newton-Raphson iteration with fallback to binary subdivision.
+ * Evaluates cubic bezier curves following the CSS Transitions specification.
+ * Calculates curves using Newton-Raphson iteration with binary subdivision fallback.
  */
 public final class CubicBezierEasing implements Easing {
 
@@ -54,7 +54,7 @@ public final class CubicBezierEasing implements Easing {
     }
 
     private double solveCurveX(double x) {
-        // First try Newton-Raphson
+        // Apply Newton-Raphson iteration.
         double u = x;
         for (int i = 0; i < MAX_NEWTON_ITERATIONS; i++) {
             double currentX = sampleCurveX(u) - x;
@@ -68,7 +68,7 @@ public final class CubicBezierEasing implements Easing {
             u -= currentX / dX;
         }
 
-        // Fallback to binary subdivision
+        // Use binary subdivision fallback.
         double u0 = 0.0;
         double u1 = 1.0;
         u = x;

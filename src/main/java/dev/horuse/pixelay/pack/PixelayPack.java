@@ -27,42 +27,39 @@ import java.util.zip.ZipOutputStream;
 import javax.imageio.ImageIO;
 
 /**
- * The resource pack Pixelay builds for itself, into {@code plugins/Pixelay/pixelay-pack.zip}, on every start
- * and {@code /pixelay reload}: the core shaders of the screen cursor and of clipped canvas texts (CSS
- * {@code overflow}), and the cursor atlas made of the cursor sprites.
+ * Generates the Pixelay resource pack into {@code plugins/Pixelay/pixelay-pack.zip}.
+ * Pixelay builds this pack on startup and on {@code /pixelay reload}.
+ * The pack contains core shaders for cursors and text clipping, and the cursor atlas.
  * <p>
- * Every file of {@code plugins/Pixelay/pack/} goes into the pack too, at the same path, and replaces
- * Pixelay's own file there: {@code pack/cursors/pointer.png} is another pointer sprite,
- * {@code pack/assets/minecraft/...} any other asset. Sprites ({@code cursors/<name>.png}) are not copied as
- * they are: they are packed into the atlas the shader draws from.
+ * Files from {@code plugins/Pixelay/pack/} override default files at matching paths.
+ * Sprites from {@code cursors/<name>.png} pack into the atlas that shaders sample.
  */
 public final class PixelayPack {
 
-    /** Where the pack's own files are, inside the plugin jar. */
+    /** Path to built-in pack files inside the plugin jar. */
     private static final String BUILT_IN = "pack/";
     private static final String CURSORS = "cursors/";
     private static final String ATLAS = "assets/minecraft/textures/misc/underwater.png";
     private static final String CONFIG = "assets/minecraft/shaders/include/pixelay_cursor_config.glsl";
 
-    /** Atlas of 8x8 cells of 32 px: the sprites in the first row, the water tile next, a marker pixel last. */
+    /** Atlas of 8x8 cells of 32 pixels: sprites in first row, water tile next, and marker pixel last. */
     static final int ATLAS_SIZE = 256;
     static final int CELL = 32;
     static final int COLUMNS = ATLAS_SIZE / CELL;
     static final int WATER_CELL = 8;
-    /** The atlas' last pixel: tells the shader it samples Pixelay's atlas. */
+    /** Last pixel of the atlas that identifies Pixelay's atlas to the shader. */
     private static final int MARKER = 0xFF504958;
-    /** Sprite index 7 means "hidden" to the shader: at most 7 sprites. */
+    /** Sprite index 7 means hidden to the shader (supports at most 7 sprites). */
     public static final int MAX_SPRITES = 7;
-    // STATE_STEP, LEVELS, TAN_MIN and TAN_MAX are also written in pixelay_state.glsl: change both together.
+    // Keep STATE_STEP, LEVELS, TAN_MIN, and TAN_MAX synchronized with pixelay_state.glsl.
 
     /**
-     * World age ticks per state of a screen session: the client counts the age on between two packets, the
-     * shader rounds up to half of it away (about 0.8 s of lag).
+     * World age ticks per session state. The client increments age between packets.
      */
     public static final int STATE_STEP = 32;
-    /** Levels of the canvas size in the state: {@code 1 + 7 + 8 * (levels - 1)} states of 32 ticks fit a day. */
+    /** Discrete canvas size levels in session state. */
     public static final int LEVELS = 93;
-    /** Range of {@code tan(half the canvas height as seen)} the states cover, log-spaced. */
+    /** Tangent range for half canvas height covered by states. */
     public static final double TAN_MIN = 0.12;
     public static final double TAN_MAX = 3.0;
 
@@ -71,14 +68,14 @@ public final class PixelayPack {
     private PixelayPack() {}
 
     /**
-     * The last built pack.
+     * The last built resource pack.
      *
-     * @param zip the pack file
-     * @param sha1 its SHA-1, hex (what a resource pack request needs)
-     * @param sprites the cursor sprites in the atlas, index = sprite number of the shader
+     * @param zip The pack file path.
+     * @param sha1 The SHA-1 checksum hex string for resource pack requests.
+     * @param sprites The cursor sprites in the atlas where index equals the shader sprite index.
      */
     public record Built(Path zip, String sha1, List<CursorSprite> sprites) {
-        /** The sprite number of a cursor name, or of {@code "default"} (0 when there is none) for an unknown one. */
+        /** Returns the sprite number for a cursor name, or the default sprite if not found. */
         public int spriteIndex(String name) {
             int fallback = 0;
             for (int i = 0; i < sprites.size(); i++) {
@@ -93,15 +90,15 @@ public final class PixelayPack {
         }
     }
 
-    /** The last built pack, or {@code null} when none was built (disabled, or the build failed). */
+    /** The last built pack, or {@code null} if pack generation was skipped or failed. */
     public static Built current() {
         return current;
     }
 
     /**
-     * Builds the pack into {@code dataFolder/pixelay-pack.zip}.
+     * Builds the resource pack into {@code dataFolder/pixelay-pack.zip}.
      *
-     * @param pluginJar the plugin's jar, holding the built-in files
+     * @param pluginJar The plugin jar file containing built-in assets.
      */
     public static Built build(File pluginJar, Path dataFolder, PixelaySettings.ResourcePack settings, Logger log)
         throws IOException {
@@ -124,7 +121,7 @@ public final class PixelayPack {
         files.put(CONFIG, config(sprites, images, settings.cursorScale()).getBytes(StandardCharsets.UTF_8));
         files.put("assets/pixelay/font/transition.json", transitionFontJson().getBytes(StandardCharsets.UTF_8));
         files.put("assets/pixelay/textures/font/white.png", png(whitePixelImage()));
-        // The sprites live in the atlas now.
+        // Sprites are now stored in the atlas.
         files.keySet().removeIf(path -> path.startsWith(CURSORS));
 
         Path zip = dataFolder.resolve("pixelay-pack.zip");
@@ -157,7 +154,7 @@ public final class PixelayPack {
         }
     }
 
-    /** A sprite image, at most one cell: a bigger one is skipped (with a warning) and draws nothing. */
+    /** Sprite image of at most one cell. Larger images are skipped with a warning. */
     private static BufferedImage sprite(Map<String, byte[]> files, String name, Logger log) throws IOException {
         BufferedImage image = image(files, CURSORS + name + ".png");
         if (image == null) {
@@ -182,7 +179,7 @@ public final class PixelayPack {
             copy(sprites.get(i), atlas, i);
         }
         if (water != null) {
-            // Stretched to the cell when it is smaller: the shader repeats the whole cell.
+            // Stretched to fill the cell when smaller because shader repeats the cell.
             for (int y = 0; y < CELL; y++) {
                 for (int x = 0; x < CELL; x++) {
                     int argb = water.getRGB((x * water.getWidth()) / CELL, (y * water.getHeight()) / CELL);
@@ -213,7 +210,7 @@ public final class PixelayPack {
         return (cell / COLUMNS) * CELL;
     }
 
-    /** The constants the shader shares with the plugin, and every sprite's size and hot spot. */
+    /** Generates constants shared between shader and plugin, including sprite sizes and hot spots. */
     private static String config(List<CursorSprite> sprites, List<BufferedImage> images, double scale) {
         StringBuilder out = new StringBuilder();
         out.append("// Generated by Pixelay on every start and /pixelay reload: do not edit.\n");
@@ -228,7 +225,7 @@ public final class PixelayPack {
         );
         define(out, "PIXELAY_SPRITE_COUNT", String.valueOf(sprites.size()));
         define(out, "PIXELAY_CURSOR_SCALE", decimal(scale));
-        // Per sprite: width, height (0 when it has no image), hot spot x, y.
+        // Per sprite: width, height (0 if missing), hot spot x, and hot spot y.
         out.append("const vec4 PIXELAY_SPRITES[8] = vec4[8](");
         for (int i = 0; i < 8; i++) {
             BufferedImage image = i < images.size() ? images.get(i) : null;
@@ -267,7 +264,7 @@ public final class PixelayPack {
         return out.toByteArray();
     }
 
-    /** A zip with fixed entry times, so the same files always give the same SHA-1. */
+    /** Creates a zip archive with fixed timestamps so identical files produce identical SHA-1 sums. */
     private static byte[] zip(Map<String, byte[]> files) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(bytes)) {

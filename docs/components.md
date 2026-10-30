@@ -1,6 +1,6 @@
 # UI Components & State Styling
 
-All Pixelay components live in `dev.horuse.pixelay.layout` and extend `Box<S>`, providing a unified HTML/CSS-like API with no dummy `(0, 0)` coordinates or manual `node(...)` wrappers required.
+All Pixelay components reside in `dev.horuse.pixelay.layout` and extend `Box<S>`. They provide an API based on HTML and CSS without manual `node(...)` wrappers.
 
 ---
 
@@ -22,7 +22,7 @@ Text counter = new Text(18, () -> "<#64748B>Clicks: <b>" + clicks[0] + "</b>");
 - `.textAlign(HAlign)` / `.textAlign(Align)` — aligns text horizontally (`LEFT`, `CENTER`, `RIGHT`) inside the box independently of `justifySelf`.
 - `.whiteSpace(WhiteSpace.NORMAL | NOWRAP)` — controls line wrapping.
 - `.wordBreak(WordBreak.NORMAL | BREAK_WORD | BREAK_ALL)` — controls word breaking.
-- `.textOverflow(TextOverflow.CLIP | ELLIPSIS)` — when set to `TextOverflow.ELLIPSIS`, automatically truncates single-line text that exceeds the box's available width and appends `"..."` while preserving MiniMessage styling.
+- `.textOverflow(TextOverflow.CLIP | ELLIPSIS)` — `TextOverflow.ELLIPSIS` truncates single-line text that exceeds width and appends `"..."` with MiniMessage styling.
 
 ---
 
@@ -110,7 +110,7 @@ pad.fillCircle(32, 16, 6, 0xFFF43F5E);
 
 - **2D Greedy Meshing**: Adjacent pixels of the same ARGB colour are automatically merged into minimal rectangles on each render pass and drawn using a pooled `List<TextBackground>`, minimizing entity/packet count.
 - **Interactive Brush Painting**:
-  - In `ScreenSession`: clicking toggles continuous brush stroke mode (`drawing = true`), dragging the cursor draws smooth Bresenham lines (`dragTo`), and clicking again or leaving the canvas stops the stroke.
+  - In `ScreenSession`: A click toggles continuous brush stroke mode (`drawing = true`). Dragging the cursor draws Bresenham lines (`dragTo`). Another click or leaving the canvas stops the stroke.
   - On world canvases: clicking paints a brush dab at `(gx, gy)`.
 
 ---

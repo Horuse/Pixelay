@@ -1,8 +1,7 @@
 package dev.horuse.pixelay.content;
 
 /**
- * Where one glyph of a laid-out text is drawn, in font px from the left of the text block and the top of its
- * first line (y grows down).
+ * Bounding rectangle for a rendered glyph in font pixels relative to the block origin.
  */
 public record GlyphBox(double left, double top, double right, double bottom) {
     public double width() {

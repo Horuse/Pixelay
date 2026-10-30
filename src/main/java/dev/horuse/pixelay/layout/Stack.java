@@ -4,8 +4,7 @@ import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 
 /**
- * Layers sharing one area (like a single CSS grid cell): each child is placed by its own
- * {@code justifySelf}/{@code alignSelf} and fills the area by default (unless it has a fixed size).
+ * Layers child elements over the same area using individual alignment rules.
  */
 public final class Stack extends Container<Stack> {
 

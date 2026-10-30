@@ -11,9 +11,8 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerTi
 import org.bukkit.entity.Player;
 
 /**
- * Keeps the packets of a player with a {@link ShaderCursor} in line with it: every world age they get is the
- * cursor state, their own tab list entry says adventure instead of spectator (the client draws the water
- * overlay only then), and teleports leave their look alone.
+ * Synchronizes outgoing packets for players using a {@link ShaderCursor}.
+ * Replaces world age with cursor state, masks spectator mode as adventure in tab lists, and preserves view rotation across teleports.
  */
 public class ShaderCursorListener implements PacketListener {
 

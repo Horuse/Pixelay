@@ -4,8 +4,8 @@ import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 
 /**
- * Placement of a child on an axis inside the space given to it (CSS {@code align-items} /
- * {@code justify-items}). {@link #STRETCH} makes the child fill that space, like the CSS default.
+ * Specifies alignment of a child element along an axis inside allocated space.
+ * The {@link #STRETCH} option expands the child to fill available space.
  */
 public enum Align {
     START,
@@ -13,7 +13,7 @@ public enum Align {
     END,
     STRETCH;
 
-    /** @return offset of a {@code size} item inside {@code space} */
+    /** @return offset of an item with the given size inside available space */
     double offset(double space, double size) {
         return switch (this) {
             case START, STRETCH -> 0;
@@ -22,10 +22,7 @@ public enum Align {
         };
     }
 
-    /**
-     * A box of {@code size} placed inside {@code area}: on each axis it fills the area when stretched, otherwise
-     * keeps its own size and is offset by the alignment.
-     */
+    /** Positions an element inside a target area with alignment offsets. */
     static Rect place(
         Rect area,
         Size size,

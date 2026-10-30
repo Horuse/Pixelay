@@ -67,10 +67,10 @@ row(
   - `Align.STRETCH` (default — stretches children without fixed cross-size)
   - `Align.START`, `Align.CENTER`, `Align.END`
 - **Flexibility (`.grow(double)` & `.shrink(double)`)**:
-  - When a `row` overflows its available width, children shrink proportionally to `shrink * naturalWidth`, never shrinking below `minContentWidth()` (so words never break mid-word unless `wordBreak(BREAK_ALL)` is set).
+  - When a `row` overflows available width, children shrink proportionally to `shrink * naturalWidth`. Children do not shrink below `minContentWidth()`, so words do not break unless you set `wordBreak(BREAK_ALL)`.
   - Free space is distributed proportionally to `.grow(weight)`.
 - **Flex Wrapping (`.wrap(boolean)` & `.rowGap(double)`)**:
-  - Calling `.wrap(true)` on a `Row` or `Flex` enables `flex-wrap: wrap`: items that exceed the available line width automatically wrap onto subsequent lines, separated vertically by `.rowGap(px)` (or `.gap(px)` if `rowGap` is not set).
+  - Calling `.wrap(true)` on a `Row` or `Flex` enables `flex-wrap: wrap`. Items that exceed line width wrap onto subsequent lines. Items separate vertically by `.rowGap(px)` (or `.gap(px)` if `rowGap` is not set).
 
 ---
 
@@ -123,14 +123,14 @@ stack(
 - **`Position.ABSOLUTE`**: Removed from normal flow (`Flex`, `Grid`, and `Stack` ignore it when measuring and arranging in-flow children) and positioned relative to its parent container's box (or directly on the canvas if used on a root `Box`):
   - `.left(px)`, `.right(px)`, `.top(px)`, `.bottom(px)`
   - `.absolute(left, top)` — shorthand for `.position(Position.ABSOLUTE).left(left).top(top)`.
-  - `.inset(all)` / `.inset(v, h)` / `.inset(t, r, b, l)` — sets all four edge offsets; if both `left` and `right` (or `top` and `bottom`) are set without a fixed width/height, the box stretches between those edges!
-- **`.zIndex(int)`**: Controls stacking order for both depth layers and pointer hit-testing.
+  - `.inset(all)` / `.inset(v, h)` / `.inset(t, r, b, l)` — sets all four edge offsets. If you set both `left` and `right` (or `top` and `bottom`) without fixed width or height, the box stretches between those edges.
+- **`.zIndex(int)`**: Controls stacking order for depth layers and pointer hit-testing.
 
 ---
 
 ## 5. CSS `transform` (`translate`, `scale`, `rotate`) & Animated Transitions
 
-Every `Box` and `Style` supports full 2D/3D CSS transforms, which can be smoothly animated via `.transition(durationMs, Easing)` on `:hover`, `:selected`, or custom states:
+Every `Box` and `Style` supports 2D and 3D CSS transforms. You can animate transforms with `.transition(durationMs, Easing)` on `:hover`, `:selected`, or custom states:
 
 ```java
 card
@@ -159,7 +159,7 @@ card
 ## 5. `Stack` & `ScrollView`
 
 - **`stack(children...)`**: Overlays all in-flow children in the same area (like a single CSS grid cell).
-- **`scrollView(children...)`**: Vertical scrollable viewport with automatic clipping (`overflow-y: scroll; overflow-x: hidden`), mouse wheel support, smooth inertial gliding, and an interactive scrollbar track & draggable thumb:
+- **`scrollView(children...)`**: Vertical scrollable viewport with automatic clipping, mouse wheel support, smooth scrolling, and an interactive scrollbar track with a draggable thumb:
   - `.scrollbar(ScrollbarPolicy.AUTO | ALWAYS | NEVER)`
   - `.scrollbarWidth(px)`, `.scrollbarMargin(px)`, `.minThumbSize(px)`
   - `.trackColor(argb)`, `.thumbColor(argb)`, `.thumbHoverColor(argb)`, `.thumbDragColor(argb)`

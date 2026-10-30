@@ -11,25 +11,24 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 /**
- * Per-player layout debug mode ({@code /pixelay debug layout}): draws wireframe box outlines
- * and shows a live DevTools inspector in the ActionBar when hovering over elements.
+ * Layout debug mode displaying wireframe outlines and inspector details in the action bar.
  */
 public final class LayoutDebug {
 
-    /** Background of a component that fits its space, while debugging (ARGB). */
+    /** Background ARGB color for elements fitting their bounds during debugging. */
     public static final int DEBUG_BACKGROUND = 0xFF1E3A8A;
 
-    /** Background of a component that is itself bigger than its space, while debugging (ARGB). */
+    /** Background ARGB color for elements exceeding their bounds during debugging. */
     public static final int OVERFLOW_BACKGROUND = 0xFF991B1B;
 
-    /** Background of a component inside an overflowing box, while debugging (ARGB). */
+    /** Background ARGB color for elements inside overflowing ancestors during debugging. */
     public static final int INSIDE_OVERFLOW_BACKGROUND = 0xFF9A3412;
 
     private static final Set<UUID> VIEWERS = ConcurrentHashMap.newKeySet();
 
     private LayoutDebug() {}
 
-    /** Sends a live DevTools-style DOM inspector line to the debugging player's ActionBar. */
+    /** Sends element inspection data to the action bar of the debugging player. */
     public static void sendInspector(
         Player player,
         String tagName,
@@ -60,12 +59,12 @@ public final class LayoutDebug {
         player.sendActionBar(MiniMessage.miniMessage().deserialize(msg));
     }
 
-    /** @return whether the mode is now enabled for the player */
+    /** @return true if layout debug mode is now enabled for the player */
     public static boolean toggle(Player player) {
         return PlayerSet.toggle(VIEWERS, player.getUniqueId());
     }
 
-    /** Online players with the debug mode on. */
+    /** Returns all online players who have debug mode enabled. */
     public static List<Player> onlineViewers() {
         List<Player> players = new ArrayList<>();
         for (UUID id : VIEWERS) {
@@ -81,12 +80,12 @@ public final class LayoutDebug {
         return player != null && VIEWERS.contains(player.getUniqueId());
     }
 
-    /** Server-side displays are shared, so they show the highlight while anyone debugs. */
+    /** Checks if any player has layout debug mode enabled. */
     public static boolean anyEnabled() {
         return !VIEWERS.isEmpty();
     }
 
-    /** Forgets a player who left, so server-wide highlights do not stay on forever. */
+    /** Removes a disconnected player from active viewers. */
     public static void remove(UUID playerId) {
         VIEWERS.remove(playerId);
     }
@@ -95,7 +94,7 @@ public final class LayoutDebug {
         VIEWERS.clear();
     }
 
-    /** The background a component should have for a viewer who does ({@code visible}) or does not debug. */
+    /** Calculates debug background color based on element fit and viewer state. */
     public static int background(Fit fit, boolean visible, int normal) {
         if (!visible) {
             return normal;

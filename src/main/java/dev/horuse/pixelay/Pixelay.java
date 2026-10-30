@@ -25,7 +25,7 @@ public final class Pixelay {
     }
 
     /**
-     * @return the running plugin instance; throws if Pixelay is not enabled
+     * @return the running plugin instance. This method throws an exception if Pixelay is disabled.
      */
     public static JavaPlugin plugin() {
         return instance();

@@ -5,8 +5,8 @@ import dev.horuse.pixelay.data.Size;
 import java.util.function.DoubleSupplier;
 
 /**
- * An HTML {@code <progress>} meter component that renders a background track and a proportional
- * fill bar, supporting both static values ({@code 0.0..1.0}) and live dynamic {@link DoubleSupplier}s.
+ * Progress bar component rendering a background track and proportional fill indicator.
+ * Supports static values and dynamic progress suppliers.
  */
 public final class ProgressBar extends Container<ProgressBar> {
 

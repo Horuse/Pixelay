@@ -24,24 +24,19 @@ import java.util.zip.ZipFile;
 import javax.imageio.ImageIO;
 
 /**
- * Computes glyph advances of the {@code minecraft:default} font from resource packs, the same way the
- * client does, so custom glyphs (icons, cursors) are measured exactly without manual numbers.
- * <p>
- * Packs are folders or zip files, given highest priority first; like the client's pack stack, the first
- * provider that defines a character wins. Supported providers: {@code bitmap} and {@code space};
- * {@code reference} is followed. Others ({@code ttf}, {@code unihex}) are skipped with a warning: the
- * built-in table already covers the vanilla font.
- * <p>
- * Bitmap rule: the glyph width is the rightmost column of its cell with a non-transparent pixel, plus
- * one (transparent columns on the left count); {@code advance = round(width * height / cellHeight) + 1}.
+ * Calculates glyph advances of the {@code minecraft:default} font from resource packs.
+ * Packs are directories or zip archives, ordered by priority.
+ * The first provider that defines a character takes precedence.
+ * Supported providers include {@code bitmap} and {@code space}.
+ * The system follows {@code reference} providers.
+ * Other providers are skipped because the built-in table covers the vanilla font.
  */
 public final class PackFontScanner {
 
     private static final String DEFAULT_FONT = "minecraft:default";
 
     /**
-     * One computed glyph: its advance, where it is drawn ({@code ascent}/{@code height} as in its provider,
-     * height 0 for spaces) and where it came from (for the generated file's comments).
+     * Computed glyph metadata including advance, render bounds, and source pack.
      */
     public record Glyph(int advance, int ascent, int height, String pack, String source) {}
 
@@ -53,8 +48,8 @@ public final class PackFontScanner {
     }
 
     /**
-     * @param packRoots pack folders or zip files, highest priority first
-     * @return advances by code point, in provider order
+     * @param packRoots pack directories or zip files, highest priority first
+     * @return advances by code point in provider order
      */
     public static Map<Integer, Glyph> scan(List<Path> packRoots, Consumer<String> warn) throws IOException {
         PackFontScanner scanner = new PackFontScanner(warn);
@@ -115,7 +110,7 @@ public final class PackFontScanner {
         }
     }
 
-    /** A referenced font comes from the highest pack that has it. */
+    /** Loads a referenced font from the highest priority pack that contains it. */
     private void reference(String id, Map<Integer, Glyph> glyphs, Set<String> seen) {
         for (Pack pack : packs) {
             byte[] json = pack.read(fontPath(id));
@@ -184,12 +179,12 @@ public final class PackFontScanner {
         }
     }
 
-    /** Rightmost cell column with any visible pixel, plus one (0 for an empty cell). */
+    /** Finds the rightmost cell column with any visible pixel, plus one. Returns zero for an empty cell. */
     private static int inkWidth(BufferedImage image, int x0, int y0, int width, int height, boolean alpha) {
         for (int dx = width - 1; dx >= 0; dx--) {
             for (int dy = 0; dy < height; dy++) {
                 int argb = image.getRGB(x0 + dx, y0 + dy);
-                // The client checks alpha, or luminance for images without an alpha channel.
+                // Check alpha channel, or luminance for images without alpha.
                 int value = alpha ? argb >>> 24 : (argb >> 16) & 0xFF;
                 if (value != 0) {
                     return dx + 1;
@@ -199,7 +194,7 @@ public final class PackFontScanner {
         return 0;
     }
 
-    /** A texture comes from the highest pack that has it. */
+    /** Loads a texture from the highest priority pack that contains it. */
     private BufferedImage readTexture(String location) throws IOException {
         String path = assetPath(location, "textures/");
         for (Pack pack : packs) {
@@ -211,7 +206,7 @@ public final class PackFontScanner {
         return null;
     }
 
-    /** Providers with a {@code filter} apply only with the default client options (all off). */
+    /** Checks if a provider filter matches default client options. */
     private static boolean active(JsonObject provider) {
         JsonObject filter = provider.getAsJsonObject("filter");
         if (filter == null) {
@@ -229,7 +224,7 @@ public final class PackFontScanner {
         return assetPath(id, "font/") + ".json";
     }
 
-    /** {@code ns:path} → {@code assets/ns/<prefix>path}. */
+    /** Converts a namespaced location to an asset file path. */
     private static String assetPath(String location, String prefix) {
         int colon = location.indexOf(':');
         String namespace = colon >= 0 ? location.substring(0, colon) : "minecraft";
@@ -242,7 +237,7 @@ public final class PackFontScanner {
         return value != null && value.isJsonPrimitive() ? value.getAsString() : fallback;
     }
 
-    /** A pack folder or zip; paths are relative to the folder with {@code pack.mcmeta}. */
+    /** A resource pack directory or zip archive. */
     private abstract static class Pack implements Closeable {
 
         final String name;
@@ -288,7 +283,7 @@ public final class PackFontScanner {
     private static final class ZipPack extends Pack {
 
         private final ZipFile zip;
-        /** Zips often wrap the pack in one top folder: entries are read below it. */
+        /** Root folder prefix inside the zip archive. */
         private final String prefix;
 
         ZipPack(String name, ZipFile zip) {

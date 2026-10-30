@@ -9,7 +9,7 @@ import org.bukkit.event.entity.EntityDismountEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-/** Keeps {@link ScreenSession}s locked on their camera and cleans up after players who leave. */
+/** Keeps {@link ScreenSession} instances locked to cameras and clears sessions when players disconnect. */
 public class ScreenListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)

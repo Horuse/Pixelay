@@ -17,11 +17,9 @@ import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 
 /**
- * An interactive HTML {@code <button>}-like layout element.
- * <p>
- * Combines a text component with full CSS box model support, defaulting to centered text,
- * {@code cursor("pointer")}, and {@code padding(8, 16)}. Unlike {@code CanvasButton}, no dummy
- * {@code (0, 0)} coordinates or {@code node(...)} wrapper are needed.
+ * Interactive button layout element.
+ * Wraps a text component with CSS box model support.
+ * Defaults to centered text, pointer cursor, and standard padding.
  */
 public final class Button extends Box<Button> {
 
@@ -88,13 +86,13 @@ public final class Button extends Box<Button> {
         return 2;
     }
 
-    /** Horizontal alignment of the button label inside its content box (default {@link HAlign#CENTER}). */
+    /** Sets horizontal alignment of button label within its content box. */
     public Button textAlign(HAlign align) {
         this.textAlign = align != null ? align : HAlign.CENTER;
         return this;
     }
 
-    /** Horizontal alignment of the button label inside its content box (default {@link Align#CENTER}). */
+    /** Sets horizontal alignment of button label using layout alignment. */
     public Button textAlign(Align align) {
         this.textAlign =
             align == null
@@ -111,7 +109,7 @@ public final class Button extends Box<Button> {
         return textAlign;
     }
 
-    /** Vertical alignment of the button label inside its content box (default {@link VAlign#MIDDLE}). */
+    /** Sets vertical alignment of button label within its content box. */
     public Button verticalTextAlign(VAlign align) {
         this.verticalTextAlign = align != null ? align : VAlign.MIDDLE;
         return this;
@@ -121,7 +119,7 @@ public final class Button extends Box<Button> {
         return verticalTextAlign;
     }
 
-    /** Font size (line height in canvas px, CSS {@code font-size}). */
+    /** Sets font size in canvas pixels. */
     public Button fontSize(double heightPx) {
         component.setHeightPx(heightPx);
         invalidate();
@@ -132,26 +130,26 @@ public final class Button extends Box<Button> {
         return component.heightPx();
     }
 
-    /** Updates the button label (MiniMessage). */
+    /** Updates button label text. */
     public Button text(String miniMessage) {
         return text(TextContent.of(miniMessage));
     }
 
-    /** Updates the button label content (or dynamic {@code () -> "..."} lambda). */
+    /** Updates button label text content. */
     public Button text(TextContent content) {
         component.setContent(content);
         invalidate();
         return this;
     }
 
-    /** CSS {@code white-space} of the button label. */
+    /** Sets whitespace handling mode for button label. */
     public Button whiteSpace(TextWrap.WhiteSpace value) {
         component.whiteSpace(value);
         invalidate();
         return this;
     }
 
-    /** CSS {@code word-break} of the button label. */
+    /** Sets word break mode for button label. */
     public Button wordBreak(TextWrap.WordBreak value) {
         component.wordBreak(value);
         invalidate();

@@ -5,12 +5,9 @@ import dev.horuse.pixelay.data.Size;
 import java.util.function.Consumer;
 
 /**
- * A scrollable container with an optional scrollbar. Wraps items in a vertical column by default,
- * clipping content at its edges (CSS {@code overflow: scroll} / {@code auto}) and moving content
- * by {@link #scrollOffset}.
- * <p>
- * Supports mouse wheel scrolling, drag-and-drop on the scrollbar thumb, clicking the track to jump,
- * and smooth animated gliding.
+ * Scrollable container with optional scrollbar.
+ * Content is clipped at container boundaries and moves with scroll offset.
+ * Supports mouse wheel scrolling, scrollbar thumb dragging, and track clicks.
  */
 public class ScrollView extends Container<ScrollView> {
 

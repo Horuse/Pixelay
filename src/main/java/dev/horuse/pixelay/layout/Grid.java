@@ -7,15 +7,8 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * CSS Grid: explicit tracks ({@link #columns}/{@link #rows}, sized in px, {@code fr} or {@code auto}),
- * implicit tracks of {@link #autoColumns}/{@link #autoRows} size, sparse auto-placement along
- * {@link #autoFlow} and per-item {@code gridRow}/{@code gridColumn}/{@code rowSpan}/{@code columnSpan}.
- * Items are placed in their area by {@link #align}/{@link #justifyItems} or their own
- * {@code alignSelf}/{@code justifySelf}.
- * <p>
- * Placement follows CSS: items with both lines set first (never moved, overlaps allowed), then items
- * locked to a line of the flow axis, then the rest with the auto-placement cursor. A line beyond the
- * explicit tracks creates implicit tracks.
+ * Arranges child elements in a two-dimensional grid following CSS Grid rules.
+ * Supports explicit tracks, implicit tracks, and item placement spans.
  */
 public final class Grid extends Container<Grid> {
 
@@ -31,7 +24,7 @@ public final class Grid extends Container<Grid> {
     private Flow flow = Flow.ROW;
     private Align alignItems = Align.STRETCH;
     private Align justifyItems = Align.STRETCH;
-    /** {@code {row, column}} (0-based) per child, computed once per layout pass. */
+    /** Row and column coordinate pairs per child calculated during layout. */
     private int[][] placements;
 
     public Grid(LayoutItem... items) {
@@ -43,7 +36,7 @@ public final class Grid extends Container<Grid> {
         return "grid";
     }
 
-    /** Explicit column tracks (CSS {@code grid-template-columns}). */
+    /** Defines explicit column tracks. */
     public Grid columns(Track... tracks) {
         this.columns = tracks;
         return this;
@@ -53,7 +46,7 @@ public final class Grid extends Container<Grid> {
         return List.of(columns);
     }
 
-    /** Explicit row tracks (CSS {@code grid-template-rows}). */
+    /** Defines explicit row tracks. */
     public Grid rows(Track... tracks) {
         this.rows = tracks;
         return this;
@@ -63,7 +56,7 @@ public final class Grid extends Container<Grid> {
         return List.of(rows);
     }
 
-    /** Size of implicitly created columns (CSS {@code grid-auto-columns}). */
+    /** Sets size of implicit column tracks. */
     public Grid autoColumns(Track track) {
         this.autoColumns = track;
         return this;
@@ -73,7 +66,7 @@ public final class Grid extends Container<Grid> {
         return autoColumns;
     }
 
-    /** Size of implicitly created rows (CSS {@code grid-auto-rows}). */
+    /** Sets size of implicit row tracks. */
     public Grid autoRows(Track track) {
         this.autoRows = track;
         return this;
@@ -83,7 +76,7 @@ public final class Grid extends Container<Grid> {
         return autoRows;
     }
 
-    /** Direction of auto-placement (CSS {@code grid-auto-flow}); default {@code ROW}. */
+    /** Sets auto-placement direction. */
     public Grid autoFlow(Flow flow) {
         this.flow = flow;
         return this;
@@ -93,7 +86,7 @@ public final class Grid extends Container<Grid> {
         return flow;
     }
 
-    /** Vertical placement of every item inside its area (CSS {@code align-items}); default stretch. */
+    /** Sets vertical item placement within grid areas. */
     public Grid align(Align align) {
         this.alignItems = align;
         return this;
@@ -103,7 +96,7 @@ public final class Grid extends Container<Grid> {
         return alignItems;
     }
 
-    /** Horizontal placement of every item inside its area (CSS {@code justify-items}); default stretch. */
+    /** Sets horizontal item placement within grid areas. */
     public Grid justifyItems(Align align) {
         this.justifyItems = align;
         return this;
@@ -217,10 +210,10 @@ public final class Grid extends Container<Grid> {
     }
 
     /**
-     * Track sizes along one axis: px as given; auto from the items in it (span 1 first, then the
-     * extra size of spanning items shared between the auto tracks they cover); fr shares what is left
-     * of {@code available}, or sizes like auto when there is no limit. Auto columns are measured within
-     * the space px tracks leave ({@code fit-content}); rows measure items wrapped to their column width.
+     * Calculates track sizes along one axis.
+     * Fixed tracks use specified sizes.
+     * Automatic tracks measure content.
+     * Fractional tracks distribute remaining space.
      */
     private double[] trackSizes(boolean horizontal, double available, double[] columnWidths) {
         List<Box<?>> flow = flowChildren();
@@ -244,7 +237,7 @@ public final class Grid extends Container<Grid> {
         }
         double autoLimit = available < 0 ? UNBOUNDED : Math.max(0, available - fixed);
 
-        // span 1 items size their own content-sized track
+        // Single-span items size their own content track.
         for (int i = 0; i < flow.size(); i++) {
             Box<?> child = flow.get(i);
             int t = horizontal ? placements[i][1] : placements[i][0];
@@ -253,7 +246,7 @@ public final class Grid extends Container<Grid> {
             }
         }
 
-        // spanning items: share what their tracks still lack between the content-sized ones
+        // Multi-span items distribute remaining required size across covered tracks.
         for (int i = 0; i < flow.size(); i++) {
             Box<?> child = flow.get(i);
             int span = horizontal ? child.columnSpan : child.rowSpan;
@@ -293,8 +286,7 @@ public final class Grid extends Container<Grid> {
     }
 
     /**
-     * Auto columns are each measured within the whole space left by px tracks; together they may not
-     * fit, so they are shrunk proportionally, never below the min-content width of their items.
+     * Reduces automatic column sizes proportionally while respecting min-content limits.
      */
     private void fitAutoColumns(
         List<Box<?>> flow,
@@ -364,7 +356,7 @@ public final class Grid extends Container<Grid> {
         }
 
         boolean byRow = this.flow == Flow.ROW;
-        // The flow wraps after the explicit tracks of the other axis; lines beyond them add implicit tracks.
+        // Wrap placement along minor axis and add implicit tracks when required.
         int minorCount = Math.max(1, byRow ? columns.length : rows.length);
         for (Box<?> child : flow) {
             int fixedMinor = (byRow ? child.gridColumn : child.gridRow) - 1;
@@ -377,7 +369,7 @@ public final class Grid extends Container<Grid> {
         Occupancy occupancy = new Occupancy(minorCount);
         placements = new int[flow.size()][];
 
-        // 1) both lines given: placed as is
+        // Place items with explicit coordinates on both axes first.
         for (int i = 0; i < flow.size(); i++) {
             Box<?> child = flow.get(i);
             int major = majorLine(child, byRow);
@@ -387,7 +379,7 @@ public final class Grid extends Container<Grid> {
             }
         }
 
-        // 2) only the flow-axis line given: first free spot along that line
+        // Place items locked to the major axis in the first free cell.
         for (int i = 0; i < flow.size(); i++) {
             Box<?> child = flow.get(i);
             int major = majorLine(child, byRow);
@@ -401,11 +393,11 @@ public final class Grid extends Container<Grid> {
             ) {
                 minor++;
             }
-            // No room on that line: overlap at its start rather than move the item off its line.
+            // Place at line start if no vacant space remains.
             place(i, child, byRow, major, minor + minorSpan <= minorCount ? minor : 0, occupancy);
         }
 
-        // 3) the rest: sparse auto-placement with a cursor
+        // Place remaining items using sparse auto-placement cursor.
         int cursorMajor = 0;
         int cursorMinor = 0;
         for (int i = 0; i < flow.size(); i++) {
@@ -420,7 +412,7 @@ public final class Grid extends Container<Grid> {
             int major = cursorMajor;
             int minor;
             if (fixedMinor >= 0) {
-                // Locked to a minor line: next spot on it at or after the cursor.
+                // Advance cursor to find next vacant space for minor-axis locked item.
                 if (fixedMinor < cursorMinor) {
                     major++;
                 }
@@ -472,7 +464,7 @@ public final class Grid extends Container<Grid> {
         return byRow ? child.columnSpan : child.rowSpan;
     }
 
-    /** Taken cells along the flow: one row of {@code minorCount} cells per major line. */
+    /** Tracks occupied grid cells along the placement flow. */
     private static final class Occupancy {
 
         private final int minorCount;

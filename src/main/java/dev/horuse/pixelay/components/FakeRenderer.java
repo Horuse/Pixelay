@@ -21,16 +21,16 @@ import org.bukkit.util.Vector;
 import org.joml.Quaternionf;
 
 /**
- * Draws a {@link CanvasDrawable} as a packet-only TextDisplay of one player: nothing exists on the server,
- * so each player sees their own canvas and others never do. Clicks reach it through
- * {@link dev.horuse.pixelay.clicks.CanvasClicks} (world click tiles or a screen cursor).
+ * Renders a {@link CanvasDrawable} as a packet-only TextDisplay for one player without server entities.
+ * Each player views their private canvas. {@link dev.horuse.pixelay.clicks.CanvasClicks} routes clicks
+ * through world click tiles or a screen cursor.
  *
- * <p>NOTE: Display/TextDisplay metadata indexes are version-specific; they are read from {@code
- * packets.metadata} in config.yml so they can be recalibrated for another Minecraft version.
+ * <p>NOTE: Display and TextDisplay metadata indexes vary by Minecraft version.
+ * Configuration setting {@code packets.metadata} provides the indexes.
  */
 public class FakeRenderer extends TextRenderer {
 
-    /** Billboard FIXED — the display is oriented only by its rotation metadata (no auto-face). */
+    /** Billboard FIXED flag. Display orientation depends only on rotation metadata. */
     private static final byte BILLBOARD_FIXED = 0;
 
     /** TextDisplay style flag bits. */
@@ -38,22 +38,22 @@ public class FakeRenderer extends TextRenderer {
 
     private static final byte STYLE_SEE_THROUGH = 2;
 
-    /** Presses the lines of a multi-line block to the left. */
+    /** Aligns lines of a multiline text block to the left. */
     private static final byte STYLE_LEFT = 8;
 
-    /** Presses the lines of a multi-line block to the right. */
+    /** Aligns lines of a multiline text block to the right. */
     private static final byte STYLE_RIGHT = 16;
 
-    /** Packed block/sky light 15/15 — forces full brightness. */
+    /** Packed block and sky light 15/15 for full brightness. */
     private static final int FULL_BRIGHTNESS = 0xF000F0;
 
-    /** "No override" value of the brightness metadata. */
+    /** Default brightness metadata value without override. */
     private static final int NO_BRIGHTNESS_OVERRIDE = -1;
 
     private int entityId;
-    /** Where the fake entity actually stands; repositioning on refresh is done via translation. */
+    /** Spawn location of the fake entity. Refreshes update position with translation metadata. */
     private Vector entityPos;
-    /** Current display translation (world axes: the entity is spawned with zero yaw/pitch). */
+    /** Current display translation in world axes. */
     private Vector translation = new Vector();
 
     public FakeRenderer(Player viewer, CanvasDrawable drawable) {
@@ -92,8 +92,7 @@ public class FakeRenderer extends TextRenderer {
             baseScale
         );
         Quaternionf rot = effectiveRotation();
-        // Text and position go in ONE metadata packet: a separate teleport + metadata pair lets the
-        // client render a frame with the new text at the old position (visible as a jerk).
+        // Send text and position in one metadata packet to prevent rendering new text at old positions.
         PacketUtils.send(
             viewer,
             new WrapperPlayServerEntityMetadata(
@@ -106,9 +105,9 @@ public class FakeRenderer extends TextRenderer {
                         drawable.transformationDuration()
                     ),
                     new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, placement.component()),
-                    // Cut codes and their opacity marker travel together (see TextClip).
+                    // Send cut codes and opacity marker together (see TextClip).
                     new EntityData<>(idx.textOpacity(), EntityDataTypes.BYTE, textOpacity()),
-                    // The alignment presses multi-line text left/right; it may have changed since the spawn.
+                    // Apply multiline alignment in case it changed after spawn.
                     new EntityData<>(idx.styleFlags(), EntityDataTypes.BYTE, styleFlags(Pixelay.settings().text())),
                     new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scaleVec),
                     new EntityData<>(
@@ -150,18 +149,18 @@ public class FakeRenderer extends TextRenderer {
 
     @Override
     protected boolean entityValid() {
-        // Fake entities have no server state; valid until explicitly despawned.
+        // Fake entities have no server state and stay valid until despawn.
         return entityId != 0;
     }
 
-    /** Teleports the rendered text to a world position (moving elements like a cursor). */
+    /** Teleports the rendered text to target world coordinates for moving elements like cursors. */
     public void move(Vector worldPos) {
         if (entityId == 0) {
             return;
         }
-        // Moved elements (like the cursor) are not refreshed by layouts: keep their background here.
+        // Layouts do not refresh moving elements, so update their background here.
         syncBackground();
-        // The translation is kept, so the entity goes where the visible text lands on worldPos.
+        // Preserve translation so visible text aligns with worldPos.
         entityPos = worldPos.clone().subtract(translation);
         PacketUtils.send(
             viewer,
@@ -196,9 +195,9 @@ public class FakeRenderer extends TextRenderer {
         data.add(new EntityData<>(idx.billboard(), EntityDataTypes.BYTE, BILLBOARD_FIXED));
         data.add(new EntityData<>(idx.viewRange(), EntityDataTypes.FLOAT, style.viewRange()));
         data.add(new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, text));
-        // Pixelay breaks the lines itself (written into the text): the client must never wrap.
+        // Pixelay inserts line breaks into text, so the client must not wrap lines.
         data.add(new EntityData<>(idx.lineWidth(), EntityDataTypes.INT, TextPlacement.CLIENT_LINE_WIDTH));
-        // The background is a separate panel (TextBackground), never the client's own one.
+        // Render background via TextBackground instead of entity defaults.
         data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, 0));
         data.add(new EntityData<>(idx.textOpacity(), EntityDataTypes.BYTE, textOpacity()));
         data.add(
@@ -213,8 +212,7 @@ public class FakeRenderer extends TextRenderer {
     }
 
     /**
-     * TextDisplay style bits: shadow/see-through from config plus line alignment of the block (this
-     * does not move the block's position).
+     * Calculates TextDisplay style bits from configuration and text alignment.
      */
     private byte styleFlags(PixelaySettings.Text style) {
         byte flags = switch (drawable.hAlign()) {

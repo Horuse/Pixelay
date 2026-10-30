@@ -1,20 +1,18 @@
 package dev.horuse.pixelay.layout;
 
 /**
- * Empty space along the main axis of a row or a column: {@code spacer()} takes all free space,
- * {@code space(px)} a fixed length. It never adds size on the cross axis, and outside a row or a
- * column it is empty.
+ * Represents empty space along the main axis of a container.
  */
 public final class Spacer extends Box<Spacer> {
 
     private final double length;
 
-    /** Creates a flexible spacer that takes all free space along the parent's main axis (CSS {@code flex: 1}). */
+    /** Creates a flexible spacer that expands to fill remaining space. */
     public Spacer() {
         this(-1);
     }
 
-    /** Creates a fixed spacer of {@code length} px along the parent's main axis. */
+    /** Creates a fixed spacer with the specified pixel length. */
     public Spacer(double length) {
         this.length = length;
         if (length < 0) {
@@ -28,12 +26,12 @@ public final class Spacer extends Box<Spacer> {
         return "spacer";
     }
 
-    /** Raw length (-1 for flexible spacer, >= 0 for fixed space in px). */
+    /** Returns raw length with negative values indicating flexible space. */
     public double length() {
         return length;
     }
 
-    /** Fixed length along the parent row/column main axis (0 for a flexible spacer). */
+    /** Returns non-negative length along the main axis. */
     double mainLength() {
         return Math.max(0, length);
     }

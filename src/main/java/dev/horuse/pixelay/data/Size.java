@@ -1,10 +1,10 @@
 package dev.horuse.pixelay.data;
 
-/** A width/height pair in canvas px. */
+/** A two-dimensional size in canvas pixels. */
 public record Size(double width, double height) {
     public static final Size ZERO = new Size(0, 0);
 
-    /** Size along the main axis of a row ({@code horizontal}) or a column. */
+    /** Returns size along the main axis of a row or column. */
     public double main(boolean horizontal) {
         return horizontal ? width : height;
     }

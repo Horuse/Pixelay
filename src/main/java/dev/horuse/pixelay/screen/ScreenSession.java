@@ -35,39 +35,38 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 /**
- * A full-screen UI for one player: the player is turned into a spectator locked onto an invisible camera
- * in front of a canvas that fills their view, a cursor follows their look and clicks go to the layout
- * under it. Everything the player saw before (game mode, position, other players, chat) is restored on
- * {@link #close}, on quit and when Pixelay is disabled.
+ * A full-screen UI for one player.
+ * The player becomes a spectator locked to an invisible camera before a canvas.
+ * A cursor follows view rotation and sends clicks to the layout.
+ * Player state (game mode, location, visibility, and chat) restores on {@link #close}, quit, or shutdown.
  *
  * <pre>{@code
  * ScreenSession.builder(player)
- *     .camera(viewLocation)                 // where the camera stands and which way it looks
- *     .content(canvas -> buildLayout())     // the UI, built for the player's canvas
+ *     .camera(viewLocation)
+ *     .content(canvas -> buildLayout())
  *     .onClose((session, reason) -> ...)
  *     .open();
  * }</pre>
  *
- * The canvas is sized so that it fills a {@code verticalFov} view at scale 1. With the shader cursor (the
- * default) the pack draws it with that field of view, so it fills every player's screen; without it, players
- * with another field of view need another scale ({@link Builder#scale}, {@link #setScale}), e.g. from a
- * screen of your own. All methods must be called on the main thread.
+ * The canvas fills the view at scale 1.
+ * With the default shader cursor, the pack renders with matching field of view.
+ * All methods must run on the main server thread.
  */
 public final class ScreenSession {
 
-    /** Why a session ended. */
+    /** Reason for session closure. */
     public enum CloseReason {
         /** {@link #close()} was called. */
         CLOSED,
-        /** The player left the server. */
+        /** The player disconnected. */
         QUIT,
-        /** Pixelay (or the server) is shutting down. */
+        /** Server or plugin shutdown occurred. */
         SHUTDOWN,
     }
 
     private static final Map<UUID, ScreenSession> SESSIONS = new ConcurrentHashMap<>();
     private static final int LOAD_RADIUS_CHUNKS = 1;
-    /** Blocks above the camera the player sits with a shader cursor. */
+    /** Blocks above camera where player sits with a shader cursor. */
     private static final double SHADER_SEAT_HEIGHT = 4;
 
     private final Player player;
@@ -84,11 +83,11 @@ public final class ScreenSession {
     private Canvas canvas;
     private MountedLayout content;
     private CanvasCursor cursor;
-    /** The cursor drawn by the pack's core shader, or {@code null} for the glyph {@link #cursor}. */
+    /** Cursor drawn by core shader, or {@code null} for glyph cursor. */
     private ShaderCursor shaderCursor;
-    /** Yaw the player's look is measured from: 0 with a shader cursor (the shader's origin), else the camera's. */
+    /** Reference yaw for player look angle (0 for shader cursor, else camera yaw). */
     private float lookOrigin;
-    /** Tangent of half the canvas height as seen from the camera; looks map to pixels with it. */
+    /** Half height tangent of the canvas seen from camera to map angles to pixels. */
     private volatile double halfHeightTan;
     private CanvasClickCatcher clickCatcher;
     private BukkitTask task;
@@ -98,9 +97,9 @@ public final class ScreenSession {
     private String hovered;
     private boolean closed;
     private boolean closing;
-    /** The veil currently shown (cover or reveal), or {@code null}. */
+    /** Active transition veil, or {@code null}. */
     private ScreenFader fader;
-    /** Set once this session closed behind a full veil: a session opened right after starts covered. */
+    /** True when closed behind an active veil so next session starts covered. */
     private boolean handedOff;
     private int lastHeldSlot = -1;
     private int lastScrollDirection;
@@ -124,7 +123,7 @@ public final class ScreenSession {
         return new Builder(player);
     }
 
-    /** The open session of a player, if any. */
+    /** Returns active screen session of player if present. */
     public static Optional<ScreenSession> of(Player player) {
         return Optional.ofNullable(SESSIONS.get(player.getUniqueId()));
     }
@@ -133,7 +132,7 @@ public final class ScreenSession {
         return player != null && SESSIONS.containsKey(player.getUniqueId());
     }
 
-    /** Whether {@code entity} is the camera a player in a session rides (it must never be dismounted). */
+    /** Checks if entity is the camera vehicle for a session player. */
     public static boolean isCamera(Player player, Entity entity) {
         ScreenSession session = SESSIONS.get(player.getUniqueId());
         return session != null && session.camera != null && session.camera.is(entity);
@@ -151,17 +150,17 @@ public final class ScreenSession {
         return content;
     }
 
-    /** The current screen scale (1 = the canvas fills a {@code verticalFov} view). */
+    /** Current scale of the screen canvas. */
     public double scale() {
         return scale;
     }
 
-    /** The canvas pixel under the cursor, {@code {x, y}}. */
+    /** Coordinates of canvas pixel under cursor {x, y}. */
     public double[] cursor() {
         return new double[] { cursorX, cursorY };
     }
 
-    /** The id of the deepest box under the cursor (see {@code Box.id}), or {@code null}. */
+    /** ID of deepest box under cursor, or {@code null}. */
     public String hovered() {
         return hovered;
     }
@@ -177,8 +176,7 @@ public final class ScreenSession {
     // --- opening -----------------------------------------------------------------------------------------
 
     /**
-     * Opening runs in three steps: the veil covers the world, the player is seated on the camera behind it
-     * (kept fully black until the client has settled), then the veil reveals the screen.
+     * Executes opening sequence: covers world with veil, mounts player, and reveals screen.
      */
     private void open() {
         ScreenSession previous = SESSIONS.put(player.getUniqueId(), this);
@@ -192,7 +190,7 @@ public final class ScreenSession {
             return;
         }
         if (previous != null && previous.handedOff) {
-            // The previous screen already covered everything: stay black and only reveal.
+            // Previous screen remained covered: keep black screen and reveal.
             performOpen(true);
             return;
         }
@@ -226,7 +224,7 @@ public final class ScreenSession {
         if (options.shaderCursor() && ShaderCursor.available()) {
             shaderCursor = new ShaderCursor(player);
         }
-        // The shader measures the look from yaw 0: the player starts there, the camera keeps facing the canvas.
+        // Shader measures look from yaw 0: player starts at 0 while camera faces canvas.
         lookOrigin = shaderCursor != null ? 0 : facingYaw;
         Location start = shaderCursor != null ? view.clone().add(0, SHADER_SEAT_HEIGHT, 0) : view.clone();
         start.setYaw(lookOrigin);
@@ -235,7 +233,7 @@ public final class ScreenSession {
         PacketUtils.sendLook(player, lookOrigin, 0f);
         lastHeldSlot = player.getInventory().getHeldItemSlot();
         if (shaderCursor != null) {
-            // Before the game mode changes: the tab list must never tell the client it is a spectator.
+            // Start shader cursor before spectator switch so tab list shows adventure.
             shaderCursor.start();
         }
         player.setGameMode(GameMode.SPECTATOR);
@@ -249,7 +247,7 @@ public final class ScreenSession {
         scale = shaderCursor != null ? shaderScale() : clampScale(options.scale());
         canvas = new Canvas(canvasCenter, canvasYaw(), resolution(scale));
         if (covered && !ShaderTransition.available()) {
-            // Before any content: the screen is black from the first frame the camera shows it.
+            // Spawn veil before content so screen is black on first frame.
             fader = screenFader(options.fadeIn(), 1);
         }
         content = options.content().apply(canvas);
@@ -302,7 +300,7 @@ public final class ScreenSession {
             cursor.spawn(canvas);
         }
 
-        // Spectator clicks arrive as packets on the network thread; the layout is used on the main thread.
+        // Route spectator click packets from network thread to main server thread.
         clickCatcher = new CanvasClickCatcher(
             player,
             clicker -> Bukkit.getScheduler().runTask(Pixelay.plugin(), () -> click(clicker)),
@@ -355,6 +353,7 @@ public final class ScreenSession {
     }
 
     /** Called with the camera look from the client's movement packets (network thread). */
+    /** Handles camera look updates from client movement packets. */
     void look(float yaw, float pitch) {
         if (closed || canvas == null) {
             return;
@@ -366,7 +365,7 @@ public final class ScreenSession {
         cursorX = pixel[0];
         cursorY = pixel[1];
         if (shaderCursor != null) {
-            // The client draws it there by itself.
+            // Shader renders cursor locally on client.
             return;
         }
         Bukkit.getScheduler().runTask(Pixelay.plugin(), () -> {
@@ -377,12 +376,10 @@ public final class ScreenSession {
     }
 
     /**
-     * The canvas pixel the look points at (where the camera ray through it hits the canvas), clamped to its
-     * edges. The shader cursor works out the same point on the screen with the same formula, so the pixel
-     * clicked is always the one under the drawn cursor.
+     * Calculates canvas pixel under camera look angles, clamped to canvas edges.
      */
     private double[] lookPixel(float yaw, float pitch) {
-        // Relative to the camera, which faces the canvas centre.
+        // Relative angles to camera facing canvas center.
         double relative = Math.toRadians(((((yaw - lookOrigin + 180) % 360) + 360) % 360) - 180);
         double p = Math.toRadians(pitch);
         double forward = Math.cos(relative);
@@ -399,10 +396,10 @@ public final class ScreenSession {
 
     private void updateHover() {
         MountedLayout layout = currentLayout();
-        // Hover states and styles; the layout refreshes itself when they change.
+        // Update hover states and refresh layout on change.
         layout.pointerAt(cursorX, cursorY, player);
         if (shaderCursor != null) {
-            // CSS cursor of what is under it; the pixels are then measured with the size the shader uses.
+            // Select cursor sprite for layout element under pointer.
             PixelayPack.Built pack = PixelayPack.current();
             int sprite = pack != null ? pack.spriteIndex(layout.cursorAt(cursorX, cursorY)) : 0;
             halfHeightTan = shaderCursor.show(sprite, exactHalfHeightTan());
@@ -412,7 +409,7 @@ public final class ScreenSession {
             hovered = id;
             if (options.onHover() != null) {
                 options.onHover().accept(this, id);
-                // The callback may have changed texts.
+                // Callback execution can change text content.
                 layout.refresh();
             }
         }
@@ -438,7 +435,7 @@ public final class ScreenSession {
             return;
         }
 
-        // Exact single-step notches: (8 -> 0 is forward, 0 -> 8 is backward)
+        // Scroll one step on slot change between hotbar slots 8 and 0.
         if (slot == (previous + 1) % 9) {
             lastScrollDirection = 1;
             lastScrollTime = System.currentTimeMillis();
@@ -452,7 +449,7 @@ public final class ScreenSession {
             return;
         }
 
-        // Fast multi-notch jump: if user scrolled in a direction within 300ms, preserve that momentum
+        // Fast multi-slot change preserves scroll momentum if within 300 ms.
         long now = System.currentTimeMillis();
         int delta;
         if (now - lastScrollTime < 300 && lastScrollDirection != 0) {
@@ -481,14 +478,14 @@ public final class ScreenSession {
         return content;
     }
 
-    /** Re-runs the layout of what is shown (texts changed); the scheduler also does it every refresh period. */
+    /** Re-evaluates layout components on canvas. */
     public void refresh() {
         if (!closed) {
             currentLayout().refresh();
         }
     }
 
-    /** Replaces the UI with another layout built for this session's canvas. */
+    /** Replaces active layout with a new mounted layout. */
     public void setContent(MountedLayout layout) {
         content.pointerLeft(player);
         content.despawn();
@@ -500,13 +497,11 @@ public final class ScreenSession {
     // --- scale -------------------------------------------------------------------------------------------
 
     /**
-     * Resizes the canvas (clamped to {@link Builder#scaleRange}); everything shown is re-laid out on the new
-     * size. Without the shader cursor, a player whose field of view is not {@code verticalFov} sees the canvas
-     * fill the screen at another scale. With it the shader fits the canvas to the screen and this does nothing.
+     * Changes canvas scale when shader cursor is disabled.
      */
     public void setScale(double value) {
         if (shaderCursor != null) {
-            // The shader fits the canvas to the screen by itself.
+            // Shader cursor automatically fits canvas to screen.
             return;
         }
         double next = clampScale(Math.round(value * 1000) / 1000.0);
@@ -525,14 +520,13 @@ public final class ScreenSession {
         }
     }
 
-    /** {@code tan} of half the canvas height as the camera sees it, at the current scale. */
+    /** Tangent of half canvas height at current scale. */
     private double exactHalfHeightTan() {
         return Math.tan(Math.toRadians(options.verticalFov() / 2)) * scale;
     }
 
     /**
-     * With a shader cursor the canvas is drawn with the field of view the state carries (whatever the player's
-     * FOV is), which comes in steps: the scale that makes the canvas exactly that size.
+     * Calculates scale required to match discrete FOV steps of shader cursor.
      */
     private double shaderScale() {
         double tan = Math.tan(Math.toRadians(options.verticalFov() / 2));
@@ -540,9 +534,7 @@ public final class ScreenSession {
     }
 
     /**
-     * The canvas faces the camera. Minecraft yaw turns the other way than the canvas' one (a canvas with yaw
-     * {@code c} faces {@code (sin c, 0, cos c)}, a Minecraft yaw {@code y} looks along {@code (-sin y, 0, cos y)}),
-     * so facing back towards the camera is {@code 180 - y}, not {@code y + 180}: the two agree only for 0 and 180.
+     * Returns canvas yaw angle facing back toward camera.
      */
     private float canvasYaw() {
         return 180 - facingYaw;
@@ -553,8 +545,7 @@ public final class ScreenSession {
     }
 
     /**
-     * Canvas size for a scale: at scale 1 it exactly fills a {@code verticalFov} view of the camera at the
-     * text layer, so the screen edges are the canvas edges.
+     * Computes canvas pixel and world dimensions for given scale.
      */
     private CanvasResolution resolution(double value) {
         double toText = options.distance() - Layers.text();
@@ -617,14 +608,14 @@ public final class ScreenSession {
         return Layers.at(Layers.MAX_STEP + 5, player);
     }
 
-    /** Ticks the veil stays fully closed after the switch, so the client settles before the reveal. */
+    /** Ticks veil remains closed after switch to let client stabilize. */
     private static final long REVEAL_HOLD_TICKS = 2;
 
     private static boolean animated(ScreenTransition transition) {
         return transition != null && transition.type() != ScreenTransition.Type.NONE && transition.durationMs() > 0;
     }
 
-    /** A veil over this session's canvas. */
+    /** Creates a veil over this canvas. */
     private ScreenFader screenFader(ScreenTransition transition, double u) {
         return new ScreenFader(
             player,
@@ -639,7 +630,7 @@ public final class ScreenSession {
         );
     }
 
-    /** A veil in the world, right in front of the player's eyes. */
+    /** Creates a veil in front of player eyes. */
     private ScreenFader worldFader(Location at, ScreenTransition transition, double u) {
         float yaw = at.getYaw();
         float pitch = at.getPitch();
@@ -666,7 +657,7 @@ public final class ScreenSession {
         }
     }
 
-    /** Covers the screen, then closes behind the veil. */
+    /** Covers screen and closes session behind veil. */
     private void startFadeOut(CloseReason reason, Runnable onClosed) {
         closing = true;
         removeFader();
@@ -692,7 +683,7 @@ public final class ScreenSession {
         boolean shaderTrans = ShaderTransition.available();
         boolean veiled = (veil != null || shaderTrans) && reason == CloseReason.CLOSED && player.isOnline();
         if (camera == null) {
-            // Closed while the world was still being covered: nothing was set up yet.
+            // Session closed during initial coverage before setup completed.
             if (veil != null) {
                 veil.remove();
             }
@@ -733,7 +724,7 @@ public final class ScreenSession {
 
         if (!hasNextSession) {
             if (veiled) {
-                // Screen is 100% black under veil: restore game mode, dismount camera, then teleport to world!
+                // Screen is fully obscured: restore game mode and camera, then teleport.
                 if (player.isOnline() && options.restore()) {
                     player.setGameMode(previousMode);
                 }
@@ -814,7 +805,7 @@ public final class ScreenSession {
                 }
             }
         } else {
-            // The next session already has its camera and its own veil: keep the player's view on it.
+            // Next session has camera and veil active: preserve player view.
             camera.remove(false);
             if (veil != null) {
                 veil.remove();
@@ -825,7 +816,7 @@ public final class ScreenSession {
         }
     }
 
-    /** Closes every session (Pixelay disable). */
+    /** Closes all active screen sessions. */
     public static void closeAll() {
         for (ScreenSession session : new ArrayList<>(SESSIONS.values())) {
             session.close(CloseReason.SHUTDOWN);
@@ -839,7 +830,7 @@ public final class ScreenSession {
         }
     }
 
-    /** A player who joins while others are in sessions must not see them, and they must not see him. */
+    /** Hides connecting players from session viewers and session viewers from connecting players. */
     static void onJoin(Player joined) {
         for (ScreenSession session : SESSIONS.values()) {
             if (session.options.hideOthers() && session.player != joined) {
@@ -874,7 +865,7 @@ public final class ScreenSession {
         hiddenFrom.clear();
     }
 
-    /** Keeps the screen's chunks loaded: an unloaded camera entity would drop the player's view. */
+    /** Keeps chunks force loaded to maintain camera entity visibility. */
     private void forceLoad(World world) {
         int cx = canvasCenter.getBlockX() >> 4;
         int cz = canvasCenter.getBlockZ() >> 4;
@@ -898,7 +889,7 @@ public final class ScreenSession {
         forcedChunks.clear();
     }
 
-    /** Lets the scheduler refresh texts and respawn what died. */
+    /** Surface interface for scheduler refresh cycles. */
     private final CanvasSurface surface = new CanvasSurface() {
         @Override
         public void refresh() {
@@ -920,7 +911,7 @@ public final class ScreenSession {
         }
     };
 
-    /** The session options, frozen at open(): changing the builder afterwards can not affect a session. */
+    /** Frozen options snapshot for an active screen session. */
     private record Options(
         Location camera,
         double distance,
@@ -948,7 +939,7 @@ public final class ScreenSession {
 
     // --- options -----------------------------------------------------------------------------------------
 
-    /** Options of a session; {@link #open()} starts it. */
+    /** Builder for {@link ScreenSession} instances. */
     public static final class Builder {
 
         private final Player player;
@@ -979,32 +970,32 @@ public final class ScreenSession {
             this.player = player;
         }
 
-        /** Where the camera stands and the way it looks (its yaw; the screen is always level). */
+        /** Sets camera position and viewing yaw angle. */
         public Builder camera(Location eye) {
             this.camera = eye;
             return this;
         }
 
-        /** Blocks between the camera and the canvas (default 1.5). Keep the space between them free of blocks. */
+        /** Sets distance in blocks between camera and canvas (default 1.5). */
         public Builder distance(double blocks) {
             this.distance = blocks;
             return this;
         }
 
-        /** The canvas pixel grid (default 1920x1080). Its aspect ratio should match the players' screens. */
+        /** Sets canvas pixel resolution (default 1920x1080). */
         public Builder resolution(double width, double height) {
             this.pixelWidth = width;
             this.pixelHeight = height;
             return this;
         }
 
-        /** The field of view (degrees, vertical) the canvas fills at scale 1 (default 70, Minecraft's default). */
+        /** Sets vertical field of view in degrees that the canvas fills at scale 1 (default 70). */
         public Builder verticalFov(double degrees) {
             this.verticalFov = degrees;
             return this;
         }
 
-        /** The UI, built once for the session's canvas (accepts any {@link dev.horuse.pixelay.layout.Box} or {@link MountedLayout}). */
+        /** Sets UI content factory built for the session canvas. */
         public Builder content(Function<Canvas, ? extends dev.horuse.pixelay.components.CanvasComponent> factory) {
             this.content = canvas -> {
                 dev.horuse.pixelay.components.CanvasComponent comp = factory.apply(canvas);
@@ -1019,7 +1010,7 @@ public final class ScreenSession {
             return this;
         }
 
-        /** A resource-pack cursor: glyph, height in canvas px, hot spot in font px from its top-left. */
+        /** Configures a custom resource pack glyph cursor. */
         public Builder cursor(String glyph, double heightPx, double hotspotX, double hotspotY) {
             this.cursorGlyph = glyph;
             this.cursorHeightPx = heightPx;
@@ -1029,9 +1020,7 @@ public final class ScreenSession {
         }
 
         /**
-         * Draw the cursor with the core shader of Pixelay's pack: smooth as the camera, and its sprite follows
-         * CSS {@code cursor} of the boxes under it (default: {@code cursor.shader} in config.yml). The player
-         * needs the pack; without the shader the glyph cursor ({@link #cursor}) is moved by the server.
+         * Enables or disables core shader rendering for the cursor.
          */
         public Builder shaderCursor(boolean shader) {
             this.shaderCursor = shader;
@@ -1039,34 +1028,33 @@ public final class ScreenSession {
         }
 
         /**
-         * The scale the screen opens with (default 1: the canvas fills a {@code verticalFov} view). Only without
-         * the shader cursor: e.g. a scale the player picked on a screen of your own (see {@link ScreenSession#setScale}).
+         * Sets initial canvas scale when shader cursor is disabled.
          */
         public Builder scale(double scale) {
             this.scale = scale;
             return this;
         }
 
-        /** Limits of {@link #scale} and {@link ScreenSession#setScale} (default 0.5 to 2). */
+        /** Sets minimum and maximum scale bounds (default 0.5 to 2.0). */
         public Builder scaleRange(double min, double max) {
             this.minScale = min;
             this.maxScale = max;
             return this;
         }
 
-        /** Hide other players from the viewer and the viewer from them (default true). */
+        /** Hides other players from the viewer and viewer from other players. */
         public Builder hideOthers(boolean hide) {
             this.hideOthers = hide;
             return this;
         }
 
-        /** Hold back chat while the screen is open (default true). */
+        /** Suppresses incoming chat messages while the screen session is open. */
         public Builder suppressChat(boolean suppress) {
             this.suppressChat = suppress;
             return this;
         }
 
-        /** Give back the game mode and position on close (default true). */
+        /** Restores player game mode and location on session close. */
         public Builder restoreOnClose(boolean restore) {
             this.restore = restore;
             return this;
@@ -1077,43 +1065,43 @@ public final class ScreenSession {
             return this;
         }
 
-        /** Called once when the session ends; with {@code QUIT} the player is already leaving. */
+        /** Callback executed when session closes. */
         public Builder onClose(BiConsumer<ScreenSession, CloseReason> callback) {
             this.onClose = callback;
             return this;
         }
 
-        /** Called when the box id under the cursor changes (see {@code Box.id}), e.g. to highlight it. */
+        /** Callback executed when element ID under cursor changes. */
         public Builder onHover(BiConsumer<ScreenSession, String> callback) {
             this.onHover = callback;
             return this;
         }
 
-        /** Configures matching fade in and fade out screen transitions. */
+        /** Configures identical transitions for fade-in and fade-out. */
         public Builder transition(ScreenTransition transition) {
             this.fadeIn = transition != null ? transition : ScreenTransition.none();
             this.fadeOut = this.fadeIn;
             return this;
         }
 
-        /** Configures a screen transition when opening the session. */
+        /** Configures transition for opening the session. */
         public Builder fadeIn(ScreenTransition transition) {
             this.fadeIn = Objects.requireNonNullElse(transition, ScreenTransition.none());
             return this;
         }
 
-        /** Configures a simple black fade-in with the given duration in milliseconds. */
+        /** Configures black fade-in transition with duration in milliseconds. */
         public Builder fadeIn(long durationMs) {
             return fadeIn(ScreenTransition.fade(durationMs));
         }
 
-        /** Configures a screen transition when closing the session. */
+        /** Configures transition for closing the session. */
         public Builder fadeOut(ScreenTransition transition) {
             this.fadeOut = Objects.requireNonNullElse(transition, ScreenTransition.none());
             return this;
         }
 
-        /** Configures a simple black fade-out with the given duration in milliseconds. */
+        /** Configures black fade-out transition with duration in milliseconds. */
         public Builder fadeOut(long durationMs) {
             return fadeOut(ScreenTransition.fade(durationMs));
         }

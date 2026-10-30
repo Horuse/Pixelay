@@ -10,13 +10,13 @@ import org.spongepowered.configurate.ConfigurateException;
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
 
 /**
- * Loads YAML files from the plugin data folder with Configurate, copying bundled defaults first.
+ * Loads YAML files from the plugin data directory with Configurate and copies bundled defaults when missing.
  */
 public final class YamlFiles {
 
     private YamlFiles() {}
 
-    /** Ensures {@code name} exists in the data folder (copied from the jar) and parses it. */
+    /** Copies bundled defaults to the data directory if missing and parses the YAML configuration. */
     public static CommentedConfigurationNode load(JavaPlugin plugin, String name) throws ConfigurateException {
         Path folder = plugin.getDataFolder().toPath();
         Path file = folder.resolve(name);

@@ -1,6 +1,6 @@
 # Web Editor & DOM Serialization Specification
 
-Pixelay's layout tree is designed with strict **SOLID** encapsulation and full read/write introspection so that a visual **Web Editor** (or JSON/HTML serializer) can inspect, serialize, deserialize, and mutate live `MountedLayout` documents without architectural changes.
+Pixelay's layout tree provides full read and write introspection. A visual Web Editor or JSON serializer can inspect, serialize, and modify live `MountedLayout` documents.
 
 ---
 

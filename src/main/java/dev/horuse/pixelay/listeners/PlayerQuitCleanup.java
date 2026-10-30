@@ -9,7 +9,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-/** Forgets a player who left in every per-player registry: debug modes, clicks, layers, Shift state. */
+/** Clears data for disconnected players from registries for debug modes, clicks, layers, and sneak state. */
 public class PlayerQuitCleanup implements Listener {
 
     @EventHandler

@@ -11,16 +11,16 @@ import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 
 /**
- * Catches the clicks of a spectator player looking at a full-screen canvas, without any entity in front of
- * the camera: a spectator's click arrives as Spectate / interact / attack / swing packets (see
- * {@code CanvasPacketClickListener}), which are routed to {@code onClick} while the catcher is spawned.
- * The client moves its camera on such a click; {@code onCameraMoved} puts it back.
+ * Catches clicks from a spectator looking at a full-screen canvas without entities before the camera.
+ * A spectator click arrives as spectate, interact, attack, or swing packets.
+ * Pixelay routes these packets to {@code onClick} while the catcher is active.
+ * The client moves its camera on click. {@code onCameraMoved} restores the camera position.
  */
 public class CanvasClickCatcher implements CanvasComponent {
 
     private static final Map<UUID, CanvasClickCatcher> BY_VIEWER = new ConcurrentHashMap<>();
     private static final ClickDebounce DEBOUNCE = new ClickDebounce();
-    /** Viewers holding Shift: their clicks are attempts to leave the camera, not clicks. */
+    /** Viewers holding Shift. Their clicks indicate attempts to exit the camera, not canvas clicks. */
     private static final Set<UUID> SNEAKING = ConcurrentHashMap.newKeySet();
 
     private final Player viewer;
@@ -28,7 +28,7 @@ public class CanvasClickCatcher implements CanvasComponent {
     private final Runnable onCameraMoved;
     private boolean active;
 
-    /** @param onCameraMoved puts the camera back after a click, or {@code null} */
+    /** @param onCameraMoved callback to restore the camera after a click, or {@code null} */
     public CanvasClickCatcher(Player viewer, Consumer<Player> onClick, Runnable onCameraMoved) {
         this.viewer = viewer;
         this.onClick = onClick;
@@ -57,7 +57,7 @@ public class CanvasClickCatcher implements CanvasComponent {
     @Override
     public void refresh() {}
 
-    /** Puts the viewer's camera back after a click moved it. */
+    /** Restores the camera position of the viewer after a click. */
     public static void resetCamera(Player player) {
         CanvasClickCatcher catcher = player != null ? BY_VIEWER.get(player.getUniqueId()) : null;
         if (catcher != null && catcher.onCameraMoved != null) {
@@ -66,7 +66,7 @@ public class CanvasClickCatcher implements CanvasComponent {
     }
 
     /**
-     * @return true if the player's swing/digging is routed to their screen
+     * @return true if Pixelay routes the player swing or digging packet to the screen
      */
     public static boolean handleSwing(Player player) {
         if (player == null) {
@@ -84,13 +84,13 @@ public class CanvasClickCatcher implements CanvasComponent {
     }
 
     /**
-     * @return true if the player is viewing the screen with this click catcher
+     * @return true if the player views the screen with this click catcher
      */
     public static boolean isViewer(Player player) {
         return player != null && BY_VIEWER.containsKey(player.getUniqueId());
     }
 
-    /** Reported by the packet listener from the player's input. */
+    /** Updates the sneaking state that the packet listener reports from player input. */
     public static void setSneaking(Player player, boolean sneaking) {
         if (sneaking) {
             SNEAKING.add(player.getUniqueId());
@@ -103,7 +103,7 @@ public class CanvasClickCatcher implements CanvasComponent {
         return SNEAKING.contains(player.getUniqueId());
     }
 
-    /** Forgets a player who left. */
+    /** Removes data for a disconnected player. */
     public static void forget(UUID player) {
         SNEAKING.remove(player);
         DEBOUNCE.forget(player);

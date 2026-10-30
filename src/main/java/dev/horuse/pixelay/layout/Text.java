@@ -17,19 +17,15 @@ import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 
 /**
- * A text element inside a layout (like an HTML {@code <p>} or {@code <span>}). Its size is the measured
- * text block (or the component's explicit hitbox); the text wraps to the width the layout gives it,
- * never breaking words (like CSS).
- * <p>
- * Inside its rectangle the text is pinned horizontally by {@link #textAlign} (or {@link #justifySelf}
- * when {@code textAlign} is unset) and vertically by {@link #alignSelf}, top-left by default.
+ * Renders text within a layout following CSS text layout rules.
+ * Wraps text at allocated boundaries without breaking words unless configured.
  */
 public final class Text extends Box<Text> {
 
     private final AbstractCanvasComponent component;
     private HAlign textAlign;
     private TextOverflow textOverflow = TextOverflow.CLIP;
-    // Per-pass caches: the text and its longest word are evaluated once per layout pass.
+    // Layout pass cached string content and longest word width.
     private String text;
     private int longestWord = -1;
 
@@ -72,13 +68,13 @@ public final class Text extends Box<Text> {
         }
     }
 
-    /** Sets the horizontal text alignment inside this box (CSS {@code text-align}), independent of {@link #justifySelf}. */
+    /** Sets horizontal text alignment within this box. */
     public Text textAlign(HAlign align) {
         this.textAlign = align;
         return this;
     }
 
-    /** Sets the horizontal text alignment inside this box (CSS {@code text-align}), independent of {@link #justifySelf}. */
+    /** Sets horizontal text alignment using layout alignment. */
     public Text textAlign(Align align) {
         this.textAlign =
             align == null
@@ -95,7 +91,7 @@ public final class Text extends Box<Text> {
         return textAlign;
     }
 
-    /** Font size (line height in canvas px, CSS {@code font-size}). */
+    /** Sets font size in canvas pixels. */
     public Text fontSize(double heightPx) {
         component.setHeightPx(heightPx);
         invalidate();
@@ -106,19 +102,19 @@ public final class Text extends Box<Text> {
         return component.heightPx();
     }
 
-    /** Updates the text content (MiniMessage). */
+    /** Updates text content. */
     public Text text(String miniMessage) {
         return text(TextContent.of(miniMessage));
     }
 
-    /** Updates the text content (or dynamic {@code () -> "..."} lambda). */
+    /** Updates text content. */
     public Text text(TextContent content) {
         component.setContent(content);
         invalidate();
         return this;
     }
 
-    /** The text background, optional border, and the text above it. */
+    /** Allocates layer depth steps for text and background elements. */
     @Override
     int layerSteps() {
         return hasBorder() ? 3 : 2;
@@ -138,7 +134,7 @@ public final class Text extends Box<Text> {
         return text;
     }
 
-    /** The widest piece of the text that can not break (CSS min-content), in font px. */
+    /** Calculates minimum content width of text in font pixels. */
     private int longestWord() {
         if (longestWord < 0) {
             longestWord = FontMetrics.minContentWidth(renderText(), component.textWrap());
@@ -146,20 +142,20 @@ public final class Text extends Box<Text> {
         return longestWord;
     }
 
-    /** TextDisplay line width (font px) for an available width; words are never broken. */
+    /** Calculates text line width in font pixels for available width. */
     private int lineWidthFor(double maxWidth) {
         int configured = Pixelay.settings().text().lineWidth();
         if (maxWidth < 0) {
             return configured;
         }
-        // The line width counts the advance, which is 1 font px wider than the drawn text.
-        // A small tolerance: a text given exactly its own width must not wrap because of float rounding.
+        // Calculate line width using character advances.
+        // Float rounding tolerance prevents unexpected wrapping.
         int available = (int) Math.floor((maxWidth * FontMetrics.LINE_HEIGHT_PX) / component.heightPx() + 1e-6) + 1;
         if (component.textWrap().whiteSpace() == TextWrap.WhiteSpace.NOWRAP) {
             return configured;
         }
         if (component.textWrap().wordBreak() != TextWrap.WordBreak.NORMAL) {
-            // Words may break: the text takes exactly the space it gets.
+            // Break words when configured to fit available space.
             return Math.min(configured, Math.max(1, available));
         }
         return Math.min(configured, Math.max(available, longestWord()));
@@ -172,11 +168,11 @@ public final class Text extends Box<Text> {
 
     @Override
     protected double minContentWidth() {
-        // Same rule as TextPlacement.boxSizePx: an explicit hitbox counts only when both sides are set.
+        // Use explicit hitbox dimensions when both dimensions are set.
         if (component.hitboxWidthPx() > 0 && component.hitboxHeightPx() > 0) {
             return component.hitboxWidthPx();
         }
-        // The drawn word: its advance without the trailing 1 font px of spacing.
+        // Advance without trailing spacing pixel.
         int word = Math.min(longestWord(), Pixelay.settings().text().lineWidth()) - 1;
         return (Math.max(0, word) * component.heightPx()) / FontMetrics.LINE_HEIGHT_PX;
     }
@@ -208,7 +204,7 @@ public final class Text extends Box<Text> {
             case MIDDLE -> content.centerY();
             case BOTTOM -> content.bottom();
         };
-        // Only now the element gets its final width: the client must wrap where we measured.
+        // Apply final wrapping width to component.
         component.setLineWidth(lineWidthFor(content.width()));
         if (textOverflow == TextOverflow.ELLIPSIS && content.width() > 0) {
             int availFontPx =
@@ -230,7 +226,7 @@ public final class Text extends Box<Text> {
         component.setFit(fit);
     }
 
-    /** CSS {@code text-overflow}: {@link TextOverflow#CLIP} (default) or {@link TextOverflow#ELLIPSIS} ({@code "..."}). */
+    /** Sets text overflow behavior to clip or ellipsis. */
     public Text textOverflow(TextOverflow textOverflow) {
         this.textOverflow = textOverflow != null ? textOverflow : TextOverflow.CLIP;
         if (textOverflow == TextOverflow.ELLIPSIS) {
@@ -245,7 +241,7 @@ public final class Text extends Box<Text> {
         return textOverflow;
     }
 
-    /** A clickable component (a button) is clicked on its whole box, padding included, not just its text. */
+    /** Returns click handler covering the full box area including padding. */
     @Override
     ClickHandler effectiveOnClick() {
         ClickHandler own = super.effectiveOnClick();
@@ -256,14 +252,14 @@ public final class Text extends Box<Text> {
         return compClick != null ? (player, x, y) -> compClick.accept(player) : null;
     }
 
-    /** CSS {@code white-space} of the text. */
+    /** Sets whitespace wrapping mode. */
     public Text whiteSpace(TextWrap.WhiteSpace value) {
         component.whiteSpace(value);
         invalidate();
         return this;
     }
 
-    /** CSS {@code word-break} / {@code overflow-wrap} of the text. */
+    /** Sets word breaking rules. */
     public Text wordBreak(TextWrap.WordBreak value) {
         component.wordBreak(value);
         invalidate();

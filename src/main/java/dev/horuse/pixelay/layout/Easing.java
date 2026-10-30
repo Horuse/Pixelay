@@ -1,40 +1,38 @@
 package dev.horuse.pixelay.layout;
 
 /**
- * Timing function that maps transition progress {@code t} in {@code [0.0, 1.0]} to eased output.
- * Matches standard CSS transition timing functions ({@code ease}, {@code ease-in}, {@code ease-out},
- * {@code ease-in-out}, {@code linear}, and {@code cubic-bezier(x1, y1, x2, y2)}).
+ * Maps transition progress between 0.0 and 1.0 to an eased output value.
  */
 @FunctionalInterface
 public interface Easing {
     /** Returns the eased progress for normalized time {@code t} in {@code [0.0, 1.0]}. */
     double ease(double t);
 
-    /** Linear transition ({@code t -> t}): constant speed from start to end. */
+    /** Linear progression with constant speed. */
     Easing LINEAR = t -> t;
 
-    /** CSS {@code ease} ({@code cubic-bezier(0.25, 0.1, 0.25, 1.0)}): slow start, fast middle, gentle deceleration. */
+    /** Standard ease progression with slow start and deceleration. */
     Easing EASE = cubicBezier(0.25, 0.1, 0.25, 1.0);
 
-    /** CSS {@code ease-in} ({@code cubic-bezier(0.42, 0.0, 1.0, 1.0)}): accelerates from rest. */
+    /** Accelerates progression from rest. */
     Easing EASE_IN = cubicBezier(0.42, 0.0, 1.0, 1.0);
 
-    /** CSS {@code ease-out} ({@code cubic-bezier(0.0, 0.0, 0.58, 1.0)}): decelerates to a stop. */
+    /** Decelerates progression to a stop. */
     Easing EASE_OUT = cubicBezier(0.0, 0.0, 0.58, 1.0);
 
-    /** CSS {@code ease-in-out} ({@code cubic-bezier(0.42, 0.0, 0.58, 1.0)}): slow start and slow finish. */
+    /** Slow start and slow finish progression. */
     Easing EASE_IN_OUT = cubicBezier(0.42, 0.0, 0.58, 1.0);
 
-    /** Hermite smoothstep curve: {@code 3t^2 - 2t^3}. */
+    /** Smoothstep cubic curve progression. */
     Easing SMOOTHSTEP = t -> t * t * (3.0 - 2.0 * t);
 
-    /** Anticipation curve with slight backstep before acceleration. */
+    /** Anticipation curve with backward motion before acceleration. */
     Easing EASE_IN_BACK = cubicBezier(0.6, -0.28, 0.735, 0.045);
 
-    /** Overshoot curve with subtle spring past target before settling. */
+    /** Overshoot curve extending past target before settling. */
     Easing EASE_OUT_BACK = cubicBezier(0.175, 0.885, 0.32, 1.275);
 
-    /** Bouncy settling curve. */
+    /** Bouncing curve settling at destination. */
     Easing BOUNCE_OUT = t -> {
         double n1 = 7.5625;
         double d1 = 2.75;
@@ -53,18 +51,18 @@ public interface Easing {
     };
 
     /**
-     * Creates a custom cubic bezier timing function matching CSS {@code cubic-bezier(x1, y1, x2, y2)}.
+     * Creates a cubic bezier timing function matching CSS parameters.
      *
-     * @param x1 x coordinate of first control point, clamped to {@code [0.0, 1.0]}
-     * @param y1 y coordinate of first control point
-     * @param x2 x coordinate of second control point, clamped to {@code [0.0, 1.0]}
-     * @param y2 y coordinate of second control point
+     * @param x1 X coordinate of first control point from 0.0 to 1.0
+     * @param y1 Y coordinate of first control point
+     * @param x2 X coordinate of second control point from 0.0 to 1.0
+     * @param y2 Y coordinate of second control point
      */
     static Easing cubicBezier(double x1, double y1, double x2, double y2) {
         return new CubicBezierEasing(x1, y1, x2, y2);
     }
 
-    /** Stepped progression dividing the duration into {@code intervals} equal jumps. */
+    /** Creates a stepped progression with the specified interval count. */
     static Easing steps(int intervals) {
         int n = Math.max(1, intervals);
         return t -> Math.min(1.0, Math.floor(t * n) / n);

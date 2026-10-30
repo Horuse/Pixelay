@@ -1,7 +1,7 @@
 package dev.horuse.pixelay.layout;
 
 /**
- * Tracks the live interpolation state for an animating {@link Transform} transition.
+ * Tracks interpolation state for transform transitions.
  */
 public final class TransformTransitionState {
 

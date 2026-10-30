@@ -12,9 +12,8 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The geometry and dynamic content of a canvas element, decoupled from how it is actually drawn.
- * Renderers ({@link CanvasRenderer}) consume this so the same element can be spawned server-side or
- * per-player via packets without duplicating layout logic.
+ * Defines geometry and dynamic content for a canvas element separate from rendering logic.
+ * {@link CanvasRenderer} implementations use this data to spawn elements on the server or via packets.
  */
 public interface CanvasDrawable {
     /** Horizontal pixel coordinate of the anchor point. */
@@ -30,8 +29,8 @@ public interface CanvasDrawable {
     String renderText();
 
     /**
-     * @return TextDisplay line width in font px: the client wraps longer lines. Defaults to the
-     *     configured {@code text.line-width}; layouts lower it to the width they give the element.
+     * @return TextDisplay line width in font pixels. The client wraps longer lines.
+     *     Defaults to {@code text.line-width}. Layouts set this value to allocated width.
      */
     default int lineWidth() {
         return Pixelay.settings().text().lineWidth();
@@ -47,7 +46,7 @@ public interface CanvasDrawable {
         return Layers.at(Layers.DEFAULT_TEXT_STEP);
     }
 
-    /** @return depth of the text background, in blocks: one step under the text */
+    /** @return depth of the text background in blocks, one step under the text */
     default float textBackgroundDepth() {
         return Layers.at(Layers.DEFAULT_TEXT_BACKGROUND_STEP);
     }
@@ -58,8 +57,8 @@ public interface CanvasDrawable {
     }
 
     /**
-     * @return where the element may draw, in canvas px: whatever lies outside is cut away (CSS {@code overflow}
-     *     of the boxes around it, and always the canvas itself), or {@code null} to draw it whole
+     * @return bounding clip rectangle in canvas pixels, or {@code null} to draw without clipping.
+     *     The clip cuts content exceeding parent box overflow and canvas bounds.
      */
     default Rect clip() {
         return null;
@@ -71,24 +70,22 @@ public interface CanvasDrawable {
     }
 
     /**
-     * @return a counter bumped whenever position, alignment or hitbox change, so renderers reposition
-     *     the element even when its text did not change (e.g. after a layout pass)
+     * @return version counter incremented on position, alignment, or hitbox changes.
+     *     Renderers use this counter to reposition elements without text changes.
      */
     default int layoutVersion() {
         return 0;
     }
 
     /**
-     * @return horizontal anchor: which edge of the element's box {@link #pixelX()} pins (defaults
-     *     to CENTER — the historical behavior)
+     * @return horizontal anchor edge for {@link #pixelX()}. Defaults to {@link HAlign#CENTER}.
      */
     default HAlign hAlign() {
         return HAlign.CENTER;
     }
 
     /**
-     * @return vertical anchor: which edge of the element's box {@link #pixelY()} pins (defaults to
-     *     BOTTOM — the historical behavior, text grows upward)
+     * @return vertical anchor edge for {@link #pixelY()}. Defaults to {@link VAlign#BOTTOM}.
      */
     default VAlign vAlign() {
         return VAlign.BOTTOM;
@@ -137,7 +134,7 @@ public interface CanvasDrawable {
         return 0.0;
     }
 
-    /** Duration in game ticks for client-side GPU transformation interpolation (for 140+ FPS animations). */
+    /** Duration in game ticks for client-side GPU transformation interpolation. */
     default int transformationDuration() {
         return 0;
     }

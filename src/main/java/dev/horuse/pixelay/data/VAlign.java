@@ -1,10 +1,9 @@
 package dev.horuse.pixelay.data;
 
 /**
- * Vertical anchor of a component box relative to its {@code pixelY}: the anchor point pins the
- * TOP/MIDDLE/BOTTOM edge of the box, like CSS {@code top/middle/bottom}. A TextDisplay always grows
- * upward from its entity position, so anchoring is done by shifting the spawn position down by the
- * block height.
+ * Specifies vertical anchor alignment of a component box.
+ * The anchor point aligns with the top, middle, or bottom edge of the box.
+ * The system calculates downward offset to position the display entity.
  */
 public enum VAlign {
     TOP,
@@ -12,8 +11,7 @@ public enum VAlign {
     BOTTOM;
 
     /**
-     * @return downward offset (canvas px) from the anchor point to the box bottom edge — the
-     *     position where a TextDisplay entity must be spawned
+     * @return downward pixel offset from anchor to box bottom edge
      */
     public double bottomOffset(double boxHeightPx) {
         return switch (this) {

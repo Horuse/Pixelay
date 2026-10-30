@@ -18,19 +18,20 @@ import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 
 /**
- * A layout node with a CSS-like box model: optional fixed size, padding (inside the box), margin
- * (outside, may be negative), grow/shrink factors and self alignment. Layout runs in two passes:
- * {@link #measure(double)} computes the size that fits a width limit bottom-up (cached for one pass),
- * {@link #arrange(Rect)} assigns rectangles top-down. Layout runs on the main server thread.
+ * A layout node with a box model like CSS.
+ * It supports fixed size, padding, margin, grow and shrink factors, and self alignment.
+ * Layout runs in two steps.
+ * {@link #measure(double)} calculates the size bottom-up and caches it for one pass.
+ * {@link #arrange(Rect)} sets rectangles top-down.
+ * Layout runs on the main server thread.
  * <p>
- * May be instantiated directly ({@code new Box<>()} or {@link Layout#box()}) as an empty block element
- * (like an HTML {@code <div>} with no children, or a geometric panel/divider).
+ * You can instantiate this class directly ({@code new Box<>()} or {@link Layout#box()}) as an empty block element.
  *
- * @param <S> the concrete box type, so chained setters keep it: {@code column(a, b).padding(32).gap(8)}
+ * @param <S> the concrete box type for chained setter methods
  */
 public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
 
-    /** Width limit meaning "no limit" (measure the natural, unwrapped size). */
+    /** Width limit that means no limit. Measures the natural, unwrapped size. */
     static final double UNBOUNDED = -1;
 
     private static final double OVERFLOW_EPSILON = 0.5;
@@ -54,7 +55,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     protected double shrink = 1;
     protected Align alignSelf;
     protected Align justifySelf;
-    /** Grid placement (CSS {@code grid-row}/{@code grid-column}): 1-based start line or 0 = auto, and span. */
+    /** Grid placement (CSS {@code grid-row} and {@code grid-column}). 1-based start line or 0 for auto, and span. */
     int gridRow;
     int gridColumn;
     int rowSpan = 1;
@@ -88,7 +89,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     private long clientTransformUntilTime;
     protected int zIndex;
     private MountedLayout directMount;
-    /** Result of the last arrange: does this box (or an ancestor) not fit its space. */
+    /** Result of the last arrange step. Shows if this box or an ancestor does not fit its space. */
     protected Fit fit = Fit.NONE;
     private String id;
 
@@ -99,20 +100,20 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
 
     private ClickHandler onClick;
     private int background;
-    /** Depth steps from the last layout pass (see {@link dev.horuse.pixelay.data.Layers}): first and last used. */
+    /** Depth steps from the last layout pass. See {@link dev.horuse.pixelay.data.Layers}. First and last used. */
     int paintStep = 1;
     int paintEnd;
     private Overflow overflowX = Overflow.VISIBLE;
     private Overflow overflowY = Overflow.VISIBLE;
-    /** CSS {@code cursor}: a sprite name of the screen cursor, or {@code null} to inherit it. */
+    /** CSS {@code cursor}: sprite name of the screen cursor, or {@code null} to inherit it. */
     private String cursor;
-    /** Where this box may draw and be pointed at (canvas px), from the last layout pass: its ancestors' clip. */
+    /** The clip rectangle from ancestors where this box can draw and receive pointer events. */
     private Rect clip;
-    /** Styles of states, by {@link State} or custom name, in declaration order. */
+    /** Styles of states by {@link State} or custom name, in declaration order. */
     private final LinkedHashMap<Object, Style> stateStyles = new LinkedHashMap<>();
     private final Set<String> customStates = ConcurrentHashMap.newKeySet();
     private volatile boolean selected;
-    /** The merged style of the active states; recomputed only after a state or a style changed. */
+    /** The merged style of active states. Recomputed only after a state or style changes. */
     private Style activeStyle;
     private volatile boolean styleStale = true;
     private volatile boolean disabled;
@@ -123,80 +124,80 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     private TransitionState backgroundTransition;
     private TransitionState borderTransition;
     private TransformTransitionState transformTransition;
-    /** Under the pointer (itself or a descendant), from the last {@link MountedLayout#pointerAt} — CSS {@code :hover}. */
+    /** Shows if the pointer is over this box or a descendant. Represents CSS {@code :hover}. */
     private volatile boolean hovered;
     private Rect rect = new Rect(0, 0, 0, 0);
 
-    // Two cached sizes per pass: the natural one and the last constrained one (parents ask both).
+    // Two cached sizes per pass: the natural size and the last constrained size.
     private Size unbounded;
     private Size constrained;
     private double constrainedFor = Double.NaN;
 
     /**
-     * Content size without padding that fits {@code maxWidth} when it is not {@link #UNBOUNDED}:
-     * texts wrap to it, containers pass it on to their children (like CSS width constraints).
-     * Must not change any state: arranging happens in {@link #arrangeContent}.
+     * Calculates the content size without padding that fits {@code maxWidth}.
+     * Text wraps to this width, and containers pass it to children.
+     * This method must not change state.
      */
     protected Size measureContent(double maxWidth) {
         return Size.ZERO;
     }
 
-    /** Places the children inside the content rectangle (the box rectangle minus padding). */
+    /** Places children inside the content rectangle. */
     protected void arrangeContent(Rect content) {}
 
     /** Adds every canvas component of this subtree to {@code out}. */
     protected void collectComponents(List<LayoutComponent> out) {}
 
     /**
-     * Narrowest content width (without padding) this box can take without breaking words or
-     * squeezing fixed sizes — the floor for {@code shrink} (CSS {@code min-content}).
+     * Narrowest content width without padding this box can take without word breaks or squeezed fixed sizes.
+     * This is the minimum limit for {@code shrink} (CSS {@code min-content}).
      */
     protected double minContentWidth() {
         return 0;
     }
 
-    /** Semantic HTML-like tag name of this node for debugging, serialization, and the web editor. */
+    /** Semantic HTML tag name of this node for debugging, serialization, and the web editor. */
     public String tagName() {
         return "div";
     }
 
-    /** The single player who sees this box's entities, or {@code null} when visible to everyone or inherited. */
+    /** The single player that sees this box's entities, or {@code null} when visible to all players or inherited. */
     public Player viewer() {
         LayoutComponent comp = component();
         return comp != null ? comp.viewer() : null;
     }
 
-    /** Binds this box's underlying component to packet-only rendering for {@code viewer} if unset. */
+    /** Binds the component of this box to packet-only rendering for {@code viewer} if unset. */
     void bindViewer(Player viewer) {}
 
-    /** The component this box draws ({@link Text}, {@link Item}, {@link Block}), or {@code null} for other boxes. */
+    /** The component that this box draws ({@link Text}, {@link Item}, {@link Block}), or {@code null} for other boxes. */
     LayoutComponent component() {
         return null;
     }
 
-    /** Depth steps the box paints on (see {@link MountedLayout}): a background, border, or a component's layers. */
+    /** Depth steps on which this box paints (see {@link MountedLayout}). This includes a background, border, or component layers. */
     int layerSteps() {
         return hasBorder() ? 2 : 1;
     }
 
-    /** Adds every box of this subtree (self included, depth-first, parents before children). */
+    /** Adds every box of this subtree, including self, depth-first, with parents before children. */
     protected void collectBoxes(List<Box<?>> out) {
         out.add(this);
     }
 
-    /** Drops the cached sizes of this subtree, so the next pass measures changed texts again. */
+    /** Clears the cached sizes of this subtree so the next pass measures changed text again. */
     protected void invalidate() {
         unbounded = null;
         constrained = null;
         constrainedFor = Double.NaN;
     }
 
-    /** Natural outer size (fixed size or content + padding), margin not included. */
+    /** Natural outer size (fixed size or content with padding). Does not include margin. */
     public final Size measure() {
         return measure(UNBOUNDED);
     }
 
-    /** Outer size when at most {@code maxWidth} px wide is available; a fixed width overrides it. */
+    /** Outer size when at most {@code maxWidth} pixels are available. A fixed width overrides this limit. */
     public final Size measure(double maxWidth) {
         if (hidden) {
             return Size.ZERO;
@@ -260,7 +261,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return new Size(w, h);
     }
 
-    /** Size plus margin when at most {@code maxWidth} px (margin included) is available. */
+    /** Size plus margin when at most {@code maxWidth} pixels (margin included) are available. */
     Size outer(double maxWidth) {
         if (hidden) {
             return Size.ZERO;
@@ -270,7 +271,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return new Size(size.width() + margin.horizontal(), size.height() + margin.vertical());
     }
 
-    /** {@link #minContentWidth()} as the parent sees it: with padding, border, and margin, or the fixed/min width. */
+    /** {@link #minContentWidth()} as the parent sees it, with padding, border, and margin, or the fixed or minimum width. */
     double minOuterWidth() {
         if (hidden) {
             return 0;
@@ -290,7 +291,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         arrange(rect, false);
     }
 
-    /** @param insideOverflow an ancestor already does not fit its space */
+    /** @param insideOverflow True if an ancestor does not fit its space. */
     final void arrange(Rect rect, boolean insideOverflow) {
         arrange(rect, insideOverflow, 1.0, 1.0, 0.0, 0.0, 0.0, Double.NaN, Double.NaN, 0);
     }
@@ -320,7 +321,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         );
     }
 
-    /** Arranges {@code child} inside this container, propagating this container's visual scale, rotation, and animation ticks. */
+    /** Arranges {@code child} inside this container and passes visual scale, rotation, and animation ticks. */
     final void arrangeChild(Box<?> child, Rect childRect, boolean insideOverflow) {
         child.arrange(
             childRect,
@@ -469,15 +470,15 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return visualTransformationDurationTicks;
     }
 
-    /** Hook overridden by {@link Container} to arrange any {@link Position#ABSOLUTE} children inside {@code bounds}. */
+    /** Hook that {@link Container} overrides to arrange {@link Position#ABSOLUTE} children inside {@code bounds}. */
     void arrangeAbsoluteChildren(Rect bounds) {}
 
-    /** Whether the last layout pass found this box bigger than its space, or inside one that is. */
+    /** Shows if the last layout pass found this box larger than its space, or inside an overflowing container. */
     public Fit fit() {
         return fit;
     }
 
-    /** For children: does anything at or above this box overflow. */
+    /** Shows if this box or an ancestor overflows. */
     boolean overflowsHere() {
         return fit != Fit.NONE;
     }
@@ -487,7 +488,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return rect;
     }
 
-    /** Whether the canvas point {@code (px, py)} falls within this box, taking its rotation into account. */
+    /** Shows if the canvas point {@code (px, py)} is inside this box, with rotation considered. */
     public boolean contains(double px, double py) {
         if (rect == null || hidden) {
             return false;
@@ -546,31 +547,31 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return (S) this;
     }
 
-    /** CSS {@code border}: sets uniform border width and colour (ARGB) on all four sides. */
+    /** Sets uniform border width and color (ARGB) on all four sides (CSS {@code border}). */
     public S border(double widthPx, int argb) {
         this.borderWidths = Insets.all(Math.max(0, widthPx));
         this.borderColor = argb;
         return self();
     }
 
-    /** CSS {@code border}: sets uniform border width and CSS colour string (e.g. {@code "#00E5FF"}). */
+    /** Sets uniform border width and CSS color string on all four sides. */
     public S border(double widthPx, String cssColor) {
         return border(widthPx, ColorUtils.parse(cssColor));
     }
 
-    /** Sets per-side border widths and uniform border colour (ARGB). */
+    /** Sets per-side border widths and uniform border color (ARGB). */
     public S border(Insets widths, int argb) {
         this.borderWidths = widths != null ? widths : Insets.NONE;
         this.borderColor = argb;
         return self();
     }
 
-    /** Sets per-side border widths and CSS colour string. */
+    /** Sets per-side border widths and CSS color string. */
     public S border(Insets widths, String cssColor) {
         return border(widths, ColorUtils.parse(cssColor));
     }
 
-    /** CSS {@code border-top}. */
+    /** Sets top border width and color (ARGB). */
     public S borderTop(double widthPx, int argb) {
         this.borderWidths = new Insets(
             Math.max(0, widthPx),
@@ -586,7 +587,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return borderTop(widthPx, ColorUtils.parse(cssColor));
     }
 
-    /** CSS {@code border-right}. */
+    /** Sets right border width and color (ARGB). */
     public S borderRight(double widthPx, int argb) {
         this.borderWidths = new Insets(
             borderWidths.top(),
@@ -602,7 +603,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return borderRight(widthPx, ColorUtils.parse(cssColor));
     }
 
-    /** CSS {@code border-bottom}. */
+    /** Sets bottom border width and color (ARGB). */
     public S borderBottom(double widthPx, int argb) {
         this.borderWidths = new Insets(
             borderWidths.top(),
@@ -618,7 +619,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return borderBottom(widthPx, ColorUtils.parse(cssColor));
     }
 
-    /** CSS {@code border-left}. */
+    /** Sets left border width and color (ARGB). */
     public S borderLeft(double widthPx, int argb) {
         this.borderWidths = new Insets(
             borderWidths.top(),
@@ -634,13 +635,13 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return borderLeft(widthPx, ColorUtils.parse(cssColor));
     }
 
-    /** CSS {@code border-color} (ARGB). */
+    /** Sets border color (ARGB). */
     public S borderColor(int argb) {
         this.borderColor = argb;
         return self();
     }
 
-    /** CSS {@code border-color} from string (e.g. {@code "#FFD166"}). */
+    /** Sets border color from CSS color string. */
     public S borderColor(String cssColor) {
         return borderColor(ColorUtils.parse(cssColor));
     }
@@ -716,7 +717,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return fixedWidth;
     }
 
-    /** CSS percentage width ({@code 0.0..1.0}, e.g. {@code 0.5} for {@code width: 50%}) relative to the parent's content width. */
+    /** CSS percentage width ({@code 0.0..1.0}) relative to the parent content width. */
     public S widthPercent(double fraction) {
         this.widthPercent = fraction;
         return self();
@@ -755,7 +756,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return fixedHeight;
     }
 
-    /** CSS percentage height ({@code 0.0..1.0}, e.g. {@code 1.0} for {@code height: 100%}) relative to the parent's content height. */
+    /** CSS percentage height ({@code 0.0..1.0}) relative to the parent content height. */
     public S heightPercent(double fraction) {
         this.heightPercent = fraction;
         return self();
@@ -789,19 +790,18 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return width(width).height(height);
     }
 
-    /** CSS {@code min-width} and {@code min-height} shorthand. */
+    /** Sets minimum width and minimum height. */
     public S minSize(double minWidth, double minHeight) {
         return minWidth(minWidth).minHeight(minHeight);
     }
 
-    /** CSS {@code max-width} and {@code max-height} shorthand. */
+    /** Sets maximum width and maximum height. */
     public S maxSize(double maxWidth, double maxHeight) {
         return maxWidth(maxWidth).maxHeight(maxHeight);
     }
 
     /**
-     * Share of the free space along the parent's main axis, added to the natural size (CSS
-     * {@code flex-grow} with {@code flex-basis: auto}).
+     * Share of free space along the parent main axis added to the natural size (CSS {@code flex-grow}).
      */
     public S grow(double grow) {
         this.grow = grow;
@@ -813,8 +813,8 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * Share of the missing space a row takes from this box when its children do not fit (CSS
-     * {@code flex-shrink}, default 1). Never below {@link #minContentWidth()}: texts wrap, words stay whole.
+     * Share of space reduction when children do not fit (CSS {@code flex-shrink}).
+     * Never goes below {@link #minContentWidth()}.
      */
     public S shrink(double shrink) {
         this.shrink = Math.max(0, shrink);
@@ -826,8 +826,8 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * Vertical placement in the area given by the parent (CSS {@code align-self}); in a row or a
-     * column it applies to the cross axis. A leaf also pins its text by it inside its rectangle.
+     * Vertical placement in the parent area (CSS {@code align-self}).
+     * Applies to the cross axis in rows or columns.
      */
     public S alignSelf(Align align) {
         this.alignSelf = align;
@@ -839,8 +839,8 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * Horizontal placement in a grid or stack area (CSS {@code justify-self}). In a row or a column it
-     * does not move the box (as in CSS flexbox); a leaf still uses it to pin its text inside its rectangle.
+     * Horizontal placement in a grid or stack area (CSS {@code justify-self}).
+     * In a row or column it does not move the box.
      */
     public S justifySelf(Align align) {
         this.justifySelf = align;
@@ -851,7 +851,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return justifySelf;
     }
 
-    /** Rows this item covers in a grid (CSS {@code grid-row: span n}). */
+    /** Rows that this item spans in a grid (CSS {@code grid-row: span n}). */
     public S rowSpan(int span) {
         this.rowSpan = Math.max(1, span);
         return self();
@@ -861,7 +861,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return rowSpan;
     }
 
-    /** Columns this item covers in a grid (CSS {@code grid-column: span n}). */
+    /** Columns that this item spans in a grid (CSS {@code grid-column: span n}). */
     public S columnSpan(int span) {
         this.columnSpan = Math.max(1, span);
         return self();
@@ -871,7 +871,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return columnSpan;
     }
 
-    /** Explicit start row line in a grid, 1-based like CSS {@code grid-row-start}; auto-placed otherwise. */
+    /** Start row line in a grid, 1-based (CSS {@code grid-row-start}). Auto-placed if 0. */
     public S gridRow(int line) {
         this.gridRow = Math.max(0, line);
         return self();
@@ -881,7 +881,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return gridRow;
     }
 
-    /** Explicit start column line in a grid, 1-based like CSS {@code grid-column-start}; auto-placed otherwise. */
+    /** Start column line in a grid, 1-based (CSS {@code grid-column-start}). Auto-placed if 0. */
     public S gridColumn(int line) {
         this.gridColumn = Math.max(0, line);
         return self();
@@ -891,7 +891,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return gridColumn;
     }
 
-    /** CSS {@code position}: {@link Position#STATIC} (default), {@link Position#RELATIVE}, or {@link Position#ABSOLUTE}. */
+    /** Sets CSS {@code position} scheme. */
     public S position(Position position) {
         this.position = position != null ? position : Position.STATIC;
         return self();
@@ -905,7 +905,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return position == Position.ABSOLUTE;
     }
 
-    /** Shorthand for {@code position(Position.ABSOLUTE).left(left).top(top)}. */
+    /** Sets absolute position with {@code left} and {@code top} offsets. */
     public S absolute(double left, double top) {
         this.position = Position.ABSOLUTE;
         this.left = left;
@@ -913,7 +913,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return self();
     }
 
-    /** CSS {@code left} offset in canvas px (used when {@code position} is {@code ABSOLUTE} or {@code RELATIVE}). */
+    /** CSS {@code left} offset in canvas pixels. */
     public S left(double px) {
         this.left = px;
         return self();
@@ -923,7 +923,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return left;
     }
 
-    /** CSS {@code top} offset in canvas px (used when {@code position} is {@code ABSOLUTE} or {@code RELATIVE}). */
+    /** CSS {@code top} offset in canvas pixels. */
     public S top(double px) {
         this.top = px;
         return self();
@@ -933,7 +933,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return top;
     }
 
-    /** CSS {@code right} offset in canvas px (used when {@code position} is {@code ABSOLUTE} or {@code RELATIVE}). */
+    /** CSS {@code right} offset in canvas pixels. */
     public S right(double px) {
         this.right = px;
         return self();
@@ -943,7 +943,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return right;
     }
 
-    /** CSS {@code bottom} offset in canvas px (used when {@code position} is {@code ABSOLUTE} or {@code RELATIVE}). */
+    /** CSS {@code bottom} offset in canvas pixels. */
     public S bottom(double px) {
         this.bottom = px;
         return self();
@@ -953,17 +953,17 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return bottom;
     }
 
-    /** CSS {@code inset} shorthand setting {@code top}, {@code right}, {@code bottom}, and {@code left}. */
+    /** Sets uniform inset offset on all four sides. */
     public S inset(double all) {
         return inset(all, all, all, all);
     }
 
-    /** CSS {@code inset} shorthand setting vertical ({@code top}/{@code bottom}) and horizontal ({@code left}/{@code right}) offsets. */
+    /** Sets vertical and horizontal inset offsets. */
     public S inset(double vertical, double horizontal) {
         return inset(vertical, horizontal, vertical, horizontal);
     }
 
-    /** CSS {@code inset} shorthand setting {@code top}, {@code right}, {@code bottom}, and {@code left}. */
+    /** Sets top, right, bottom, and left inset offsets. */
     public S inset(double top, double right, double bottom, double left) {
         this.top = top;
         this.right = right;
@@ -973,8 +973,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * CSS {@code transform: translate(percentX, percentY)} relative to this box's own width and height
-     * (e.g. {@code translate(-0.5, -0.5)} shifts by {@code -50%} on both axes to center on {@code left}/{@code top}).
+     * Translates this box by percentages of its width and height.
      */
     public S translate(double percentX, double percentY) {
         this.translateX = percentX;
@@ -990,7 +989,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return translateY;
     }
 
-    /** CSS {@code transform: translate(dxPx, dyPx)} offset in canvas pixels. */
+    /** Translates this box by canvas pixels. */
     public S translatePx(double dxPx, double dyPx) {
         this.translatePxX = dxPx;
         this.translatePxY = dyPx;
@@ -1015,12 +1014,12 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return translatePxY;
     }
 
-    /** CSS {@code transform: scale(factor)} (uniform X and Y scale around {@link #transformOrigin}). */
+    /** Sets uniform scale around the transform origin. */
     public S scale(double factor) {
         return scale(factor, factor);
     }
 
-    /** CSS {@code transform: scale(sx, sy)} around {@link #transformOrigin}. */
+    /** Sets horizontal and vertical scale around the transform origin. */
     public S scale(double sx, double sy) {
         this.scaleX = sx;
         this.scaleY = sy;
@@ -1045,7 +1044,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return scaleY;
     }
 
-    /** CSS {@code transform: rotate(deg)} (clockwise rotation in degrees on the 2D canvas plane). */
+    /** Sets 2D clockwise rotation in degrees. */
     public S rotate(double degrees) {
         this.rotateDeg = degrees;
         return self();
@@ -1055,7 +1054,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return rotateDeg;
     }
 
-    /** CSS {@code transform: rotateX(deg)} (3D pitch tilt in degrees). */
+    /** Sets 3D pitch tilt in degrees. */
     public S rotateX(double degrees) {
         this.rotateXDeg = degrees;
         return self();
@@ -1065,7 +1064,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return rotateXDeg;
     }
 
-    /** CSS {@code transform: rotateY(deg)} (3D yaw turn in degrees). */
+    /** Sets 3D yaw turn in degrees. */
     public S rotateY(double degrees) {
         this.rotateYDeg = degrees;
         return self();
@@ -1075,7 +1074,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return rotateYDeg;
     }
 
-    /** CSS {@code transform-origin: ox oy} ({@code 0.0..1.0}, default {@code 0.5, 0.5} center). */
+    /** Sets the transform origin fractions (0.0 to 1.0). */
     public S transformOrigin(double ox, double oy) {
         this.transformOriginX = ox;
         this.transformOriginY = oy;
@@ -1125,7 +1124,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         );
     }
 
-    /** CSS {@code z-index}: controls stacking order for both depth layers and pointer hit-testing (default 0). */
+    /** Sets z-index for depth layering and pointer hit testing. */
     public S zIndex(int zIndex) {
         this.zIndex = zIndex;
         return self();
@@ -1135,15 +1134,15 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return zIndex;
     }
 
-    /** Tag for hit testing ({@link MountedLayout#idAt}), e.g. to highlight a hovered card. */
+    /** Tag for pointer hit testing ({@link MountedLayout#idAt}). */
     public S id(String id) {
         this.id = id;
         return self();
     }
 
     /**
-     * Fills the box (padding included, margin not) with a colour, {@code #AARRGGBB} as an int, like CSS
-     * {@code background-color}. Nested boxes are drawn above their parents, all of them under the text.
+     * Fills the box with color (ARGB) including padding but not margin (CSS {@code background-color}).
+     * Nested boxes render above parents and below text.
      */
     public S background(int argb) {
         this.background = argb;
@@ -1151,8 +1150,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * Fills the box with a colour parsed from a CSS string (e.g. {@code "#0B1426"}, {@code "#FF335580"},
-     * {@code "rgba(11, 20, 38, 0.85)"}, or {@code "transparent"}).
+     * Fills the box with color parsed from a CSS color string.
      */
     public S background(String cssColor) {
         return background(ColorUtils.parse(cssColor));
@@ -1162,7 +1160,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return background;
     }
 
-    /** CSS {@code opacity} ({@code 0.0..1.0}) applied to this box's background and border. */
+    /** CSS {@code opacity} (0.0 to 1.0) applied to the background and border. */
     public S opacity(double opacity) {
         this.opacity = Math.clamp(opacity, 0.0, 1.0);
         return self();
@@ -1178,8 +1176,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * CSS {@code display: none} — when {@code true}, removes this box and its subtree from layout flow
-     * and rendering completely.
+     * Removes this box and its subtree from layout flow and rendering when true (CSS {@code display: none}).
      */
     public S hidden(boolean hidden) {
         this.hidden = hidden;
@@ -1187,7 +1184,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return self();
     }
 
-    /** Dynamically hides this box (CSS {@code display: none}) whenever {@code condition} returns {@code true}. */
+    /** Dynamically hides this box when {@code condition} returns true (CSS {@code display: none}). */
     public S hidden(BooleanSupplier condition) {
         this.hiddenWhen = condition;
         if (condition != null) {
@@ -1201,14 +1198,14 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * CSS {@code overflow} on both axes: with {@link Overflow#HIDDEN} the children are cut at this box's edges
-     * (padding included) and can be hovered and clicked only inside it.
+     * Sets CSS {@code overflow} on both axes.
+     * {@link Overflow#HIDDEN} clips children at the box edges and restricts hover and click actions to the box area.
      */
     public S overflow(Overflow overflow) {
         return overflowX(overflow).overflowY(overflow);
     }
 
-    /** CSS {@code overflow-x}: cut the children at the left and right edges. */
+    /** Sets CSS {@code overflow-x} to clip children at horizontal edges. */
     public S overflowX(Overflow overflow) {
         this.overflowX = overflow;
         return self();
@@ -1218,7 +1215,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return overflowX;
     }
 
-    /** CSS {@code overflow-y}: cut the children at the top and bottom edges. */
+    /** Sets CSS {@code overflow-y} to clip children at vertical edges. */
     public S overflowY(Overflow overflow) {
         this.overflowY = overflow;
         return self();
@@ -1229,9 +1226,8 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * CSS {@code cursor}: the sprite the screen cursor shows over this box and the boxes inside it that set none,
-     * e.g. {@code "pointer"} or {@code "text"} (names from {@code generated-pack.cursor.sprites} in config.yml).
-     * Without one, the cursor is {@code "pointer"} over clickable boxes and {@code "default"} elsewhere.
+     * Sets screen cursor sprite over this box and descendants (CSS {@code cursor}).
+     * Uses pointer over clickable boxes and default elsewhere when unset.
      */
     public S cursor(String name) {
         this.cursor = name;
@@ -1242,13 +1238,13 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return cursor;
     }
 
-    /** The cursor set on this box now (by the active states or the box), or {@code null}. */
+    /** Current cursor on this box or {@code null}. */
     String effectiveCursor() {
         Style style = activeStyle();
         return style != null && style.cursor() != null ? style.cursor() : cursor;
     }
 
-    /** Where this box may draw, from the last layout pass (the canvas when nothing around it clips). */
+    /** Where this box can draw from the last layout pass. Canvas when not clipped. */
     Rect clip() {
         return clip;
     }
@@ -1257,7 +1253,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         this.clip = clip;
     }
 
-    /** Where the children may draw: this box's clip, cut at its own edges on the axes it hides. */
+    /** Clip rectangle for children, cut at edges on hidden axes. */
     Rect childClip() {
         Rect own = rect;
         double left = overflowX.clips() ? Math.max(clip.x(), own.x()) : clip.x();
@@ -1268,8 +1264,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * The look of the box in a state, like a CSS rule for a pseudo-class:
-     * {@code state(State.HOVERED, style -> style.background(0x40FFFFFF).text("<yellow>Play"))}.
+     * The style of the box in a state, similar to a CSS pseudo-class.
      */
     public S state(State state, Consumer<Style> rule) {
         rule.accept(stateStyles.computeIfAbsent(state, key -> new Style()));
@@ -1277,7 +1272,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return self();
     }
 
-    /** The look of the box in a custom state (switched with {@link #toggle(String, boolean)}). */
+    /** The style of the box in a custom state (switched with {@link #toggle(String, boolean)}). */
     public S state(String name, Consumer<Style> rule) {
         rule.accept(stateStyles.computeIfAbsent(name, key -> new Style()));
         styleStale = true;
@@ -1294,7 +1289,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return Collections.unmodifiableSet(customStates);
     }
 
-    /** Switches a custom state on or off, like {@code classList.toggle(name, on)}. */
+    /** Switches a custom state on or off. */
     public S toggle(String name, boolean on) {
         if (on ? customStates.add(name) : customStates.remove(name)) {
             styleStale = true;
@@ -1309,13 +1304,13 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return self();
     }
 
-    /** Selected while the condition holds; checked on every refresh of the layout. */
+    /** Selected while the condition is true. Checked on every layout refresh. */
     public S selected(BooleanSupplier condition) {
         this.selectedWhen = condition;
         return self();
     }
 
-    /** A disabled box swallows clicks (nothing runs, not even a parent's handler) and shows its disabled style. */
+    /** A disabled box ignores clicks and displays its disabled style. */
     public S disabled(boolean value) {
         this.disabled = value;
         this.disabledWhen = null;
@@ -1323,7 +1318,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return self();
     }
 
-    /** Disabled while the condition holds; checked on every refresh of the layout. */
+    /** Disabled while the condition is true. Checked on every layout refresh. */
     public S disabled(BooleanSupplier condition) {
         this.disabledWhen = condition;
         return self();
@@ -1341,7 +1336,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return customStates.contains(customState);
     }
 
-    /** Re-reads the conditional states (see {@link #selected(BooleanSupplier)} and {@link #hidden(BooleanSupplier)}). */
+    /** Re-evaluates conditional states. */
     void updateStates() {
         if (hiddenWhen != null && hidden != hiddenWhen.getAsBoolean()) {
             hidden = !hidden;
@@ -1358,8 +1353,8 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * The style of the active states, or {@code null}. Like CSS rules of the same specificity, a style declared
-     * later wins over an earlier one, property by property.
+     * The style of active states, or {@code null}.
+     * A later style overrides an earlier style per property.
      */
     Style activeStyle() {
         if (styleStale) {
@@ -1383,38 +1378,38 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return any ? merged : null;
     }
 
-    /** Padding now: from the active states, if they set one. */
+    /** Current padding from active states, or default padding. */
     Insets effectivePadding() {
         Style style = activeStyle();
         return style != null && style.padding() != null ? style.padding() : padding;
     }
 
-    /** Margin now: from the active states, if they set one. */
+    /** Current margin from active states, or default margin. */
     Insets effectiveMargin() {
         Style style = activeStyle();
         return style != null && style.margin() != null ? style.margin() : margin;
     }
 
-    /** Border widths now: from the active states, if they set one. */
+    /** Current border widths from active states, or default border widths. */
     Insets effectiveBorderWidths() {
         Style style = activeStyle();
         return style != null && style.borderWidths() != null ? style.borderWidths() : borderWidths;
     }
 
-    /** Runs when the pointer enters the box (or a box inside it), with the pointing player. */
+    /** Runs when pointer enters the box or child box, with the player. */
     public S onHoverEnter(Consumer<Player> handler) {
         this.onHoverEnter = handler;
         return self();
     }
 
-    /** Runs when the pointer leaves the box, with the pointing player. */
+    /** Runs when pointer leaves the box, with the player. */
     public S onHoverLeave(Consumer<Player> handler) {
         this.onHoverLeave = handler;
         return self();
     }
 
     /**
-     * Configures CSS-style property transitions (e.g. background, border color, or transform smoothing on hover).
+     * Configures CSS property transitions.
      */
     public S transition(Transition... transitions) {
         for (Transition t : transitions) {
@@ -1430,21 +1425,21 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     }
 
     /**
-     * Configures a smooth transition for all properties with the given duration in milliseconds and easing timing function.
+     * Configures a transition for all properties with duration and easing.
      */
     public S transition(long durationMs, Easing easing) {
         return transition(Transition.all(durationMs, easing));
     }
 
     /**
-     * Configures a smooth transition for all properties with the given duration in milliseconds and standard {@link Easing#EASE}.
+     * Configures a transition for all properties with duration and standard ease.
      */
     public S transition(long durationMs) {
         return transition(Transition.all(durationMs, Easing.EASE));
     }
 
     /**
-     * Configures a smooth transition for a specific property.
+     * Configures a transition for a specific property.
      */
     public S transition(Transition.Property property, long durationMs, Easing easing) {
         return transition(new Transition(property, durationMs, easing));
@@ -1496,7 +1491,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return effectiveTransform();
     }
 
-    /** The background to draw now: from the active states, if they set one. */
+    /** The background to draw now, from active states if set. */
     int effectiveBackground() {
         return effectiveBackground(System.currentTimeMillis());
     }
@@ -1514,7 +1509,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return target;
     }
 
-    /** The border colour to draw now: from the active states, if they set one. */
+    /** The border color to draw now, from active states if set. */
     int effectiveBorderColor() {
         return effectiveBorderColor(System.currentTimeMillis());
     }
@@ -1532,7 +1527,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return target;
     }
 
-    /** @return whether the state changed (the enter/leave handler has run then) */
+    /** @return True if state changed. */
     boolean setHovered(boolean value, Player player) {
         if (hovered == value) {
             return false;
@@ -1546,18 +1541,18 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return true;
     }
 
-    /** What a click on this box runs: its own {@link #onClick}, or {@code null}. */
+    /** Handler that a click on this box runs (its own {@link #onClick} or {@code null}). */
     ClickHandler effectiveOnClick() {
         return onClick;
     }
 
-    /** Makes the whole box clickable via {@link MountedLayout#click} with pixel coordinates. */
+    /** Makes the whole box clickable through {@link MountedLayout#click} with pixel coordinates. */
     public S onClick(ClickHandler onClick) {
         this.onClick = onClick;
         return self();
     }
 
-    /** Makes the whole box clickable via {@link MountedLayout#click}. */
+    /** Makes the whole box clickable through {@link MountedLayout#click}. */
     public S onClick(Consumer<Player> onClick) {
         this.onClick = onClick != null ? (player, x, y) -> onClick.accept(player) : null;
         return self();

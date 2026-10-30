@@ -17,8 +17,7 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /**
- * A block stretched over a box of canvas px, showing its south (front) face: a textured background, a tile or
- * a picture of a block. The texture is stretched, not repeated.
+ * Renders a block model over a box of canvas pixels. Shows the south face without repeating textures.
  */
 public class CanvasBlock extends CanvasModel<BlockData> {
 
@@ -34,12 +33,12 @@ public class CanvasBlock extends CanvasModel<BlockData> {
         super(viewer, fake, pixelX, pixelY, widthPx, heightPx, block);
     }
 
-    /** A block drawn with a real entity seen by everyone; {@code block} is re-read on every refresh. */
+    /** Creates a block with a server entity visible to all players. The supplier re-reads {@code block} on refresh. */
     public CanvasBlock(double pixelX, double pixelY, double widthPx, double heightPx, Supplier<BlockData> block) {
         this(null, false, pixelX, pixelY, widthPx, heightPx, block);
     }
 
-    /** A block drawn with a real entity that only {@code viewer} sees. */
+    /** Creates a block with a server entity visible only to {@code viewer}. */
     public static CanvasBlock perPlayer(
         Player viewer,
         double pixelX,
@@ -51,7 +50,7 @@ public class CanvasBlock extends CanvasModel<BlockData> {
         return new CanvasBlock(viewer, false, pixelX, pixelY, widthPx, heightPx, block);
     }
 
-    /** A block made of packets only, for {@code viewer}: nothing is spawned on the server. */
+    /** Creates a packet-only block for {@code viewer}. No server entity spawns. */
     public static CanvasBlock fake(
         Player viewer,
         double pixelX,
@@ -86,7 +85,7 @@ public class CanvasBlock extends CanvasModel<BlockData> {
         );
     }
 
-    /** A block model spans 0..1 from its entity, so the entity is the box corner. */
+    /** A block model extends from 0 to 1 from its entity origin, which marks the box corner. */
     @Override
     protected Vector3f modelOffset(float width, float height, float thickness) {
         return new Vector3f();

@@ -17,20 +17,18 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 
 /**
- * Suppresses outgoing chat for a set of players: normal, system and disguised. Needed for
- * full-screen canvas interfaces (menus, selection screens, …), which the chat overlaps. Packets are
- * not discarded, but accumulated in a queue (with a limit, old ones are evicted) and delivered to
- * the player at {@link #restore}. A ready Component is stored, not a packet-wrapper: the original
- * packet buffer is freed immediately after sending, sending the wrapper again throws
- * IllegalReferenceCountException and breaks the client thread (protocol crash).
+ * Suppresses outgoing chat for players, including standard, system, and disguised chat.
+ * This is used for full-screen canvas interfaces that chat can obscure.
+ * Packets are stored in a bounded queue and sent to the player during {@link #restore}.
+ * The queue stores rendered {@link Component} objects rather than packet buffers.
  */
 public class ChatSuppression implements PacketListener {
 
     private static final Map<UUID, Queue<Component>> QUEUES = new ConcurrentHashMap<>();
 
     /**
-     * Hides chat for the player, queuing messages until {@link #restore} is called. No-op when
-     * {@code chat-suppression.enabled} is false.
+     * Suppresses chat for the player and queues messages until {@link #restore} is called.
+     * Does nothing when {@code chat-suppression.enabled} is false.
      */
     public static void suppress(Player player) {
         if (!Pixelay.settings().chatSuppression().enabled()) {
@@ -41,9 +39,8 @@ public class ChatSuppression implements PacketListener {
     }
 
     /**
-     * Restores chat to the player: delivers the accumulated queue in the original order, if it is
-     * not longer than {@code chat-suppression.deliver-limit} (no one needs a wall of old chat),
-     * otherwise just discards it.
+     * Restores chat for the player and delivers queued messages in sequence.
+     * Discards messages if the queue exceeds {@code chat-suppression.deliver-limit}.
      */
     public static void restore(Player player) {
         Queue<Component> queue = QUEUES.remove(player.getUniqueId());
@@ -84,10 +81,10 @@ public class ChatSuppression implements PacketListener {
             return;
         }
 
-        // The component is materialized right here, while the packet buffer is alive.
+        // Materialize the component while the packet buffer is valid.
         Component message = unwrap(event);
         queue.add(message);
-        // On overflow the oldest messages are lost.
+        // Remove oldest messages when queue limit is exceeded.
         int limit = Pixelay.settings().chatSuppression().queueLimit();
 
         while (queue.size() > limit) {
@@ -97,7 +94,7 @@ public class ChatSuppression implements PacketListener {
         event.setCancelled(true);
     }
 
-    /** Extracts the ready message component from a chat packet. */
+    /** Extracts the message component from a chat packet. */
     private static Component unwrap(PacketSendEvent event) {
         PacketTypeCommon type = event.getPacketType();
 

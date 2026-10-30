@@ -1,6 +1,6 @@
 # Architecture & Rendering Pipeline
 
-Pixelay separates **spatial projection**, **layout calculation**, and **entity/packet rendering** into clean, single-responsibility layers following SOLID principles.
+Pixelay divides spatial projection, layout calculation, and rendering into distinct layers.
 
 ```mermaid
 flowchart LR
@@ -19,48 +19,48 @@ flowchart LR
 
 `dev.horuse.pixelay.data.Canvas` defines an oriented 2D pixel coordinate system `(0..pixelWidth, 0..pixelHeight)` mapped onto a 3D plane in a Minecraft world:
 - **Origin `(0, 0)`** is the top-left corner of the surface.
-- **`+X`** runs right across the surface; **`+Y`** runs down; **`+Z` (`depth`)** steps out toward the viewer along the surface normal.
-- Supports arbitrary 3D orientation (`yaw`, `pitch`, `roll`) via quaternion basis vectors (`right`, `up`, `normal`).
+- **`+X`** points right across the surface. **`+Y`** points down. **`+Z` (`depth`)** points outward along the surface normal toward the viewer.
+- The canvas supports 3D orientation (`yaw`, `pitch`, `roll`) with quaternion basis vectors (`right`, `up`, `normal`).
 
 ---
 
-## 2. Depth Layering (`Layers`) & `z-index`
+## 2. Depth Layering (`Layers`) and `z-index`
 
-Minecraft's OpenGL renderer sorts translucent `TextDisplay` entities by camera distance. When two surfaces share the same depth plane, z-fighting occurs.
+Minecraft sorts translucent `TextDisplay` entities by camera distance in OpenGL. When two surfaces share one depth plane, z-fighting occurs.
 
-Pixelay solves this deterministically in `MountedLayout.assignSteps()`:
-1. Every `Box` in the tree is collected in DOM painting order (parents before children, earlier siblings before later siblings) and stably sorted by `Box.zIndex()`.
-2. Each box declares how many depth steps it requires (`layerSteps()`):
-   - Standard `Box` / `Container` / `Item` / `Block`: `1` step (its background or 3D model).
-   - `Text` / `Button`: `2` steps (step `N` for its background panel, step `N + 1` for the `TextDisplay` glyph above it).
-   - `layout.Canvas`: `2` steps (step `N` for its background panel, step `N + 1` for its greedy-meshed pixel quads).
-3. If a box's rectangle overlaps any earlier painted box, its `paintStep` is placed strictly above `earlier.paintEnd + 1`.
+Pixelay resolves this problem in `MountedLayout.assignSteps()`:
+1. Pixelay collects each `Box` in DOM painting order (parents before children, earlier siblings before later siblings) and sorts by `Box.zIndex()`.
+2. Each box specifies its required depth steps (`layerSteps()`):
+   - Standard `Box`, `Container`, `Item`, `Block`: 1 step (its background or 3D model).
+   - `Text`, `Button`: 2 steps (step `N` for its background panel, step `N + 1` for the glyph above it).
+   - `layout.Canvas`: 2 steps (step `N` for its background panel, step `N + 1` for greedy-meshed pixel quads).
+3. If a box overlaps an earlier painted box, Pixelay sets its `paintStep` strictly above `earlier.paintEnd + 1`.
 
 ---
 
 ## 3. Porter-Duff Alpha Compositing (`MountedLayout.composite`)
 
-In vanilla Minecraft, rendering a semi-transparent `TextDisplay` in front of an opaque `TextDisplay` writes to the depth buffer and punches a translucent hole straight through to the world blocks behind both entities.
+In vanilla Minecraft, rendering a semi-transparent `TextDisplay` in front of an opaque `TextDisplay` writes to the depth buffer. This action creates a translucent hole into the world blocks behind both entities.
 
-Pixelay eliminates this artifact automatically:
-- During `syncBackgrounds()`, `MountedLayout` computes the effective ARGB background of each `Box`.
-- If a box's background is semi-transparent (`0 < alpha < 255`), Pixelay locates the nearest overlapping ancestor or underlying sibling background and blends them using the **Porter-Duff `Source Over`** operator (`MountedLayout.composite(bgUnder, bgOver)`).
-- Whenever any ancestor has an opaque background (`alpha == 255`), all translucent cards, hover highlights, scrollbars, and `layout.Canvas` pixels over it are guaranteed to composite into a `100%` opaque colour, completely preventing depth-buffer bleed-through.
+Pixelay resolves this artifact automatically:
+- During `syncBackgrounds()`, `MountedLayout` calculates the effective ARGB background of each `Box`.
+- When a box has a semi-transparent background (`0 < alpha < 255`), Pixelay finds the nearest overlapping ancestor or underlying sibling background. Pixelay blends them with the Porter-Duff Source Over operator (`MountedLayout.composite(bgUnder, bgOver)`).
+- When an ancestor has an opaque background (`alpha == 255`), all translucent cards, hover highlights, scrollbars, and canvas pixels over it composite into an opaque color. This stops depth-buffer bleed-through.
 
 ---
 
-## 4. In-Place Packet Updates (`ColorPanel` & `TextBackground`)
+## 4. In-Place Packet Updates (`ColorPanel` and `TextBackground`)
 
-`ColorPanel` stretches a single-space `TextDisplay` (`5 × 10` font px) to any arbitrary pixel rectangle `(x, y, width, height)`.
-- When a `TextBackground` moves, resizes, or changes colour (such as during smooth scrolling or a CSS `:hover` colour transition), `ColorPanel.update(...)` updates the `scale`, `translation`, and `backgroundColor` metadata in a **single packet** (`WrapperPlayServerEntityMetadata`) with `transformationDuration = 0`.
-- Entities are never destroyed and respawned on colour/bounds changes, eliminating client-side flicker and teleport interpolation lag.
+`ColorPanel` scales a single-space `TextDisplay` (`5 × 10` font px) to an arbitrary pixel rectangle `(x, y, width, height)`.
+- When a `TextBackground` moves, resizes, or changes color (such as during scrolling or a hover color transition), `ColorPanel.update(...)` updates `scale`, `translation`, and `backgroundColor` in a single packet (`WrapperPlayServerEntityMetadata`) with `transformationDuration = 0`.
+- The server does not destroy and recreate entities on color or bounds changes. This prevents client flicker and interpolation lag.
 
 ---
 
 ## 5. Full-Screen Sessions (`ScreenSession`)
 
-`ScreenSession` turns a `MountedLayout` into a full-screen GUI for a single player:
-- Locks the player in spectator mode onto an invisible `ScreenCamera` facing the surface.
-- Maps client look packets (`yaw`, `pitch`) directly to `(cursorX, cursorY)` canvas pixels using exact perspective trigonometry (`halfHeightTan`).
-- **Core Shader Cursor (`ShaderCursor`)**: When the generated resource pack is active, the cursor is rendered directly on the GPU by the client's `rendertype_text` vertex shader at full client framerate (zero network latency) and automatically switches sprites based on the CSS `cursor` property of the hovered `Box`.
-- Ticks smooth scroll animations (`ScrollView`), CSS property transitions (`Transition`), scrollbar thumb dragging, and continuous `layout.Canvas` brush strokes every server tick (20 Hz), wrapping all entity updates in a single packet bundle (`PacketUtils.sendBundle`).
+`ScreenSession` converts a `MountedLayout` into a full-screen interface for a player:
+- The session locks the player in spectator mode onto an invisible `ScreenCamera` facing the surface.
+- The session maps client look packets (`yaw`, `pitch`) directly to `(cursorX, cursorY)` canvas pixels with perspective trigonometry (`halfHeightTan`).
+- **Core Shader Cursor (`ShaderCursor`)**: When the resource pack is active, the client vertex shader (`rendertype_text`) renders the cursor on the GPU at monitor frame rate with zero network latency. The shader switches sprites based on the CSS `cursor` property of the hovered `Box`.
+- The server updates smooth scrolling (`ScrollView`), CSS property transitions (`Transition`), scrollbar dragging, and canvas brush strokes every server tick (20 Hz). The server packages all entity updates into a single bundle (`PacketUtils.sendBundle`).

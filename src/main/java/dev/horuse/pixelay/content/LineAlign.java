@@ -1,6 +1,6 @@
 package dev.horuse.pixelay.content;
 
-/** How a TextDisplay lines up the lines of a block: each one pressed left, centred or pressed right. */
+/** Specifies horizontal alignment of text lines in a block (left, center, or right). */
 public enum LineAlign {
     LEFT,
     CENTER,

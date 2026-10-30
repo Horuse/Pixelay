@@ -5,8 +5,8 @@ import java.util.Objects;
 
 /**
  * Defines a screen transition effect when opening or closing a {@link ScreenSession}.
- * Supports client-side GPU hardware transitions (Fade, Directional Linear Wipes, Diagonal Corner Wipes,
- * Curtain/Split) with customizable durations, overlay colors, and easing curves.
+ * Supports transitions such as fade, directional linear wipes, diagonal corner wipes, and split curtains.
+ * Effects support customizable durations, overlay colors, and easing curves.
  */
 public final class ScreenTransition {
 

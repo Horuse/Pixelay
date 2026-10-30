@@ -2,9 +2,9 @@ package dev.horuse.pixelay.clicks;
 
 import org.bukkit.entity.Player;
 
-/** Something on a canvas that may handle a click at a canvas pixel. */
+/** Handles a click at canvas pixel coordinates. */
 @FunctionalInterface
 public interface ClickTarget {
-    /** @return whether the click was handled (then no other target gets it) */
+    /** @return true if this target handled the click, false otherwise */
     boolean click(double pixelX, double pixelY, Player player);
 }

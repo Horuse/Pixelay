@@ -17,10 +17,10 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * Common state for pixel-positioned components: anchor pixel coordinates, pixel height, alignment,
- * the backing {@link CanvasRenderer} and the shared canvas tag used for world cleanup ({@link
- * Pixelay#entityKey()}). Geometry ({@link CanvasDrawable}) is owned here, rendering is delegated to
- * the renderer; text placement lives in {@link TextPlacement}.
+ * Common state for pixel-positioned components. Contains anchor coordinates, height, alignment,
+ * the backing {@link CanvasRenderer}, and the canvas cleanup tag ({@link Pixelay#entityKey()}).
+ * This class stores geometry ({@link CanvasDrawable}) and delegates rendering to the renderer.
+ * {@link TextPlacement} handles text placement.
  */
 public abstract class AbstractCanvasComponent implements LayoutComponent, CanvasDrawable {
 
@@ -36,21 +36,21 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     protected Canvas canvas;
     protected CanvasRenderer renderer;
     private int layoutVersion;
-    // Layout state, written by layouts and read by renderers; both run on the main server thread,
-    // volatile keeps them consistent if a renderer reads off-thread.
+    // Layout state written by layouts and read by renderers on the main thread.
+    // The volatile modifier maintains consistency if a renderer reads asynchronously.
     private volatile Fit fit = Fit.NONE;
-    /** Line width set by a layout, in font px; {@code <= 0} means the configured default. */
+    /** Line width in font pixels set by a layout. Values {@code <= 0} use the configured default. */
     private volatile int layoutLineWidth;
-    /** Step of the text background (the text is one step above), set by layouts in painting order. */
+    /** Depth step of the text background set by layouts in painting order. The text renders one step above. */
     private volatile int layerStep = Layers.DEFAULT_TEXT_BACKGROUND_STEP;
-    /** Under the pointer in its layout (CSS {@code :hover}). */
+    /** Indicates whether the pointer hovers over the element in its layout (CSS {@code :hover}). */
     private volatile boolean hovered;
     private volatile TextWrap textWrap = TextWrap.NORMAL;
-    /** Text replacing the component's own one (a state style), or {@code null}. */
+    /** Text that replaces the component's primary text from a state style, or {@code null}. */
     private volatile TextContent textOverride;
-    /** Maximum width in font px before single-line ellipsis truncation ({@code <= 0} = disabled). */
+    /** Maximum width in font pixels before ellipsis truncation. Values {@code <= 0} disable truncation. */
     private volatile int ellipsisWidthFontPx;
-    /** Where a layout lets the element draw, or {@code null} outside layouts (the canvas then). */
+    /** Bounding clip rectangle for layout drawing, or {@code null} outside layouts. */
     private volatile Rect layoutClip;
     private volatile double visualScaleX = 1.0;
     private volatile double visualScaleY = 1.0;
@@ -93,9 +93,8 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     }
 
     /**
-     * Pins the anchor point to the given edges of the element's box: e.g. {@code align(HAlign.LEFT,
-     * VAlign.TOP)} makes {@code (pixelX, pixelY)} the top-left corner of the rendered block,
-     * whatever its measured size is.
+     * Pins the anchor point to specified edges of the element box.
+     * For example, {@code align(HAlign.LEFT, VAlign.TOP)} sets {@code (pixelX, pixelY)} as the top-left corner.
      */
     @SuppressWarnings("unchecked")
     public <T extends AbstractCanvasComponent> T align(HAlign hAlign, VAlign vAlign) {
@@ -106,8 +105,7 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     }
 
     /**
-     * Overrides the click/hit-test box size in canvas px (by default the box is the measured text
-     * block).
+     * Overrides the click hitbox size in canvas pixels. By default, the hitbox matches the measured text block.
      */
     @SuppressWarnings("unchecked")
     public <T extends AbstractCanvasComponent> T hitbox(double widthPx, double heightPx) {
@@ -118,8 +116,7 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     }
 
     /**
-     * @return measured hitbox of the rendered text {@code {width, height}} in canvas px, or null
-     *     before spawn
+     * @return measured hitbox of the rendered text {@code {width, height}} in canvas pixels, or null before spawn
      */
     public Size measuredHitboxPx() {
         return renderer != null ? renderer.measuredHitboxPx() : null;
@@ -131,8 +128,8 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     }
 
     /**
-     * Moves the anchor point and alignment; used by layouts. Renderers pick the change up on the next
-     * refresh, even if the text stayed the same.
+     * Updates the anchor coordinates and alignment for layouts.
+     * Renderers apply the change during the next refresh.
      */
     @ApiStatus.Internal
     public void place(double pixelX, double pixelY, HAlign hAlign, VAlign vAlign) {
@@ -148,13 +145,13 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     }
 
     /**
-     * Set by layouts: wrap the text at this many font px (the width the layout gives the element),
-     * capped by the configured line width; {@code <= 0} restores the default.
+     * Sets the wrap width in font pixels based on layout constraints.
+     * Pixelay clamps the value to the configured line width. Values {@code <= 0} restore the default.
      */
     @ApiStatus.Internal
     public void setLineWidth(int fontPx) {
         int width = fontPx > 0 ? Math.min(fontPx, Pixelay.settings().text().lineWidth()) : 0;
-        // No layoutVersion bump: a pass may measure several times; renderers compare the final value.
+        // Do not increment layoutVersion because passes measure multiple times. Renderers compare final values.
         layoutLineWidth = width;
     }
 
@@ -163,7 +160,7 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         return layoutLineWidth > 0 ? layoutLineWidth : CanvasDrawable.super.lineWidth();
     }
 
-    /** CSS {@code white-space}: whether the text wraps to its width at all. */
+    /** Controls line wrapping (CSS {@code white-space}). */
     @SuppressWarnings("unchecked")
     public <T extends AbstractCanvasComponent> T whiteSpace(TextWrap.WhiteSpace value) {
         textWrap = textWrap.withWhiteSpace(value);
@@ -171,7 +168,7 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         return (T) this;
     }
 
-    /** CSS {@code word-break} / {@code overflow-wrap}: whether a word may break inside. */
+    /** Controls whether words break inside lines (CSS {@code word-break}). */
     @SuppressWarnings("unchecked")
     public <T extends AbstractCanvasComponent> T wordBreak(TextWrap.WordBreak value) {
         textWrap = textWrap.withWordBreak(value);
@@ -184,12 +181,12 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         return textWrap;
     }
 
-    /** Whether the pointer is over this element's box in its layout (CSS {@code :hover}). */
+    /** @return true if the pointer hovers over this element box in its layout (CSS {@code :hover}) */
     public boolean isHovered() {
         return hovered;
     }
 
-    /** Set by layouts: text replacing the component's own one (a hover style), or {@code null}. */
+    /** Sets override text from a hover style, or {@code null}. */
     @ApiStatus.Internal
     public void setTextOverride(TextContent content) {
         this.textOverride = content;
@@ -217,11 +214,11 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         this.hovered = hovered;
     }
 
-    /** Set by layouts: the depth step of this element's text background (the text is one step above). */
+    /** Sets the depth step of this element text background. Text renders one step above. */
     @Override
     @ApiStatus.Internal
     public void setLayerStep(int step) {
-        // Renderers notice it through textDepth(): no layout version bump needed.
+        // Renderers read depth via textDepth(), so no layout version update is required.
         layerStep = step;
     }
 
@@ -241,7 +238,7 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         layoutClip = clip;
     }
 
-    /** The layout's clip, never beyond the canvas: nothing is drawn outside a canvas. */
+    /** Returns the layout clip rectangle constrained to canvas boundaries. */
     @Override
     public Rect clip() {
         if (canvas == null) {
@@ -252,7 +249,7 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
         return layoutClip != null ? layoutClip.intersect(whole) : whole;
     }
 
-    /** Set by layouts: the element is bigger than the space it was given (see LayoutDebug). */
+    /** Sets overflow status when the element exceeds allocated space. */
     @ApiStatus.Internal
     public void setFit(Fit fit) {
         this.fit = fit;

@@ -3,7 +3,7 @@ package dev.horuse.pixelay.layout;
 import java.util.Objects;
 
 /**
- * Represents a CSS-style property transition configuration.
+ * Defines CSS property transition settings.
  */
 public final class Transition {
 

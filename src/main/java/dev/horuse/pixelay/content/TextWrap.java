@@ -1,31 +1,31 @@
 package dev.horuse.pixelay.content;
 
 /**
- * How a text wraps, as in CSS. Pixelay breaks the lines itself and the client only draws them, so what is
- * measured is exactly what is shown.
+ * Controls text wrapping behavior similar to CSS.
+ * Pixelay calculates line breaks directly so rendered text matches measured bounds.
  *
- * @param whiteSpace CSS {@code white-space}
- * @param wordBreak CSS {@code word-break} / {@code overflow-wrap}
+ * @param whiteSpace CSS {@code white-space} setting
+ * @param wordBreak CSS {@code word-break} setting
  */
 public record TextWrap(WhiteSpace whiteSpace, WordBreak wordBreak) {
-    /** Wrap at spaces and after hyphens, never break a word (the CSS default). */
+    /** Wraps lines at spaces and hyphens without breaking words. */
     public static final TextWrap NORMAL = new TextWrap(WhiteSpace.NORMAL, WordBreak.NORMAL);
 
-    /** CSS {@code white-space}. Explicit line breaks ({@code \n}, {@code <br>}) are always kept. */
+    /** Controls line wrapping behavior. Preserves explicit newlines. */
     public enum WhiteSpace {
         /** Lines wrap to the available width. */
         NORMAL,
-        /** Lines never wrap; a long line overflows. */
+        /** Disables line wrapping. Long lines overflow the container. */
         NOWRAP,
     }
 
-    /** Where a line may break besides spaces and hyphens. */
+    /** Controls word break locations. */
     public enum WordBreak {
-        /** Nowhere: a word wider than the line overflows ({@code word-break: normal}). */
+        /** Words do not break. Words wider than the line overflow ({@code word-break: normal}). */
         NORMAL,
-        /** Inside a word only when it does not fit on a line of its own ({@code overflow-wrap: break-word}). */
+        /** Breaks words only when a word exceeds full line width ({@code overflow-wrap: break-word}). */
         BREAK_WORD,
-        /** Between any two characters ({@code word-break: break-all}). */
+        /** Breaks text between any two characters ({@code word-break: break-all}). */
         BREAK_ALL,
     }
 

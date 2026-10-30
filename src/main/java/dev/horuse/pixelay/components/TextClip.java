@@ -7,21 +7,21 @@ import java.util.List;
 import net.kyori.adventure.text.Component;
 
 /**
- * Cuts a text at its clip (CSS {@code overflow}), pixel by pixel, with the Pixelay core shader of the
- * generated resource pack. The server works out for every glyph how much of it lies outside and hides that in
- * the glyph's colour (its lowest bits); the shader reads it and drops the pixels outside. A text that lies
- * entirely inside its clip is sent as it is.
+ * Clips text at overflow boundaries using the Pixelay core shader.
+ * The server computes glyph coverage and encodes clipping instructions into low color bits.
+ * The shader reads these bits and discards pixels outside boundaries.
+ * Text inside bounds transfers without changes.
  * <p>
- * The code of a glyph is 9 bits: bit 8 is always set, bits 0-3 cut it horizontally and bits 4-7 vertically.
- * A cut value {@code k} of 1-7 drops the first {@code k/8} of the glyph (from the left, or the top), 9-15
- * keeps only its first {@code (k-8)/8}, 8 hides the glyph, 0 keeps it whole. A coded text is sent with
- * opacity {@link #CODED_OPACITY}: the shader decodes only texts with exactly that opacity.
+ * Glyph encoding uses 9 bits. Bit 8 is set, bits 0-3 clip horizontally, and bits 4-7 clip vertically.
+ * Cut values from 1 to 7 drop {@code k/8} of the glyph. Values from 9 to 15 keep {@code (k-8)/8}.
+ * Value 8 hides the glyph. Value 0 keeps the glyph complete.
+ * Coded text uses opacity {@link #CODED_OPACITY}.
  */
 final class TextClip {
 
-    /** Text opacity marking a coded text (one step below opaque: invisible). */
+    /** Text opacity marker for coded text. */
     static final int CODED_OPACITY = 254;
-    /** The code of a glyph drawn whole. */
+    /** Mask code for an unclipped glyph. */
     private static final int WHOLE = 1 << 8;
     private static final int HIDDEN = 8;
     private static final int STEPS = 8;
@@ -29,8 +29,8 @@ final class TextClip {
     private TextClip() {}
 
     /**
-     * @param component the text to send
-     * @param coded whether it carries cut codes (send it with {@link #CODED_OPACITY})
+     * @param component the text component to send
+     * @param coded true if text contains clip codes, false otherwise
      */
     record Clipped(Component component, boolean coded) {}
 
@@ -50,7 +50,7 @@ final class TextClip {
         return cut ? new Clipped(placement.laid().encoded(codes), true) : new Clipped(placement.component(), false);
     }
 
-    /** The glyph's quad in canvas px. */
+    /** Calculates the glyph rectangle in canvas pixels. */
     private static Rect onCanvas(GlyphBox glyph, TextPlacement.Placement placement) {
         double f = placement.fontPx();
         return new Rect(
@@ -70,7 +70,7 @@ final class TextClip {
         return WHOLE | horizontal | (vertical << 4);
     }
 
-    /** The cut value of a glyph spanning {@code [from, to)} along one axis, clipped to {@code [min, max)}. */
+    /** Calculates the cut value of a glyph interval clipped to bounds. */
     private static int cut(double from, double to, double min, double max) {
         double size = to - from;
         if (to <= min || from >= max || size <= 0) {

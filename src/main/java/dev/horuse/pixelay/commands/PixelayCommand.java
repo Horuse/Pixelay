@@ -15,7 +15,7 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.configurate.ConfigurateException;
 
-/** {@code /pixelay reload} — re-reads config.yml and font-widths.yml. */
+/** Handles the {@code /pixelay} command. */
 public class PixelayCommand implements TabExecutor {
 
     private final PixelayPlugin plugin;
@@ -24,7 +24,7 @@ public class PixelayCommand implements TabExecutor {
         this.plugin = plugin;
     }
 
-    // Pastel palette: messages are easy to tell apart at a glance.
+    // Pastel palette for command messages.
     private static final String PREFIX = "<#C4B5FD>Pixelay <#94A3B8>» ";
     private static final String TEXT = "<#E2E8F0>";
     private static final String ON = "<#86EFAC>";
@@ -66,7 +66,7 @@ public class PixelayCommand implements TabExecutor {
                 );
                 case "layers" -> {
                     boolean on = Layers.toggleExploded(player);
-                    // Click tiles stand on the text layer, which just moved.
+                    // Respawns click tiles because the text layer moved.
                     CanvasClicks.respawnAll();
                     toggle(
                         player,

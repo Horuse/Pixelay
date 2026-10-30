@@ -4,8 +4,8 @@ import dev.horuse.pixelay.content.TextContent;
 import dev.horuse.pixelay.utils.ColorUtils;
 
 /**
- * What changes on a box in a state (see {@link Box#state}), like the body of a CSS rule such as
- * {@code :hover { ... }}. Unset properties keep their normal value.
+ * Defines styling overrides applied when an interactive state is active.
+ * Properties not specified retain their base values.
  */
 public final class Style {
 
@@ -31,58 +31,58 @@ public final class Style {
 
     Style() {}
 
-    /** Background colour (ARGB). */
+    /** Sets background ARGB color for this state. */
     public Style background(int argb) {
         this.background = argb;
         return this;
     }
 
-    /** Background colour from CSS hex/rgb/rgba string (e.g. {@code "#0B1426"} or {@code "rgba(11, 20, 38, 0.8)"}). */
+    /** Sets background color from a CSS color string. */
     public Style background(String cssColor) {
         return background(ColorUtils.parse(cssColor));
     }
 
-    /** Border width and colour on all four sides while in this state. */
+    /** Sets border width and ARGB color on all sides. */
     public Style border(double widthPx, int argb) {
         this.borderWidths = Insets.all(widthPx);
         this.borderColor = argb;
         return this;
     }
 
-    /** Border width and CSS colour on all four sides while in this state. */
+    /** Sets border width and CSS color string on all sides. */
     public Style border(double widthPx, String cssColor) {
         return border(widthPx, ColorUtils.parse(cssColor));
     }
 
-    /** Border colour (ARGB) while in this state. */
+    /** Sets border ARGB color. */
     public Style borderColor(int argb) {
         this.borderColor = argb;
         return this;
     }
 
-    /** Border colour from CSS string while in this state. */
+    /** Sets border color from a CSS color string. */
     public Style borderColor(String cssColor) {
         return borderColor(ColorUtils.parse(cssColor));
     }
 
-    /** Opacity multiplier ({@code 0.0..1.0}) while in this state. */
+    /** Sets opacity multiplier between 0.0 and 1.0. */
     public Style opacity(double opacity) {
         this.opacity = Math.clamp(opacity, 0.0, 1.0);
         return this;
     }
 
-    /** Text of the component (for {@code node(component)}), MiniMessage. */
+    /** Sets text content from a MiniMessage string. */
     public Style text(String miniMessage) {
         return text(TextContent.of(miniMessage));
     }
 
-    /** Text of the component (for {@code node(component)}). */
+    /** Sets text content. */
     public Style text(TextContent content) {
         this.text = content;
         return this;
     }
 
-    /** Padding while in the state (the layout is redone). */
+    /** Sets padding insets for this state. */
     public Style padding(double all) {
         return padding(Insets.all(all));
     }
@@ -92,26 +92,26 @@ public final class Style {
         return this;
     }
 
-    /** Margin while in the state (the layout is redone). */
+    /** Sets margin insets for this state. */
     public Style margin(Insets margin) {
         this.margin = margin;
         return this;
     }
 
-    /** CSS {@code cursor} while in the state, e.g. {@code "not-allowed"} for {@code State.DISABLED}. */
+    /** Sets cursor sprite name for this state. */
     public Style cursor(String name) {
         this.cursor = name;
         return this;
     }
 
-    /** CSS {@code transform: translate(percentX, percentY)} while in this state. */
+    /** Sets percentage translation for this state. */
     public Style translate(double percentX, double percentY) {
         this.translateX = percentX;
         this.translateY = percentY;
         return this;
     }
 
-    /** CSS {@code transform: translate(dxPx, dyPx)} in canvas pixels while in this state. */
+    /** Sets pixel translation for this state. */
     public Style translatePx(double dxPx, double dyPx) {
         this.translatePxX = dxPx;
         this.translatePxY = dyPx;
@@ -128,12 +128,12 @@ public final class Style {
         return this;
     }
 
-    /** CSS {@code transform: scale(factor)} while in this state. */
+    /** Sets uniform scale factor for this state. */
     public Style scale(double factor) {
         return scale(factor, factor);
     }
 
-    /** CSS {@code transform: scale(sx, sy)} while in this state. */
+    /** Sets scale factors for this state. */
     public Style scale(double sx, double sy) {
         this.scaleX = sx;
         this.scaleY = sy;
@@ -150,32 +150,32 @@ public final class Style {
         return this;
     }
 
-    /** CSS {@code transform: rotate(deg)} while in this state. */
+    /** Sets clockwise 2D rotation in degrees. */
     public Style rotate(double degrees) {
         this.rotateDeg = degrees;
         return this;
     }
 
-    /** CSS {@code transform: rotateX(deg)} while in this state. */
+    /** Sets 3D pitch rotation in degrees. */
     public Style rotateX(double degrees) {
         this.rotateXDeg = degrees;
         return this;
     }
 
-    /** CSS {@code transform: rotateY(deg)} while in this state. */
+    /** Sets 3D yaw rotation in degrees. */
     public Style rotateY(double degrees) {
         this.rotateYDeg = degrees;
         return this;
     }
 
-    /** CSS {@code transform-origin: ox oy} ({@code 0.0..1.0}) while in this state. */
+    /** Sets transform origin ratios from 0.0 to 1.0. */
     public Style transformOrigin(double ox, double oy) {
         this.originX = ox;
         this.originY = oy;
         return this;
     }
 
-    /** Sets the full {@link Transform} while in this state. */
+    /** Sets transform configuration for this state. */
     public Style transform(Transform t) {
         if (t == null) {
             return this;
@@ -286,7 +286,7 @@ public final class Style {
         );
     }
 
-    /** Fills what is still unset here from {@code other} (a less important state). */
+    /** Applies unset properties from another style. */
     void fillFrom(Style other) {
         if (background == null) {
             background = other.background;

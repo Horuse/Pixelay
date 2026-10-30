@@ -3,7 +3,7 @@ package dev.horuse.pixelay.layout;
 import dev.horuse.pixelay.utils.ColorUtils;
 
 /**
- * Tracks the live interpolation state for an animating transition.
+ * Tracks interpolation state for color transitions.
  */
 public final class TransitionState {
 

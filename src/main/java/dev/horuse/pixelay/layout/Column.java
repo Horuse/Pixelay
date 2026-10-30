@@ -1,7 +1,7 @@
 package dev.horuse.pixelay.layout;
 
 /**
- * A vertical flex container (CSS {@code display: flex; flex-direction: column}).
+ * Vertical flex container arranging children in a column.
  */
 public final class Column extends Flex {
 

@@ -22,15 +22,13 @@ import org.bukkit.entity.Player;
 import org.joml.Quaternionf;
 
 /**
- * A flat coloured rectangle on a canvas (backgrounds, debug panels): a fake TextDisplay holding a single space
- * whose background is stretched to the rectangle, sent to one player only.
+ * Renders a colored rectangle on a canvas for a single player. Uses a packet TextDisplay with a scaled space background.
  */
 public final class ColorPanel {
 
     /**
-     * Background of a one-space TextDisplay in font px, as the client draws it: the text width (4)
-     * plus 1, and the line height (9) plus 1 (verified in game). The quad is centred half a font px
-     * right of the entity and grows up from it.
+     * Background dimensions of a single-space TextDisplay in font pixels.
+     * The quad centers 0.5 font pixels right of the entity and extends upward.
      */
     private static final double BG_WIDTH_FONT_PX = 5;
     private static final double BG_HEIGHT_FONT_PX = 10;
@@ -39,7 +37,7 @@ public final class ColorPanel {
 
     private ColorPanel() {}
 
-    /** Spawns a panel over canvas px {@code (x, y, width, height)} at {@code depth} blocks off the plane. */
+    /** Spawns a panel over canvas pixel coordinates {@code (x, y, width, height)} at {@code depth} blocks. */
     public static int spawn(
         Player viewer,
         Canvas canvas,
@@ -53,7 +51,7 @@ public final class ColorPanel {
         return spawn(viewer, canvas, x, y, width, height, argb, depth, 0.0, 0.0, 0.0);
     }
 
-    /** Spawns a panel over canvas px {@code (x, y, width, height)} with optional Euler rotation degrees. */
+    /** Spawns a panel over canvas pixel coordinates with 3D Euler rotation angles. */
     public static int spawn(
         Player viewer,
         Canvas canvas,
@@ -84,7 +82,7 @@ public final class ColorPanel {
         );
     }
 
-    /** Spawns a panel over canvas px {@code (x, y, width, height)} with optional Euler rotation degrees around {@code (pivotX, pivotY)}. */
+    /** Spawns a panel over canvas pixel coordinates rotated around {@code (pivotX, pivotY)}. */
     public static int spawn(
         Player viewer,
         Canvas canvas,
@@ -118,7 +116,7 @@ public final class ColorPanel {
         );
     }
 
-    /** Spawns a panel over canvas px with brightness override (used for screen transition shader signatures). */
+    /** Spawns a panel over canvas pixel coordinates with custom brightness. */
     public static int spawn(
         Player viewer,
         Canvas canvas,
@@ -148,7 +146,7 @@ public final class ColorPanel {
         );
     }
 
-    /** Spawns a panel over canvas px {@code (x, y, width, height)} with optional Euler rotation degrees and brightness override. */
+    /** Spawns a panel over canvas pixel coordinates with 3D Euler rotation and brightness settings. */
     public static int spawn(
         Player viewer,
         Canvas canvas,
@@ -197,7 +195,7 @@ public final class ColorPanel {
         return id;
     }
 
-    /** Updates the background colour of an existing panel without moving or recreating it. */
+    /** Updates the background color of an existing panel in place. */
     public static void updateColor(Player viewer, int id, int argb) {
         PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
         PacketUtils.send(
@@ -209,7 +207,7 @@ public final class ColorPanel {
         );
     }
 
-    /** Moves and resizes an existing panel to a new rectangle via translation (no teleport lerp lag). */
+    /** Moves and resizes an existing panel to target bounds using entity translation. */
     public static void update(
         Player viewer,
         int id,
@@ -221,7 +219,7 @@ public final class ColorPanel {
         update(viewer, id, canvas, width, height, translation, null, null, 0);
     }
 
-    /** Moves, resizes, and recolors an existing panel in a single metadata packet without recreating it. */
+    /** Updates bounds and color of an existing panel in a single metadata packet. */
     public static void update(
         Player viewer,
         int id,
@@ -251,7 +249,7 @@ public final class ColorPanel {
         );
     }
 
-    /** Moves, resizes, rotates, and optionally recolors an existing panel in a single metadata packet. */
+    /** Updates bounds, rotation, and color of an existing panel in a single metadata packet. */
     public static void update(
         Player viewer,
         int id,
@@ -265,7 +263,7 @@ public final class ColorPanel {
         update(viewer, id, canvas, width, height, translation, rotation, argb, 0);
     }
 
-    /** Moves, resizes, rotates, and optionally recolors an existing panel with client interpolation duration in ticks. */
+    /** Updates panel transform and color with client interpolation duration in ticks. */
     public static void update(
         Player viewer,
         int id,
@@ -320,7 +318,7 @@ public final class ColorPanel {
         return rot;
     }
 
-    /** Moves and resizes an existing panel to a new rectangle. */
+    /** Moves and resizes an existing panel to target bounds. */
     public static void update(
         Player viewer,
         int id,
@@ -347,7 +345,7 @@ public final class ColorPanel {
         move(viewer, id, canvas, x, y, width, height, depth);
     }
 
-    /** Moves a panel spawned with the same size to a new position. */
+    /** Moves an existing panel of identical size to new coordinates. */
     public static void move(
         Player viewer,
         int id,
@@ -371,7 +369,7 @@ public final class ColorPanel {
         );
     }
 
-    /** Non-uniform TextDisplay scale that stretches the one-space background to {@code width x height} canvas px. */
+    /** Calculates scale factors that stretch the space background to {@code width x height} canvas pixels. */
     public static Vector3f scale(Canvas canvas, double width, double height) {
         CanvasResolution res = canvas.resolution();
         float x = (float) (((width / BG_WIDTH_FONT_PX) * (res.blockWidth() / res.pixelWidth())) / BLOCKS_PER_FONT_PX);
@@ -380,14 +378,13 @@ public final class ColorPanel {
         return new Vector3f(x, y, 1f);
     }
 
-    /** Where a panel's entity stands for the rectangle {@code (x, y, width, height)}. */
+    /** Calculates the entity spawn location for rectangle {@code (x, y, width, height)}. */
     public static Location origin(Canvas canvas, double x, double y, double width, double height, float depth) {
         return origin(canvas, x, y, width, height, depth, 0.0, 0.0, 0.0, Double.NaN, Double.NaN);
     }
 
     /**
-     * Where a panel's entity stands for the rectangle {@code (x, y, width, height)} when rotated by
-     * {@code rotateDeg} clockwise around {@code (pivotX, pivotY)} in canvas pixels.
+     * Calculates the entity spawn location for a rectangle rotated by {@code rotateDeg} around {@code (pivotX, pivotY)}.
      */
     public static Location origin(
         Canvas canvas,
@@ -404,8 +401,7 @@ public final class ColorPanel {
     }
 
     /**
-     * Where a panel's entity stands for the rectangle {@code (x, y, width, height)} when rotated by
-     * Euler degrees {@code (rotateDeg, rotateXDeg, rotateYDeg)} around {@code (pivotX, pivotY)} in canvas pixels.
+     * Calculates the entity spawn location for a rectangle with Euler rotations around {@code (pivotX, pivotY)}.
      */
     public static Location origin(
         Canvas canvas,

@@ -1,11 +1,11 @@
 package dev.horuse.pixelay.pack;
 
 /**
- * A sprite of the screen cursor ({@code generated-pack.cursor.sprites} in config.yml), drawn from
- * {@code cursors/<name>.png} of the pack.
+ * A sprite of the screen cursor ({@code generated-pack.cursor.sprites} in config.yml).
+ * Drawn from {@code cursors/<name>.png} in the pack.
  *
- * @param name what boxes ask for with {@code cursor("name")}, like CSS {@code cursor}
- * @param hotSpotX the pointing point, in sprite px from the left (CSS {@code cursor: url(...) x y})
- * @param hotSpotY the pointing point, in sprite px from the top
+ * @param name The name that boxes request with {@code cursor("name")}.
+ * @param hotSpotX The active point in sprite pixels from the left edge.
+ * @param hotSpotY The active point in sprite pixels from the top edge.
  */
 public record CursorSprite(String name, double hotSpotX, double hotSpotY) {}

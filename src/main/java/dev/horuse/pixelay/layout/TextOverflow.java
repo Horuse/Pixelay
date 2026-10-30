@@ -1,11 +1,11 @@
 package dev.horuse.pixelay.layout;
 
 /**
- * CSS {@code text-overflow} behaviour when single-line text exceeds its available width.
+ * Specifies text overflow behavior for single-line text.
  */
 public enum TextOverflow {
-    /** Cuts text at the box edge (CSS {@code text-overflow: clip}). */
+    /** Clips text at box boundaries. */
     CLIP,
-    /** Appends an ellipsis ({@code "..."}) to represent clipped text (CSS {@code text-overflow: ellipsis}). */
+    /** Appends an ellipsis to represent clipped text. */
     ELLIPSIS,
 }

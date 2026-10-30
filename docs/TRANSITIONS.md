@@ -1,33 +1,34 @@
-# Screen Transitions & Native Client GPU Interpolation in Pixelay
+# Screen Transitions and Native Client GPU Interpolation in Pixelay
 
-Pixelay provides two distinct layers of animation and transition technologies:
-1. **Native Client GPU Interpolation (Unlimited / High-Refresh FPS)**: Sub-tick hardware GPU interpolation of transforms (`scale`, `translate`, `rotate`) on Display entities, running at the player's full monitor refresh rate (60 Hz, 144 Hz, 240 Hz, 360 Hz+).
-2. **Screen Transitions**: Two-phase entry and exit transitions (fade, linear wipes, diagonal corner wipes, curtain) drawn with packet-only display panels.
+Pixelay provides two layers of animation and transition technologies:
+1. **Native Client GPU Interpolation (High Refresh Rate)**: Sub-tick GPU interpolation of transforms (`scale`, `translate`, `rotate`) on Display entities at monitor refresh rate.
+2. **Screen Transitions**: Two-phase entry and exit transitions (fade, linear wipes, diagonal corner wipes, curtain) drawn with packet display panels or core shaders.
 
 ---
 
-## 1. Native Client-Side GPU Interpolation (Unlimited FPS)
+## 1. Native Client-Side GPU Interpolation (Uncapped Refresh Rates)
 
-### Why Display Entities Normally Stutter at 20 FPS
-In vanilla Minecraft, the server ticks at 20 TPS (50 ms per tick). If a plugin attempts to animate position or size by recalculating values and updating entity metadata on every server tick:
-- The server sends intermediate steps at most 20 times per second.
-- On a 60 Hz, 144 Hz, 240 Hz, or 360 Hz monitor, the animation appears choppy and stepped, like a 20 FPS slideshow.
-- Setting `transformation_interpolation_duration = 0` forces the client to snap immediately to each packet, completely bypassing the client's internal GPU interpolation engine.
+### Why Display Entities Stutter at 20 FPS
+In vanilla Minecraft, the server ticks 20 times per second (50 ms per tick).
+When a plugin recalculates entity positions on every server tick:
+- The server sends updates at most 20 times per second.
+- On a high-refresh monitor (such as 144 Hz or 240 Hz), movement looks stepped.
+- When `transformation_interpolation_duration` is 0, the client snaps immediately to each packet and skips GPU interpolation.
 
-### How Pixelay Achieves Monitor-Refresh Smoothness
-Minecraft 1.19.4+ Display entities (`TextDisplay`, `ItemDisplay`, `BlockDisplay`) natively support GPU sub-tick interpolation across render frames:
-1. When a property changes (such as `:hover`, `:selected`, or `.scale(1.04)`), Pixelay calculates the transition duration in ticks:
+### How Pixelay Interpolates at Monitor Refresh Rates
+Minecraft 1.19.4+ Display entities (`TextDisplay`, `ItemDisplay`, `BlockDisplay`) support sub-tick interpolation across render frames:
+1. When a property changes (such as `:hover`, `:selected`, or `.scale(1.04)`), Pixelay calculates the duration in ticks:
    $$\text{durationTicks} = \max\left(1, \operatorname{round}\left(\frac{\text{durationMs}}{50}\right)\right)$$
-2. Instead of recalculating intermediate steps on the server every tick, Pixelay immediately sends the **final target transformation matrix** with:
-   - `transformation_interpolation_duration` = `durationTicks`
-   - `transformation_start_delta` = `0`
-3. The Minecraft client's `DisplayRenderer` interpolates between the current transformation matrix and target matrix on **every single video frame rendered by the GPU** using `partialTicks`.
-4. The frame rate is completely **uncapped** and matches the player's monitor:
+2. Pixelay sends the target transformation matrix immediately:
+   - `transformation_interpolation_duration = durationTicks`
+   - `transformation_start_delta = 0`
+3. The client `DisplayRenderer` interpolates between the current matrix and the target matrix on every GPU render frame using `partialTicks`.
+4. The frame rate matches the monitor:
    - **60 Hz**: ~12 interpolated frames for a 200 ms transition
    - **144 Hz**: ~29 interpolated frames
    - **240 Hz**: ~48 interpolated frames
    - **360 Hz**: ~72 interpolated frames
-   All rendered on the GPU with zero network overhead and zero server CPU load during the animation.
+   All frames render on the GPU with no network overhead and no server CPU load during movement.
 
 ### How to Use Transitions in Pixelay Layouts
 
@@ -47,12 +48,12 @@ Box<?> card = Layout.column(
         .translateY(-4)
         .borderColor("#6366F1")
     )
-    // 180 ms smooth transition (translates to 4 ticks of client GPU interpolation)
+    // 180 ms transition (translates to 4 ticks of client GPU interpolation)
     .transition(180, Easing.EASE_OUT);
 ```
 
 #### Transitioning Specific Properties
-You can transition all properties or target specific ones:
+You can transition all properties or target specific properties:
 
 ```java
 // Transitions all properties (transform and background)
@@ -67,13 +68,13 @@ You can transition all properties or target specific ones:
 
 ---
 
-## 2. Screen Transitions (Fade In & Fade Out)
+## 2. Screen Transitions (Fade In and Fade Out)
 
-When opening or closing full-screen sessions (`ScreenSession`), instant popping can feel abrupt. Pixelay supports built-in screen transitions.
+When opening or closing full-screen sessions (`ScreenSession`), instant switching can look abrupt. Pixelay provides built-in screen transitions.
 
 ### Using ScreenSession Transitions
 
-Configure transitions directly on the `ScreenSession.Builder`:
+Configure transitions directly on `ScreenSession.Builder`:
 
 ```java
 ScreenSession session = ScreenSession.builder(player)
@@ -86,7 +87,7 @@ ScreenSession session = ScreenSession.builder(player)
     .open();
 ```
 
-Or configure both at once:
+Or configure both phases at once:
 
 ```java
 .transition(ScreenTransition.fade(200))
@@ -94,29 +95,29 @@ Or configure both at once:
 
 ### Transition Types
 
-Defined in `ScreenTransition` (each with a configurable duration, overlay color and easing):
-- `ScreenTransition.fade(durationMs)` — smooth darken, then smooth reveal (default: pure black `#000000`).
-- `ScreenTransition.linearWipe(durationMs, direction, color, easing)` — a panel sweeps across the screen; `direction` is one of `LINEAR_WIPE_LEFT`, `LINEAR_WIPE_RIGHT`, `LINEAR_WIPE_UP`, `LINEAR_WIPE_DOWN`.
-- `ScreenTransition.cornerWipe(durationMs, corner, color, easing)` — a straight edge turned 45° sweeps diagonally from a corner; `corner` is one of `CORNER_WIPE_TOP_LEFT`, `CORNER_WIPE_TOP_RIGHT`, `CORNER_WIPE_BOTTOM_LEFT`, `CORNER_WIPE_BOTTOM_RIGHT`.
-- `ScreenTransition.curtain(durationMs)` — two halves close in from the sides, then open back out.
+`ScreenTransition` provides these transition types:
+- `ScreenTransition.fade(durationMs)` — Darkens the screen, then reveals the content. Default color is pure black (`#000000`).
+- `ScreenTransition.linearWipe(durationMs, direction, color, easing)` — A panel sweeps across the screen. The direction is `LINEAR_WIPE_LEFT`, `LINEAR_WIPE_RIGHT`, `LINEAR_WIPE_UP`, or `LINEAR_WIPE_DOWN`.
+- `ScreenTransition.cornerWipe(durationMs, corner, color, easing)` — A 45-degree edge sweeps diagonally from a corner. The corner is `CORNER_WIPE_TOP_LEFT`, `CORNER_WIPE_TOP_RIGHT`, `CORNER_WIPE_BOTTOM_LEFT`, or `CORNER_WIPE_BOTTOM_RIGHT`.
+- `ScreenTransition.curtain(durationMs)` — Two halves close from the sides and open back out.
 
-### How It Works
+### How It Operates
 
-Every transition has two phases, each lasting `durationMs`, with a black hold in between:
+Every transition has two phases of length `durationMs`, with a black hold between them:
 
 ```mermaid
 flowchart LR
-    A["Cover (in)"] --> B["Fully covered: player is seated / restored"] --> C["Hold until the client settles"] --> D["Reveal (out)"]
+    A["Cover (in)"] --> B["Fully covered: seat or restore player"] --> C["Hold until client settles"] --> D["Reveal (out)"]
 ```
 
 #### Core Shader Transitions (Resource Pack)
-When Pixelay's resource pack is loaded:
-- **True Full-Screen 2D GUI Layer**: Transitions are rendered via a dedicated title glyph (`\uE000` with font `pixelay:transition`) expanded to full-screen NDC in `rendertype_text.vsh`. Because titles render near the end of the frame in Minecraft's 2D GUI pipeline, the transition draws completely **above the player's 1st-person hand, hearts, and hotbar**.
-- **No World Entities**: Zero 3D entities are spawned in the Minecraft world blocks during opening or closing. The player will never see a 3D black billboard hanging in the world.
-- **Native GPU Sub-Tick Smoothness (144+ FPS)**: Progress is driven smoothly across every video frame rendered by the GPU using client-side title alpha interpolation and GLSL smoothstep anti-aliasing.
-- **Seamless Game Mode Masking**: Player teleportation and game mode switching (Survival ⇄ Spectator) execute only when the screen is 100% covered, ensuring no abrupt hand or HUD disappearing glitches.
+When the Pixelay resource pack is active:
+- **Full-Screen 2D GUI Layer**: Pixelay sends a title glyph (`\uE000` with font `pixelay:transition`). The vertex shader `rendertype_text.vsh` expands it to full-screen coordinates. Because Minecraft renders titles late in the 2D GUI pass, the transition draws above the first-person hand and the HUD.
+- **No World Entities**: The server spawns no 3D entities in world blocks for shader transitions. The player sees no black billboard in the world.
+- **GPU Sub-Tick Interpolation**: The client interpolates title alpha on every video frame. GLSL smoothstep anti-aliases edges cleanly.
+- **Screen Masking**: Player teleportation and game mode changes occur when the screen is 100% black. The client shows no sudden hand or HUD disappearance.
 
 #### Entity Fallback (`ScreenFader`)
-For setups without the resource pack:
-- The veil falls back to packet-level `TextDisplay` background panels (`ScreenFader`).
-- Sized with a safety margin (1.6×) to cover ultra-wide aspect ratios and high FOVs.
+When the client does not use the resource pack:
+- The transition uses packet-level `TextDisplay` background panels (`ScreenFader`).
+- Panels use a 1.6× safety margin to cover ultrawide monitors and high FOV settings.

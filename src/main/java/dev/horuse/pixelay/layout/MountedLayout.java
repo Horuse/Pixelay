@@ -26,13 +26,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
 /**
- * A layout tree attached to a canvas. It is itself a {@link CanvasComponent}: spawning lays the tree
- * out over the whole canvas and spawns every component; refreshing re-runs the layout (texts may have
- * changed size) and moves components that shifted.
+ * Mounts and manages a layout tree on a canvas.
+ * Spawning calculates component layout over the canvas surface.
+ * Refreshing recalculates bounds and updates positions of moved components.
  */
 public final class MountedLayout implements CanvasComponent {
 
-    // spawn/refresh/despawn must run on the main server thread: the debug overlay uses the Bukkit API.
+    // Lifecycle methods run on the primary server thread.
 
     private final Box<?> root;
     private final List<LayoutComponent> components = new ArrayList<>();
@@ -40,9 +40,9 @@ public final class MountedLayout implements CanvasComponent {
     private dev.horuse.pixelay.data.Canvas canvas;
     private final DebugOverlay debugOverlay = new DebugOverlay();
     private BukkitTask transitionTask;
-    /** Panels of boxes with a {@link Box#background}, by box. */
+    /** Background panels mapped by box. */
     private final Map<Box<?>, TextBackground> backgrounds = new IdentityHashMap<>();
-    /** Border edge panels (top, right, bottom, left) of boxes with a {@link Box#border}, by box. */
+    /** Border edge panels mapped by box in top, right, bottom, left order. */
     private final Map<Box<?>, TextBackground[]> borders = new IdentityHashMap<>();
     private final Map<Box<?>, Integer> compositedColors = new IdentityHashMap<>();
     private final ClickTarget clickTarget = this::click;
@@ -50,7 +50,7 @@ public final class MountedLayout implements CanvasComponent {
     private Player clickViewer;
     private boolean stepsWarned;
     private boolean textWithoutTextWarned;
-    /** Parent of every box, to give :hover to the ancestors of the hovered box. */
+    /** Parent box lookup to propagate hover state to ancestors. */
     private final Map<Box<?>, Box<?>> parents = new IdentityHashMap<>();
 
     public MountedLayout(Box<?> root) {
@@ -73,7 +73,7 @@ public final class MountedLayout implements CanvasComponent {
         return root;
     }
 
-    /** Explicitly binds this mounted layout to a single viewer player (used when the tree has no text leaves). */
+    /** Binds this layout to a single viewing player. */
     public MountedLayout viewer(Player viewer) {
         this.explicitViewer = viewer;
         if (viewer != null) {
@@ -88,7 +88,7 @@ public final class MountedLayout implements CanvasComponent {
         return List.copyOf(components);
     }
 
-    /** Runs measure + arrange over the whole canvas, or at the mount point (see {@link Layout#mountAt}). */
+    /** Calculates component layout over the canvas bounds. */
     public void layout(dev.horuse.pixelay.data.Canvas canvas) {
         this.canvas = canvas;
         boxes.clear();
@@ -102,9 +102,9 @@ public final class MountedLayout implements CanvasComponent {
         boxes.sort(Comparator.comparingInt(Box::zIndex));
         parents.clear();
         mapParents(root);
-        // States may change texts (state styles), and so sizes: they go before measuring.
+        // State styles can alter text metrics, update states before measurement.
         updateStates();
-        // Texts may have changed since the last pass: measure everything once more, then reuse.
+        // Invalidate previous layout metrics before remeasuring.
         root.invalidate();
         if (root.isAbsolute()) {
             arrangeAbsoluteRoot(canvas);
@@ -120,7 +120,7 @@ public final class MountedLayout implements CanvasComponent {
         Layers.reportTopStep(canvas, this, top);
     }
 
-    /** Places an absolutely positioned root box inside the canvas bounds using its CSS left/top/right/bottom offsets. */
+    /** Positions an absolute root box within canvas bounds. */
     private void arrangeAbsoluteRoot(dev.horuse.pixelay.data.Canvas canvas) {
         Rect bounds = new Rect(0, 0, canvas.resolution().pixelWidth(), canvas.resolution().pixelHeight());
         Insets m = root.effectiveMargin();
@@ -165,14 +165,12 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /**
-     * Gives every painting box its depth steps in CSS painting order (parents first, earlier siblings
-     * first): one step above every earlier box it overlaps. See {@link Layers}.
+     * Assigns depth steps to boxes in painting order to prevent z-fighting.
      */
     private void assignSteps() {
         List<Box<?>> painted = new ArrayList<>();
         for (Box<?> box : boxes) {
-            // Every box is a layer (like devtools' 3D view): a container its background and debug panel,
-            // a text its background and the text, a model itself. Nested boxes are always above their parent.
+            // Each box receives a depth layer based on painting order.
             int needs = box.layerSteps();
             int base = 1;
             for (Box<?> earlier : painted) {
@@ -203,11 +201,7 @@ public final class MountedLayout implements CanvasComponent {
         }
     }
 
-    /**
-     * CSS {@code overflow}: every box may draw only inside its ancestors' clip, starting with the canvas; a box
-     * that hides its overflow narrows it for its children. A component is cut by its own box too, when that box
-     * hides its overflow.
-     */
+    /** Calculates visible clip bounds for child elements. */
     private static void assignClips(Box<?> box, Rect clip) {
         Rect effectiveClip = box.isHidden() ? Rect.EMPTY : clip;
         box.clip(effectiveClip);
@@ -231,7 +225,7 @@ public final class MountedLayout implements CanvasComponent {
         layout(canvas);
         components.forEach(component -> component.spawn(canvas));
         clickViewer = viewer();
-        // Registered after its components, so the layout (boxes with onClick) is asked first.
+        // Register layout target to handle box click callbacks first.
         CanvasClicks.register(canvas, clickViewer, clickTarget);
         syncBackgrounds();
         debugOverlay.update(root, canvas);
@@ -265,7 +259,7 @@ public final class MountedLayout implements CanvasComponent {
         debugOverlay.clear();
     }
 
-    /** A layout of backgrounds only (no components) has nothing that can die, so it is valid. */
+    /** Validates whether mounted components remain active. */
     @Override
     public boolean isValid() {
         return components.stream().allMatch(CanvasComponent::isValid);
@@ -291,13 +285,8 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /**
-     * Draws box backgrounds. They are seen by the same player as the components (the first one that has
-     * a single viewer), or by everyone for server components. Deeper boxes sit closer to the text. A
-     * background is cut by the boxes around it that hide their overflow (and by the canvas).
-     * <p>
-     * Overlapping backgrounds are automatically alpha-composited with their ancestors' backgrounds so that
-     * semi-transparent child containers (e.g. scrollviews, hovered items) do not cause depth buffer occlusion
-     * holes through their parent backgrounds in the Minecraft renderer.
+     * Renders and updates background panels for boxes.
+     * Alpha composites translucent child boxes with ancestor backgrounds to prevent depth buffer artifacts.
      */
     private void syncBackgrounds() {
         Player viewer = viewer();
@@ -395,7 +384,7 @@ public final class MountedLayout implements CanvasComponent {
             return own;
         }
         int bgUnder = 0;
-        // 1. Ancestors first (standard nested CSS containers: scrollviews, items, cards)
+        // Search ancestor containers first.
         for (Box<?> p = parents.get(box); p != null; p = parents.get(p)) {
             int pBg = compositedColors.getOrDefault(p, 0);
             if (pBg == 0) {
@@ -406,7 +395,7 @@ public final class MountedLayout implements CanvasComponent {
                 break;
             }
         }
-        // 2. Fallback to earlier overlapping boxes (e.g. stack sibling layers)
+        // Fall back to overlapping earlier boxes.
         if (bgUnder == 0 && box.rect() != null) {
             int topStep = -1;
             for (Box<?> earlier : boxes) {
@@ -432,9 +421,7 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /**
-     * Standard Porter-Duff 'Source Over' alpha blending of two ARGB colors.
-     * When bgUnder is opaque (alpha 255), the result is guaranteed to be 100% opaque (alpha 255),
-     * preventing Minecraft translucent TextDisplay depth-buffer occlusion artifacts.
+     * Blends two colors using Porter-Duff Source Over alpha composition.
      */
     public static int composite(int bgUnder, int bgOver) {
         int aOver = (bgOver >>> 24) & 0xFF;
@@ -473,7 +460,7 @@ public final class MountedLayout implements CanvasComponent {
         return (aOutInt << 24) | (rOut << 16) | (gOut << 8) | bOut;
     }
 
-    /** The only player who sees this layout (explicit viewer or first component/box with a viewer), or {@code null}. */
+    /** Returns the single viewing player for this layout, or null if shared. */
     private Player viewer() {
         if (explicitViewer != null) {
             return explicitViewer;
@@ -491,10 +478,9 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /**
-     * Routes a click at a canvas pixel: the deepest clickable box under the point wins — a box with
-     * {@code onClick}, or the whole box of a clickable component (its padding included).
+     * Routes a click at canvas coordinates to the deepest matching box.
      *
-     * @return whether anything handled the click
+     * @return true if an element handled the click
      */
     public boolean click(double px, double py, Player player) {
         if (ScreenSession.isInSession(player)) {
@@ -531,7 +517,7 @@ public final class MountedLayout implements CanvasComponent {
         if (target == null) {
             return false;
         }
-        // A disabled box (or one inside it) swallows the click, like CSS :disabled.
+        // Disabled boxes consume click events without action.
         if (!insideDisabled(target)) {
             Box.ClickHandler onClick = target.effectiveOnClick();
             if (onClick != null) {
@@ -544,10 +530,7 @@ public final class MountedLayout implements CanvasComponent {
         return true;
     }
 
-    /**
-     * The topmost box (last in painting order) under the point that matches, or {@code null}. Like in CSS, a box
-     * is under the point only where it is drawn: not where a box around it cuts it off ({@code overflow}).
-     */
+    /** Finds the topmost box under the given point within active clip bounds. */
     private Box<?> topmost(double px, double py, Predicate<Box<?>> filter) {
         double x = clampToCanvas(px, true);
         double y = clampToCanvas(py, false);
@@ -565,11 +548,7 @@ public final class MountedLayout implements CanvasComponent {
         return null;
     }
 
-    /**
-     * CSS {@code cursor} at a canvas pixel: the cursor of the topmost box under it, or of the nearest box around
-     * it that sets one (it is inherited). A clickable box (not disabled) that sets none shows {@code "pointer"},
-     * like a link in a browser; {@code "default"} when nothing sets one.
-     */
+    /** Determines the cursor sprite name for the given canvas coordinate. */
     public String cursorAt(double px, double py) {
         Box<?> top = topmost(px, py, box -> true);
         boolean disabled = insideDisabled(top);
@@ -585,7 +564,7 @@ public final class MountedLayout implements CanvasComponent {
         return "default";
     }
 
-    /** Whether the box or any box around it is disabled. */
+    /** Checks if the box or any ancestor has disabled state active. */
     private boolean insideDisabled(Box<?> box) {
         for (Box<?> at = box; at != null; at = parents.get(at)) {
             if (at.is(State.DISABLED)) {
@@ -596,12 +575,9 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /**
-     * Moves {@code player}'s pointer to a canvas pixel. Like CSS {@code :hover}, the topmost box under it (the
-     * one a click would reach) and its ancestors become hovered, not the boxes drawn under it; hover styles
-     * apply, enter/leave handlers run and, if anything changed, the layout is refreshed at once. A
-     * {@code ScreenSession} calls it for its cursor; call it yourself for any other pointer.
+     * Updates hovered box state for the player at canvas coordinates.
      *
-     * @return whether any box changed its hover state
+     * @return true if hover state changed
      */
     public boolean pointerAt(double px, double py, Player player) {
         for (Box<?> box : boxes) {
@@ -612,10 +588,7 @@ public final class MountedLayout implements CanvasComponent {
         return hover(topmost(px, py, box -> true), player);
     }
 
-    /**
-     * The innermost scrollable container under the given canvas pixel, or any scrollable container in this
-     * layout if none is directly under the pointer.
-     */
+    /** Finds the innermost scrollable container under canvas coordinates. */
     public ScrollView scrollableAt(double px, double py) {
         Box<?> top = topmost(px, py, box -> true);
         for (Box<?> at = top; at != null; at = parents.get(at)) {
@@ -632,9 +605,9 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /**
-     * Advances smooth scroll animations of any {@link ScrollView} in this layout.
+     * Advances smooth scrolling animations in active scroll views.
      *
-     * @return whether any scroll offset changed
+     * @return true if any scroll position changed
      */
     public boolean tickScroll() {
         boolean changed = false;
@@ -649,9 +622,9 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /**
-     * Advances smooth transitions of any box in this layout.
+     * Advances property transitions for all boxes in the layout.
      *
-     * @return whether any transition is actively animating
+     * @return true if transitions are currently active
      */
     public boolean tickTransitions() {
         boolean active = false;
@@ -694,7 +667,7 @@ public final class MountedLayout implements CanvasComponent {
         }
     }
 
-    /** Any {@link ScrollView} whose scrollbar thumb is currently being dragged. */
+    /** Returns any active scroll view with a dragged scrollbar thumb. */
     public ScrollView activeDraggingScrollView() {
         for (Box<?> box : boxes) {
             if (box instanceof ScrollView scrollView && scrollView.isDragging()) {
@@ -704,7 +677,7 @@ public final class MountedLayout implements CanvasComponent {
         return null;
     }
 
-    /** Any {@link Canvas} where the player is currently dragging the brush. */
+    /** Returns any canvas currently undergoing brush drag operations. */
     public Canvas activeDrawingCanvas() {
         for (Box<?> box : boxes) {
             if (box instanceof Canvas pixelCanvas && pixelCanvas.isDrawing()) {
@@ -714,12 +687,12 @@ public final class MountedLayout implements CanvasComponent {
         return null;
     }
 
-    /** The pointer left the layout: nothing is hovered any more. */
+    /** Clears hover state from all elements in the layout. */
     public boolean pointerLeft(Player player) {
         return hover(null, player);
     }
 
-    /** Hovers {@code top} and its ancestors (nothing for {@code null}); refreshes when anything changed. */
+    /** Applies hover state to the target box and its ancestors. */
     private boolean hover(Box<?> top, Player player) {
         if (top != null && player != null && dev.horuse.pixelay.debug.LayoutDebug.isEnabled(player)) {
             Rect r = top.rect();
@@ -763,7 +736,7 @@ public final class MountedLayout implements CanvasComponent {
         return changed;
     }
 
-    /** The texts of state styles (backgrounds are read when they are drawn). */
+    /** Applies text overrides from active styles. */
     private void applyStyle(Box<?> box) {
         Style style = box.activeStyle();
         if (box.component() instanceof AbstractCanvasComponent textComponent) {
@@ -776,7 +749,7 @@ public final class MountedLayout implements CanvasComponent {
         }
     }
 
-    /** Re-reads conditional states and applies the state styles, before a layout pass. */
+    /** Evaluates conditional states and applies matching styles. */
     private void updateStates() {
         for (Box<?> box : boxes) {
             box.updateStates();
@@ -784,16 +757,13 @@ public final class MountedLayout implements CanvasComponent {
         }
     }
 
-    /** @return the id of the deepest box with an id under the point, or {@code null} */
+    /** @return identifier of the deepest identified box under coordinates */
     public String idAt(double px, double py) {
         Box<?> box = topmost(px, py, candidate -> candidate.id() != null);
         return box != null ? box.id() : null;
     }
 
-    /**
-     * Rectangles are half-open (right/bottom edges belong to the next box), so a point exactly on the
-     * canvas' right or bottom edge is moved just inside it to still hit the boxes along that edge.
-     */
+    /** Clamps coordinates slightly inside the canvas edge for half-open bounds. */
     private double clampToCanvas(double value, boolean horizontal) {
         if (canvas == null) {
             return value;

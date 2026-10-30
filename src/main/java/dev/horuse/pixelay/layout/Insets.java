@@ -2,16 +2,16 @@ package dev.horuse.pixelay.layout;
 
 import dev.horuse.pixelay.data.Rect;
 
-/** Padding or margin in canvas px, CSS order: top, right, bottom, left. */
+/** Represents padding or margin offsets in canvas pixels. */
 public record Insets(double top, double right, double bottom, double left) {
     public static final Insets NONE = new Insets(0, 0, 0, 0);
 
-    /** Same value on every side. */
+    /** Creates equal insets on every side. */
     public static Insets all(double value) {
         return new Insets(value, value, value, value);
     }
 
-    /** {@code vertical} on top/bottom, {@code horizontal} on left/right. */
+    /** Creates insets with distinct vertical and horizontal values. */
     public static Insets of(double vertical, double horizontal) {
         return new Insets(vertical, horizontal, vertical, horizontal);
     }
@@ -40,7 +40,7 @@ public record Insets(double top, double right, double bottom, double left) {
         return top + bottom;
     }
 
-    /** {@code rect} shrunk by these insets (never below zero size). */
+    /** Shrinks a rectangle by these insets. */
     Rect shrink(Rect rect) {
         return new Rect(
             rect.x() + left,

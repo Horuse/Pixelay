@@ -10,14 +10,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 
 /**
- * Draws a {@link CanvasDrawable} with a real server {@link TextDisplay}: seen by everyone, or — with a viewer —
- * hidden from everyone else through Paper's per-player visibility (the server sends it to that player only).
+ * Renders a {@link CanvasDrawable} using a server {@link TextDisplay} entity.
+ * Supports public visibility or per-player visibility via Paper.
  */
 public class EntityRenderer extends TextRenderer {
 
     private TextDisplay display;
 
-    /** @param viewer the only player who sees the element, or {@code null} for everyone */
+    /** @param viewer the player who sees the element, or {@code null} for all players */
     public EntityRenderer(CanvasDrawable drawable, Player viewer) {
         super(drawable, viewer);
     }
@@ -44,10 +44,10 @@ public class EntityRenderer extends TextRenderer {
 
     @Override
     protected void updateEntity(TextPlacement.Placement placement, Location at) {
-        // Position first, then text: the block must not blink with the new text at the old position.
+        // Update position before text to prevent rendering new text at old coordinates.
         display.teleport(at);
         applyScaleAndRotation(display, canvas.scaleForHeightPx(drawable.heightPx()));
-        // The alignment presses multi-line text left/right; it may have changed since the spawn.
+        // Apply alignment in case multiline settings changed after spawn.
         display.setAlignment(drawable.hAlign().textAlignment());
         display.text(placement.component());
         display.setTextOpacity(textOpacity());
@@ -98,12 +98,12 @@ public class EntityRenderer extends TextRenderer {
         return display != null && display.isValid();
     }
 
-    /** The shared text style from config.yml ({@code text.*}). */
+    /** Applies shared text configuration settings from config.yml. */
     private static void applyTextStyle(TextDisplay display) {
         PixelaySettings.Text style = Pixelay.settings().text();
         display.setShadowed(style.shadow());
         display.setSeeThrough(style.seeThrough());
-        // The configured background is drawn as a separate panel (TextBackground).
+        // Render background via TextBackground instead of entity defaults.
         display.setBackgroundColor(Color.fromARGB(0));
         display.setLineWidth(TextPlacement.CLIENT_LINE_WIDTH);
         display.setViewRange(style.viewRange());

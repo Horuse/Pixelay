@@ -6,14 +6,14 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Drops clicks of a player that come within {@code clicks.debounce-ms} of the last accepted one: one
- * mouse click often arrives as two packets.
+ * Drops clicks from a player that occur within debounce interval.
+ * Prevents duplicate actions when mouse clicks produce multiple network packets.
  */
 public final class ClickDebounce {
 
     private final Map<UUID, Long> lastAccepted = new ConcurrentHashMap<>();
 
-    /** @return whether the click is accepted (and remembered), {@code false} when it comes too soon */
+    /** @return True if the click is accepted, or false if received too quickly. */
     public boolean accept(UUID player) {
         long now = System.currentTimeMillis();
         Long last = lastAccepted.get(player);

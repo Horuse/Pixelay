@@ -1,20 +1,18 @@
 package dev.horuse.pixelay.layout;
 
 /**
- * CSS {@code overflow} of a box: whether what its children draw outside it is shown. Set it with
- * {@link Box#overflow}, or per axis with {@link Box#overflowX} / {@link Box#overflowY}. A canvas always
- * clips: nothing outside it is drawn, hovered or clicked.
+ * Specifies overflow behavior when content extends outside box bounds.
  */
 public enum Overflow {
-    /** Children are drawn wherever they are (the CSS default). */
+    /** Renders content outside box boundaries. */
     VISIBLE,
-    /** Children are cut at the box's edges (padding included), and are not hovered or clicked outside it. */
+    /** Clips content at box boundaries and blocks outside interaction. */
     HIDDEN,
-    /** The same as {@link #HIDDEN}: cuts children without scrollbar. */
+    /** Clips content at box boundaries without scrollbars. */
     CLIP,
-    /** Content is clipped and scrollable (with scrollbar). */
+    /** Clips content and enables scrolling with visible scrollbars. */
     SCROLL,
-    /** Content is clipped and scrollable only when content overflows. */
+    /** Clips content and enables scrolling when content overflows. */
     AUTO;
 
     public boolean clips() {

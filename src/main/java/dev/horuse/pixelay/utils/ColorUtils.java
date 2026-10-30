@@ -3,20 +3,20 @@ package dev.horuse.pixelay.utils;
 import java.util.Locale;
 
 /**
- * Utility methods for ARGB color operations, CSS color parsing, and interpolation.
+ * Utility functions for ARGB color operations, CSS color parsing, and interpolation.
  */
 public final class ColorUtils {
 
     private ColorUtils() {}
 
     /**
-     * Parses a CSS color string into a 32-bit {@code 0xAARRGGBB} integer.
+     * Parses a CSS color string into a 32-bit integer in {@code 0xAARRGGBB} format.
      * Supports:
      * <ul>
      *   <li>{@code "transparent"} or {@code "none"} -&gt; {@code 0}</li>
      *   <li>{@code "#RGB"}, {@code "#RGBA"}, {@code "#RRGGBB"}, {@code "#RRGGBBAA"}</li>
      *   <li>{@code "0xAARRGGBB"} or {@code "0xRRGGBB"}</li>
-     *   <li>{@code "rgb(r, g, b)"} and {@code "rgba(r, g, b, a)"} (where {@code a} is {@code 0..1} or {@code 0..255})</li>
+     *   <li>{@code "rgb(r, g, b)"} and {@code "rgba(r, g, b, a)"}</li>
      * </ul>
      */
     public static int parse(String cssColor) {
@@ -84,7 +84,7 @@ public final class ColorUtils {
         return 0;
     }
 
-    /** Multiplies the alpha channel of {@code argb} by {@code opacity} ({@code 0.0..1.0}). */
+    /** Multiplies the alpha channel of {@code argb} by {@code opacity} (0.0 to 1.0). */
     public static int withOpacity(int argb, double opacity) {
         if (argb == 0 || opacity >= 0.999) {
             return argb;
@@ -98,9 +98,8 @@ public final class ColorUtils {
     }
 
     /**
-     * Linearly interpolates between two ARGB colors.
-     * Follows CSS Color 4 interpolation rules: if one color has alpha 0 (transparent),
-     * its RGB channels take the non-transparent color's channels to prevent dirty grayish fades.
+     * Interpolates linearly between two ARGB colors following CSS Color 4 standards.
+     * Replaces transparent RGB channels with target color channels to prevent gray transitions.
      */
     public static int lerp(int c1, int c2, double t) {
         if (t <= 0.0) {

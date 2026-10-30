@@ -10,14 +10,9 @@ import java.util.List;
 import org.bukkit.entity.Player;
 
 /**
- * An HTML {@code <canvas>}-like 2D pixel grid and interactive drawing surface inside a layout.
- * <p>
- * Provides a programmatic 2D drawing API ({@link #setPixel}, {@link #fillRect}, {@link #strokeRect},
- * {@link #drawLine}, {@link #drawCircle}, {@link #fillCircle}, {@link #clear}) as well as interactive
- * player painting via cursor clicks and continuous drag strokes when {@link #drawable(boolean)} is enabled.
- * <p>
- * Adjacent pixels of the same colour are automatically merged into minimal rectangles via 2D greedy
- * meshing and rendered using pooled {@link TextBackground} panels.
+ * Interactive two-dimensional pixel grid and drawing surface within a layout.
+ * Provides programmatic drawing methods and interactive painting controls.
+ * Combines adjacent same-color pixels into optimized rectangle panels.
  */
 public class Canvas extends Box<Canvas> {
 
@@ -65,7 +60,7 @@ public class Canvas extends Box<Canvas> {
         return viewer;
     }
 
-    /** Reserve 2 depth steps: step 0 for the canvas background, step 1 for the pixel quads above it. */
+    /** Allocates two layer depth steps for canvas background and pixel elements. */
     @Override
     int layerSteps() {
         return 2;
@@ -79,14 +74,14 @@ public class Canvas extends Box<Canvas> {
         return gridHeight;
     }
 
-    /** Returns a copy of the raw ARGB pixel buffer ({@code gridWidth * gridHeight}, row-major). */
+    /** Returns a copy of the pixel buffer in row-major order. */
     public int[] pixels() {
         return Arrays.copyOf(pixels, pixels.length);
     }
 
     // --- 2D Drawing API ----------------------------------------------------------------------------------
 
-    /** Sets the ARGB colour of a single grid pixel {@code (x, y)}. Out-of-bounds coordinates are ignored. */
+    /** Sets the color of a single pixel. */
     public Canvas setPixel(int x, int y, int argb) {
         if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
             pixels[y * gridWidth + x] = argb;
@@ -94,7 +89,7 @@ public class Canvas extends Box<Canvas> {
         return this;
     }
 
-    /** Gets the ARGB colour at {@code (x, y)}, or {@code 0} if out of bounds. */
+    /** Gets the color at the specified coordinates, or zero if out of bounds. */
     public int getPixel(int x, int y) {
         if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
             return pixels[y * gridWidth + x];
@@ -102,18 +97,18 @@ public class Canvas extends Box<Canvas> {
         return 0;
     }
 
-    /** Clears all pixels to transparent ({@code 0x00000000}). */
+    /** Clears all pixels to transparent. */
     public Canvas clear() {
         return fill(0);
     }
 
-    /** Fills the entire pixel grid with {@code argb}. */
+    /** Fills the entire pixel grid with the specified color. */
     public Canvas fill(int argb) {
         Arrays.fill(pixels, argb);
         return this;
     }
 
-    /** Fills a rectangle {@code (x, y, w, h)} in grid coordinates with {@code argb}. */
+    /** Fills a rectangle in grid coordinates with the specified color. */
     public Canvas fillRect(int x, int y, int w, int h, int argb) {
         int x0 = Math.max(0, x);
         int y0 = Math.max(0, y);
@@ -128,7 +123,7 @@ public class Canvas extends Box<Canvas> {
         return this;
     }
 
-    /** Draws a 1px outline rectangle {@code (x, y, w, h)} in grid coordinates with {@code argb}. */
+    /** Draws a one-pixel outline rectangle in grid coordinates. */
     public Canvas strokeRect(int x, int y, int w, int h, int argb) {
         if (w <= 0 || h <= 0) {
             return this;
@@ -140,12 +135,12 @@ public class Canvas extends Box<Canvas> {
         return this;
     }
 
-    /** Draws a 1px line between {@code (x0, y0)} and {@code (x1, y1)} using Bresenham's algorithm. */
+    /** Draws a one-pixel line using Bresenham algorithm. */
     public Canvas drawLine(int x0, int y0, int x1, int y1, int argb) {
         return drawLine(x0, y0, x1, y1, 1, argb);
     }
 
-    /** Draws a line with brush thickness {@code brushSize} (1 = 1px, 2 = 3x3 circle, etc.). */
+    /** Draws a line with the specified brush thickness. */
     public Canvas drawLine(int x0, int y0, int x1, int y1, int brushSize, int argb) {
         int dx = Math.abs(x1 - x0);
         int dy = -Math.abs(y1 - y0);
@@ -172,7 +167,7 @@ public class Canvas extends Box<Canvas> {
         return this;
     }
 
-    /** Draws a circle outline centred at {@code (cx, cy)} with {@code radius}. */
+    /** Draws a circle outline at the specified center and radius. */
     public Canvas drawCircle(int cx, int cy, int radius, int argb) {
         if (radius <= 0) {
             return setPixel(cx, cy, argb);
@@ -200,7 +195,7 @@ public class Canvas extends Box<Canvas> {
         return this;
     }
 
-    /** Fills a circle centred at {@code (cx, cy)} with {@code radius}. */
+    /** Fills a circle at the specified center and radius. */
     public Canvas fillCircle(int cx, int cy, int radius, int argb) {
         if (radius <= 0) {
             return setPixel(cx, cy, argb);
@@ -226,7 +221,7 @@ public class Canvas extends Box<Canvas> {
 
     // --- Interactive Painting API ------------------------------------------------------------------------
 
-    /** Enables or disables interactive player painting with the cursor. */
+    /** Enables or disables interactive painting with the cursor. */
     public Canvas drawable(boolean drawable) {
         this.drawable = drawable;
         if (drawable && cursor() == null) {
@@ -239,7 +234,7 @@ public class Canvas extends Box<Canvas> {
         return drawable;
     }
 
-    /** Sets the active brush colour (ARGB) for interactive player painting. */
+    /** Sets the active brush color for interactive painting. */
     public Canvas brushColor(int argb) {
         this.brushColor = argb;
         return this;
@@ -249,7 +244,7 @@ public class Canvas extends Box<Canvas> {
         return brushColor;
     }
 
-    /** Sets the active brush size (1 = 1px, 2 = 3px circle, 3 = 5px circle, etc.). */
+    /** Sets the active brush thickness for interactive painting. */
     public Canvas brushSize(int size) {
         this.brushSize = Math.max(1, size);
         return this;
@@ -259,7 +254,7 @@ public class Canvas extends Box<Canvas> {
         return brushSize;
     }
 
-    /** Listener called whenever a player paints on the canvas. */
+    /** Sets listener invoked when a player paints on the canvas. */
     public Canvas onDraw(DrawListener listener) {
         this.onDraw = listener;
         return this;
@@ -275,7 +270,7 @@ public class Canvas extends Box<Canvas> {
         this.lastDrawY = -1;
     }
 
-    /** Converts a canvas coordinate {@code (px, py)} into grid coordinates {@code {gx, gy}}, or {@code null}. */
+    /** Converts canvas coordinates to grid coordinates, or returns null. */
     private int[] toGrid(double px, double py) {
         Rect content = effectivePadding().shrink(effectiveBorderWidths().shrink(rect()));
         if (content.width() <= 0 || content.height() <= 0 || !content.contains(px, py)) {
@@ -286,7 +281,7 @@ public class Canvas extends Box<Canvas> {
         return new int[] { gx, gy };
     }
 
-    /** Called during {@link ScreenSession} ticks while the player is actively dragging the brush. */
+    /** Updates continuous painting strokes during screen session ticks. */
     public boolean dragTo(double cursorX, double cursorY, Player player) {
         if (!drawing || !drawable) {
             return false;
@@ -372,10 +367,7 @@ public class Canvas extends Box<Canvas> {
         return gridWidth;
     }
 
-    /**
-     * Greedily merges contiguous same-colour pixels into minimal rectangles and syncs them to
-     * {@link TextBackground} panels on the world surface.
-     */
+    /** Combines adjacent same-color pixels into optimized rectangles. */
     void sync(dev.horuse.pixelay.data.Canvas surface, Player fallbackViewer, int baseBg, float depth) {
         Player effectiveViewer = viewer != null ? viewer : fallbackViewer;
         Rect content = effectivePadding().shrink(effectiveBorderWidths().shrink(rect()));
@@ -402,7 +394,7 @@ public class Canvas extends Box<Canvas> {
                     continue;
                 }
 
-                // Expand width along row
+                // Expand rectangle width along row.
                 int w = 1;
                 while (x + w < gridWidth) {
                     int nextIdx = y * gridWidth + (x + w);
@@ -413,7 +405,7 @@ public class Canvas extends Box<Canvas> {
                     }
                 }
 
-                // Expand height downwards while the full span [x, x + w) matches
+                // Expand rectangle height downward while row segment matches.
                 int h = 1;
                 outer: while (y + h < gridHeight) {
                     int rowOffset = (y + h) * gridWidth;
@@ -426,7 +418,7 @@ public class Canvas extends Box<Canvas> {
                     h++;
                 }
 
-                // Mark merged cells visited
+                // Mark merged pixels as visited.
                 for (int dy = 0; dy < h; dy++) {
                     int rowOffset = (y + dy) * gridWidth;
                     for (int dx = 0; dx < w; dx++) {
@@ -459,7 +451,7 @@ public class Canvas extends Box<Canvas> {
             }
         }
 
-        // Remove unused pooled panels from previous frames
+        // Remove excess pooled panels.
         for (int i = quadPool.size() - 1; i >= usedQuads; i--) {
             quadPool.remove(i).remove();
         }

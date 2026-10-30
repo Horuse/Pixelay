@@ -31,9 +31,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.spongepowered.configurate.ConfigurateException;
 
 /**
- * Pixelay: draws pixel-positioned text, buttons and cursors on flat canvases made of Display
- * entities. Server-wide, per-player (visibility) and fully fake (packet-only) rendering are
- * supported; other plugins use it through {@link Pixelay}.
+ * Pixelay draws pixel-positioned text, buttons, and cursors on flat canvases with Display entities.
+ * The plugin supports server-wide, per-player, and packet-only rendering modes. Other plugins
+ * access the API through {@link Pixelay}.
  */
 public final class PixelayPlugin extends JavaPlugin {
 
@@ -84,7 +84,7 @@ public final class PixelayPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        // Players in a screen get their game mode and position back before anything is torn down.
+        // Restore player game mode and position before closing sessions.
         ScreenSession.closeAll();
         manager.stop();
         CanvasBoundsDebug.stop();
@@ -99,7 +99,7 @@ public final class PixelayPlugin extends JavaPlugin {
         }
     }
 
-    /** Re-reads config.yml and font-widths.yml and restarts the scheduler with the new periods. */
+    /** Re-reads config.yml and font-widths.yml, then restarts the scheduler with the new intervals. */
     public void reload() throws ConfigurateException {
         loadSettings();
         manager.stop();
@@ -112,7 +112,7 @@ public final class PixelayPlugin extends JavaPlugin {
         buildResourcePack();
     }
 
-    /** Builds plugins/Pixelay/pixelay-pack.zip; a failed build only disables the shader features. */
+    /** Builds plugins/Pixelay/pixelay-pack.zip. A build failure disables shader features only. */
     private void buildResourcePack() {
         if (!settings.resourcePack().enabled()) {
             return;
@@ -142,7 +142,7 @@ public final class PixelayPlugin extends JavaPlugin {
         return entityKey;
     }
 
-    /** Removes any leftover canvas entities (e.g. after a crash or reload). */
+    /** Removes leftover canvas entities after a server crash or plugin reload. */
     private void cleanupCanvasEntities() {
         for (World world : Bukkit.getWorlds()) {
             world

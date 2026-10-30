@@ -11,9 +11,7 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 
 /**
- * A 3D block model element inside a layout (like an HTML {@code <img>} for Minecraft blocks).
- * Keeps its natural {@code widthPx x heightPx} size, pinned inside its rectangle by {@link #justifySelf}
- * and {@link #alignSelf} (top-left by default); {@link Align#STRETCH} makes it fill that axis.
+ * Renders a block model element within a layout.
  */
 public final class Block extends Box<Block> {
 

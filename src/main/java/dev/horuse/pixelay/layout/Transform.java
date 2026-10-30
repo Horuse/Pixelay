@@ -1,14 +1,9 @@
 package dev.horuse.pixelay.layout;
 
 /**
- * Immutable 2D/3D CSS {@code transform} value for a {@link Box} or {@link Style}, supporting:
- * <ul>
- *   <li>Percentage translation ({@code translateX}, {@code translateY} relative to box width/height, e.g. {@code -0.5} for {@code -50%})</li>
- *   <li>Pixel translation ({@code translatePxX}, {@code translatePxY} in canvas pixels)</li>
- *   <li>Scale ({@code scaleX}, {@code scaleY} multipliers around {@code transformOriginX}, {@code transformOriginY})</li>
- *   <li>Rotation ({@code rotateDeg} in degrees around the canvas Z normal, plus 3D {@code rotateXDeg} / {@code rotateYDeg})</li>
- * </ul>
- * Supports smooth linear interpolation ({@link #lerp(Transform, double)}) for CSS {@code transition} animations.
+ * Represents CSS transform values for a box or style.
+ * Supports translation, scaling, 2D rotation, and 3D rotation.
+ * Supports linear interpolation for CSS transition animations.
  */
 public record Transform(
     double translateX,
@@ -23,7 +18,7 @@ public record Transform(
     double originX,
     double originY
 ) {
-    /** Identity transform ({@code translate(0, 0) scale(1, 1) rotate(0deg)}, origin at center {@code 0.5, 0.5}). */
+    /** Default identity transform without translation, scaling, or rotation. */
     public static final Transform NONE = new Transform(0, 0, 0, 0, 1, 1, 0, 0, 0, 0.5, 0.5);
 
     public static Transform of() {
@@ -48,7 +43,7 @@ public record Transform(
         return Math.abs(rotateDeg) >= 1e-4 || Math.abs(rotateXDeg) >= 1e-4 || Math.abs(rotateYDeg) >= 1e-4;
     }
 
-    /** CSS {@code transform: translate(percentX, percentY)} (where {@code 1.0 = 100%} of box width/height). */
+    /** Sets percentage translation relative to box dimensions. */
     public Transform translate(double percentX, double percentY) {
         return new Transform(
             percentX,
@@ -65,7 +60,7 @@ public record Transform(
         );
     }
 
-    /** CSS {@code transform: translate(dxPx, dyPx)} in canvas pixels. */
+    /** Sets translation in canvas pixels. */
     public Transform translatePx(double dxPx, double dyPx) {
         return new Transform(
             translateX,
@@ -90,12 +85,12 @@ public record Transform(
         return translatePx(translatePxX, dyPx);
     }
 
-    /** CSS {@code transform: scale(factor)} (uniform X and Y scale). */
+    /** Sets uniform scale factor on both axes. */
     public Transform scale(double factor) {
         return scale(factor, factor);
     }
 
-    /** CSS {@code transform: scale(sx, sy)}. */
+    /** Sets scale factors for X and Y axes. */
     public Transform scale(double sx, double sy) {
         return new Transform(
             translateX,
@@ -120,7 +115,7 @@ public record Transform(
         return scale(scaleX, sy);
     }
 
-    /** CSS {@code transform: rotate(deg)} (clockwise in degrees on the 2D canvas plane). */
+    /** Sets clockwise 2D rotation in degrees. */
     public Transform rotate(double degrees) {
         return new Transform(
             translateX,
@@ -137,7 +132,7 @@ public record Transform(
         );
     }
 
-    /** CSS {@code transform: rotateX(deg)} (3D pitch tilt in degrees). */
+    /** Sets 3D pitch rotation in degrees. */
     public Transform rotateX(double degrees) {
         return new Transform(
             translateX,
@@ -154,7 +149,7 @@ public record Transform(
         );
     }
 
-    /** CSS {@code transform: rotateY(deg)} (3D yaw turn in degrees). */
+    /** Sets 3D yaw rotation in degrees. */
     public Transform rotateY(double degrees) {
         return new Transform(
             translateX,
@@ -171,7 +166,7 @@ public record Transform(
         );
     }
 
-    /** CSS {@code transform-origin: ox oy} ({@code 0.0..1.0}, default {@code 0.5, 0.5} center). */
+    /** Sets transform origin ratios from 0.0 to 1.0. */
     public Transform origin(double ox, double oy) {
         return new Transform(
             translateX,
@@ -188,7 +183,7 @@ public record Transform(
         );
     }
 
-    /** Linearly interpolates between {@code this} and {@code target} by {@code t} ({@code 0.0..1.0}). */
+    /** Linearly interpolates between transforms using normalized time t. */
     public Transform lerp(Transform target, double t) {
         if (target == null) {
             target = NONE;

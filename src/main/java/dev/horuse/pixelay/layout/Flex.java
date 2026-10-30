@@ -6,14 +6,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A row or a column (CSS flexbox): children are laid out along the main axis with {@link #gap}.
- * In a row each child starts at its natural width; when they do not fit, the missing space is taken
- * from them by {@code shrink x width} (never below their min-content width, so texts wrap and words
- * stay whole), and free space goes to growing children (or is distributed by {@link #justify}).
- * When {@link #wrap(boolean)} is enabled on a row, items that exceed the available width wrap onto
- * additional flex lines.
- * Each child is placed on the cross axis by {@link #align} or its own {@code alignSelf}; {@code STRETCH}
- * (the default) fills it, except for children with a fixed size on that axis.
+ * Arranges child elements in a row or column following CSS flexbox rules.
+ * Main-axis spacing uses {@link #gap}.
+ * Cross-axis alignment uses {@link #align}.
+ * Items wrap to additional lines when {@link #wrap(boolean)} is enabled.
  */
 public class Flex extends Container<Flex> {
 
@@ -32,7 +28,7 @@ public class Flex extends Container<Flex> {
         this(false, items);
     }
 
-    /** @return whether this is a row (else a column) */
+    /** @return true if this container is a row, false if a column */
     public boolean isRow() {
         return horizontal;
     }
@@ -42,7 +38,7 @@ public class Flex extends Container<Flex> {
         return horizontal ? "row" : "column";
     }
 
-    /** Cross-axis alignment of the children (CSS {@code align-items}). */
+    /** Sets cross-axis alignment for child elements. */
     public Flex align(Align align) {
         this.align = align;
         return this;
@@ -52,7 +48,7 @@ public class Flex extends Container<Flex> {
         return align;
     }
 
-    /** Main-axis distribution when no child grows (CSS {@code justify-content}). */
+    /** Sets main-axis alignment distribution. */
     public Flex justify(Justify justify) {
         this.justify = justify;
         return this;
@@ -62,7 +58,7 @@ public class Flex extends Container<Flex> {
         return justify;
     }
 
-    /** CSS {@code flex-wrap: wrap} — wraps children onto multiple lines when they exceed the available width. */
+    /** Enables or disables wrapping onto multiple flex lines. */
     public Flex wrap(boolean wrap) {
         this.wrap = wrap;
         return this;
@@ -72,7 +68,7 @@ public class Flex extends Container<Flex> {
         return wrap;
     }
 
-    /** Cross-axis gap between wrapped flex lines (defaults to {@link #gap()}). */
+    /** Sets cross-axis gap between wrapped lines. */
     public Flex rowGap(double rowGap) {
         this.rowGap = rowGap;
         return this;
@@ -154,7 +150,7 @@ public class Flex extends Container<Flex> {
         return gap * Math.max(0, count - 1);
     }
 
-    /** Child size with margin; a spacer only has its length along the main axis. */
+    /** Calculates child dimensions including margin. */
     private Size childSize(Box<?> child, double maxWidth) {
         if (child instanceof Spacer spacer) {
             Insets m = spacer.effectiveMargin();
@@ -165,11 +161,7 @@ public class Flex extends Container<Flex> {
         return child.outer(maxWidth);
     }
 
-    /**
-     * Child sizes (with margins) under a width limit. A column gives every child its own width. A row
-     * starts from natural widths, shrinks them when they do not fit and gives growing children what
-     * is left; the returned width is the space assigned to the child, the height what it needs there.
-     */
+    /** Calculates allocated dimensions for children within available width. */
     private Size[] childSizes(List<Box<?>> flow, double maxWidth) {
         Size[] sizes = new Size[flow.size()];
         if (!horizontal || maxWidth < 0) {
@@ -179,7 +171,7 @@ public class Flex extends Container<Flex> {
             return sizes;
         }
 
-        // flex-basis: auto — every child starts at its natural width (CSS flex-grow / flex-shrink).
+        // Start each child at its natural width before distributing flex factors.
         double[] widths = new double[sizes.length];
         double used = gaps(flow.size());
         for (int i = 0; i < sizes.length; i++) {
@@ -210,7 +202,7 @@ public class Flex extends Container<Flex> {
         return sizes;
     }
 
-    /** Takes {@code deficit} px from the widths, by shrink x width, never below min-content (CSS flex-shrink). */
+    /** Reduces child widths by shrink factor while respecting min-content limits. */
     private void shrink(List<Box<?>> flow, double[] widths, double deficit) {
         boolean[] frozen = new boolean[widths.length];
         for (int round = 0; round < widths.length && deficit > 0.01; round++) {
@@ -295,7 +287,7 @@ public class Flex extends Container<Flex> {
             totalGrow += child.grow;
         }
 
-        // A row already gave growing children their share of the width; a column grows here.
+        // Distribute remaining height to growing children in a column.
         double free = Math.max(0, (horizontal ? content.width() : content.height()) - used);
         boolean distributeGrow = !horizontal && totalGrow > 0;
         double cursor = 0;

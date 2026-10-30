@@ -7,19 +7,19 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.entity.Player;
 
 /**
- * A text label positioned at a pixel coordinate and sized in pixels. Drawn with real entities seen by
- * everyone by default, for one player with {@link #perPlayer}, or packet-only with {@link #fake}.
+ * Renders a text label at pixel coordinates with pixel height.
+ * Supports public server entities, per-player visibility, and packet-only mode.
  */
 public class CanvasText extends AbstractCanvasComponent {
 
     private volatile TextContent content;
 
-    /** A label drawn with real entities seen by everyone. */
+    /** Creates a text label visible to all players. */
     public CanvasText(double pixelX, double pixelY, double heightPx, TextContent content) {
         this(pixelX, pixelY, heightPx, content, drawable -> new EntityRenderer(drawable, null));
     }
 
-    /** @param renderer creates the renderer for this element */
+    /** @param renderer factory function that creates the renderer for this element */
     protected CanvasText(
         double pixelX,
         double pixelY,
@@ -32,7 +32,7 @@ public class CanvasText extends AbstractCanvasComponent {
         this.renderer = renderer.apply(this);
     }
 
-    /** A label drawn with real entities that only {@code viewer} sees. */
+    /** Creates a server entity text label visible only to {@code viewer}. */
     public static CanvasText perPlayer(
         Player viewer,
         double pixelX,
@@ -43,12 +43,12 @@ public class CanvasText extends AbstractCanvasComponent {
         return new CanvasText(pixelX, pixelY, heightPx, content, drawable -> new EntityRenderer(drawable, viewer));
     }
 
-    /** A label made of packets only, for {@code viewer}: nothing is spawned on the server. */
+    /** Creates a packet-only text label for {@code viewer}. No server entity spawns. */
     public static CanvasText fake(Player viewer, double pixelX, double pixelY, double heightPx, TextContent content) {
         return new CanvasText(pixelX, pixelY, heightPx, content, drawable -> new FakeRenderer(viewer, drawable));
     }
 
-    /** Switches this text to packet-only rendering for {@code viewer} if it currently has no viewer. */
+    /** Binds a viewer and switches the label to packet-only rendering if unassigned. */
     public void bindViewer(Player viewer) {
         if (viewer != null && renderer.viewer() == null) {
             renderer = new FakeRenderer(viewer, this);
@@ -73,7 +73,7 @@ public class CanvasText extends AbstractCanvasComponent {
         return raw;
     }
 
-    /** Parses component text as MiniMessage — the single markup format used by canvas content. */
+    /** Deserializes string markup into a MiniMessage component. */
     static Component parse(String text) {
         return MiniMessage.miniMessage().deserialize(text);
     }

@@ -13,42 +13,40 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /**
- * Stateless helpers for spawning and configuring {@link Display} entities. Kept outside the canvas
- * module because these are useful for any hologram/marker work.
+ * Utility helpers for creating and configuring display entities.
  */
 public final class DisplayUtils {
 
     private DisplayUtils() {}
 
-    /** Tags an entity as Pixelay's (removed by {@code cleanup-on-enable}) and makes it non-persistent. */
+    /** Marks an entity as non-persistent and owned by Pixelay. */
     public static void tag(Entity entity) {
         entity.getPersistentDataContainer().set(Pixelay.entityKey(), PersistentDataType.BYTE, (byte) 1);
         entity.setPersistent(false);
     }
 
     /**
-     * @return a Y-axis rotation quaternion for the given yaw in degrees
+     * @return A quaternion for Y-axis rotation by given yaw degrees.
      */
     public static Quaternionf yawRotation(float yawDegrees) {
         return new Quaternionf().rotateY((float) Math.toRadians(yawDegrees));
     }
 
     /**
-     * Spawns a centered, fixed-billboard {@link TextDisplay} with a transparent background.
+     * Spawns a centered {@link TextDisplay} entity with a transparent background.
      *
-     * @param loc world location of the text anchor
-     * @param text text component to render
-     * @param rotation left rotation applied to the model (so it faces with its surface)
-     * @param scale uniform scale
-     * @return the spawned, non-persistent TextDisplay
+     * @param loc World location of text anchor.
+     * @param text Text component to render.
+     * @param rotation Left rotation applied to display model.
+     * @param scale Uniform scale factor.
+     * @return The created non-persistent TextDisplay entity.
      */
     public static TextDisplay spawnText(Location loc, Component text, Quaternionf rotation, float scale) {
         return spawnText(loc, text, rotation, scale, TextDisplay.TextAlignment.CENTER);
     }
 
     /**
-     * Same as {@link #spawnText(Location, Component, Quaternionf, float)} with an explicit text
-     * alignment: the entity position anchors the LEFT/CENTER/RIGHT edge of the block.
+     * Spawns a {@link TextDisplay} entity with explicit horizontal text alignment.
      */
     public static TextDisplay spawnText(
         Location loc,

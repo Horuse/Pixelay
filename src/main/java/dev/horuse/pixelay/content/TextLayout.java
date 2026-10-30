@@ -10,16 +10,13 @@ import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
 /**
- * Line breaking of canvas text, CSS-style (see {@link TextWrap}). The same breaks are used to measure the
- * text and to render it: they are written into the component as line breaks, so the client never wraps
- * by itself.
- * <p>
- * Breaks are allowed at spaces (the space is dropped), after a hyphen (it stays at the line end) and, with
- * {@link TextWrap.WordBreak#BREAK_ALL}, between any two characters. A space never makes a line overflow.
+ * Handles line breaking for canvas text in CSS style.
+ * The engine writes line breaks into the component so the client does not wrap text.
+ * Breaks occur at spaces, hyphens, or between any characters when configured.
  */
 final class TextLayout {
 
-    /** One character: its advance and the rows it is drawn on (font px from the line top). */
+    /** Represents one character with its advance and vertical bounds in font pixels. */
     record Glyph(int codePoint, int advance, int top, int bottom) {
         boolean space() {
             return codePoint == ' ';
@@ -31,9 +28,9 @@ final class TextLayout {
     }
 
     /**
-     * @param lines {@code [start, end)} glyph ranges of every line
-     * @param dropped indexes of spaces replaced by a line break
-     * @param breaksBefore indexes of glyphs a line break is inserted before
+     * @param lines line ranges by glyph index
+     * @param dropped indices of spaces replaced by line breaks
+     * @param breaksBefore indices of glyphs where line breaks are inserted
      */
     record Lines(List<Glyph> glyphs, List<int[]> lines, Set<Integer> dropped, Set<Integer> breaksBefore) {}
 
@@ -66,7 +63,7 @@ final class TextLayout {
         }
     }
 
-    /** Breaks the glyphs into lines of at most {@code maxWidth} font px (when they can break). */
+    /** Breaks glyphs into lines using {@code maxWidth} in font pixels. */
     static Lines lay(List<Glyph> glyphs, int maxWidth, TextWrap wrap) {
         List<int[]> lines = new ArrayList<>();
         Set<Integer> dropped = new HashSet<>();
@@ -74,7 +71,7 @@ final class TextLayout {
         boolean wraps = wrap.whiteSpace() == TextWrap.WhiteSpace.NORMAL;
         int start = 0;
         int width = 0;
-        // Last place the line may break: the glyph index the next line starts at, and whether a space is dropped.
+        // Index of the last possible break position and drop flag.
         int breakAt = -1;
         boolean breakDrops = false;
 
@@ -92,7 +89,7 @@ final class TextLayout {
                 continue;
             }
             if (glyph.space()) {
-                // Spaces hang at the line end: they never overflow it, and a break there drops them.
+                // Spaces hang at line ends without causing overflow.
                 width += glyph.advance();
                 breakAt = i;
                 breakDrops = true;
@@ -112,7 +109,7 @@ final class TextLayout {
                     breakAt = -1;
                 }
                 if (width + glyph.advance() > maxWidth && width > 0 && wrap.wordBreak() != TextWrap.WordBreak.NORMAL) {
-                    // The word alone is too wide: break inside it.
+                    // The word exceeds line width, break inside the word.
                     lines.add(new int[] { start, i });
                     breaksBefore.add(i);
                     start = i;
@@ -138,7 +135,7 @@ final class TextLayout {
         return width;
     }
 
-    /** Width, line count and vertical extent of laid-out text. */
+    /** Calculates width, line count, and vertical bounds for laid-out text. */
     static FontMetrics.Metrics metrics(Lines laid) {
         int widest = 0;
         double top = Double.MAX_VALUE;
@@ -165,10 +162,7 @@ final class TextLayout {
         return new FontMetrics.Metrics(widest, laid.lines().size(), top, bottom);
     }
 
-    /**
-     * The narrowest width (font px) the text can take without overflowing: its widest unbreakable piece
-     * (CSS min-content). Words with {@code BREAK_WORD} still count whole, as in CSS.
-     */
+    /** Calculates the minimum text width without overflow. */
     static int minContentWidth(List<Glyph> glyphs, TextWrap wrap) {
         int widest = 0;
         int piece = 0;
@@ -188,9 +182,7 @@ final class TextLayout {
         return Math.max(widest, piece);
     }
 
-    /**
-     * Truncates a single-line MiniMessage component with {@code "..."} if its width exceeds {@code maxWidth} font px.
-     */
+    /** Truncates a single-line component with an ellipsis when width exceeds {@code maxWidth}. */
     static Component truncateEllipsis(Component root, int maxWidth) {
         if (maxWidth <= 0) {
             return Component.empty();
@@ -258,7 +250,7 @@ final class TextLayout {
         return result.children(children);
     }
 
-    /** Writes the breaks into the component as line breaks, keeping every style. */
+    /** Inserts line breaks into the component while preserving text styles. */
     static Component apply(Component root, Lines laid) {
         if (laid.dropped().isEmpty() && laid.breaksBefore().isEmpty()) {
             return root;
@@ -296,13 +288,12 @@ final class TextLayout {
         return result.children(children);
     }
 
-    /** Text colour when nothing sets one: TextDisplays draw white. */
+    /** Default text color for displays without an explicit color. */
     private static final int DEFAULT_COLOR = 0xFFFFFF;
 
     /**
-     * Where every glyph is drawn, in font px from the left of the block and the top of its first line, as the
-     * client lays the lines out: each one pressed left, centred or pressed right inside the widest line.
-     * Index-aligned with {@link #glyphs}; {@code null} for glyphs that draw nothing (spaces, line breaks).
+     * Calculates bounding boxes for rendered glyphs based on alignment.
+     * Returns boxes aligned with glyph indices.
      */
     static List<GlyphBox> boxes(Lines laid, LineAlign align) {
         List<GlyphBox> boxes = new ArrayList<>(laid.glyphs().size());
@@ -324,7 +315,7 @@ final class TextLayout {
             double lineTop = n * FontMetrics.LINE_PITCH_PX;
             for (int i = line[0]; i < line[1]; i++) {
                 Glyph glyph = laid.glyphs().get(i);
-                // A bitmap glyph draws its advance minus the 1 font px of spacing (bold: one more, its copy).
+                // Glyph width equals advance minus one font pixel spacing.
                 int ink = glyph.advance() - 1;
                 if (!glyph.space() && ink > 0) {
                     int[] rows = FontMetrics.quadRowsOf(glyph.codePoint());
@@ -336,11 +327,7 @@ final class TextLayout {
         return boxes;
     }
 
-    /**
-     * The laid-out component (see {@link #apply}) with every glyph in its own colour: the glyph's colour with
-     * its 3 lowest bits of red, green and blue replaced by {@code codes[i]} (9 bits), so that a core shader can
-     * read them. The colours change by at most 7/255.
-     */
+    /** Encodes shader identifier data into the lower color bits of each glyph. */
     static Component encode(Component root, Lines laid, int[] codes) {
         return encode(root, laid, codes, new int[] { 0 }, DEFAULT_COLOR);
     }
@@ -361,7 +348,7 @@ final class TextLayout {
                 children.add(Component.text(piece, TextColor.color(withCode(color, codes[at]))));
                 i += Character.charCount(codePoint);
             }
-            // The text moves into the children, which inherit every other style of the component.
+            // Move characters into child components with encoded colors.
             result = text.content("");
         }
         for (Component child : component.children()) {

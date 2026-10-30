@@ -3,12 +3,9 @@ package dev.horuse.pixelay.data;
 import org.bukkit.entity.TextDisplay;
 
 /**
- * Horizontal anchor of a component box relative to its {@code pixelX}: the anchor point pins the
- * LEFT/CENTER/RIGHT edge of the box, like CSS {@code left/center/right}. A TextDisplay box is
- * always centered on its entity position, so the anchoring is implemented by shifting the spawn
- * point with {@link #horizontalOffset} using the measured text width ({@link
- * dev.horuse.pixelay.content.FontMetrics}); the native TextDisplay alignment only presses the lines
- * of a multi-line block to the same edge.
+ * Specifies horizontal anchor alignment of a component box.
+ * The anchor point aligns with the left, center, or right edge of the box.
+ * The system calculates horizontal offset using measured text width.
  */
 public enum HAlign {
     LEFT,
@@ -16,8 +13,7 @@ public enum HAlign {
     RIGHT;
 
     /**
-     * @return offset (canvas px) from the anchor point to the box center, so the anchored edge of a
-     *     box of the given width lands exactly on the anchor
+     * @return horizontal pixel offset from anchor to box center
      */
     public double horizontalOffset(double boxWidthPx) {
         return switch (this) {
@@ -28,8 +24,7 @@ public enum HAlign {
     }
 
     /**
-     * @return the native TextDisplay alignment that presses multi-line block's lines to the same
-     *     edge
+     * @return the corresponding Minecraft TextDisplay alignment
      */
     public TextDisplay.TextAlignment textAlignment() {
         return switch (this) {

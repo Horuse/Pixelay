@@ -15,17 +15,18 @@ import org.bukkit.entity.Player;
 import org.joml.Vector3f;
 
 /**
- * Invisible {@code Interaction} tiles laid over a canvas plane. They only catch that a player clicked
- * the canvas; where exactly is decided by the player's look ray, so hitboxes match the drawn boxes
- * exactly whatever the canvas rotation (an Interaction is an axis-aligned box with a square base and
- * can not follow a rotated or lying plane itself).
+ * Invisible {@code Interaction} tiles placed over a canvas plane.
+ * The tiles detect when a player clicks the canvas.
+ * The player look ray determines the exact click coordinates.
+ * Hitboxes match drawn boxes for all canvas orientations.
+ * An Interaction entity is an axis-aligned box with a square base and cannot rotate.
  * <p>
- * Without a viewer the tiles are server entities everyone can click; with one they are packet-only
- * entities of that player.
+ * Without a viewer, tiles are server entities that all players can click.
+ * With a viewer, tiles are packet-only entities for that player.
  */
 final class HitArea {
 
-    /** Thickness (blocks) of the tiles of a lying canvas. */
+    /** Thickness in blocks for tiles of a horizontal canvas. */
     private static final float FLAT_THICKNESS = 0.05f;
 
     final Canvas canvas;
@@ -39,7 +40,7 @@ final class HitArea {
         this.viewer = viewer;
     }
 
-    /** One tile: bottom-centre position and size of an Interaction box. */
+    /** Single tile record with bottom-center position and size for an Interaction box. */
     private record Tile(double x, double y, double z, float width, float height) {}
 
     void spawn() {
@@ -82,9 +83,11 @@ final class HitArea {
     }
 
     /**
-     * Covers the plane with as few boxes as its orientation allows: one box per square of a lying
-     * canvas aligned with the world axes, a full-height column per step of a standing one, small cubes
-     * along a tilted one. Boxes stick out of a standing plane by half a tile at most.
+     * Covers the plane with minimal boxes based on canvas orientation.
+     * Horizontal canvases use one box per square.
+     * Vertical canvases use full-height columns per step.
+     * Tilted canvases use cubes.
+     * Boxes protrude from a vertical plane by at most half a tile.
      */
     private List<Tile> tiles() {
         CanvasResolution res = canvas.resolution();
@@ -119,13 +122,13 @@ final class HitArea {
         return tiles;
     }
 
-    /** Centres {@code (u, v)} of cells of size {@code du x dv} covering {@code width x height} around 0. */
+    /** Calculates center coordinates {@code (u, v)} of cells covering {@code width x height} around 0. */
     private static List<double[]> grid(double width, double height, double du, double dv) {
         List<double[]> points = new ArrayList<>();
         int columns = Math.max(1, (int) Math.ceil(width / du - 1e-9));
         int rows = height <= 0 ? 1 : Math.max(1, (int) Math.ceil(height / dv - 1e-9));
         for (int i = 0; i < columns; i++) {
-            // The last cell is pulled back inside, so boxes do not stick out past the edge.
+            // Pull the last cell inside to prevent boxes from protruding past the edge.
             double u = Math.min(-width / 2 + du / 2 + i * du, width / 2 - du / 2);
             for (int j = 0; j < rows; j++) {
                 double v = height <= 0 ? 0 : Math.min(-height / 2 + dv / 2 + j * dv, height / 2 - dv / 2);

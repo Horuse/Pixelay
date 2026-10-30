@@ -8,8 +8,7 @@ import java.util.function.BooleanSupplier;
 import org.bukkit.entity.Player;
 
 /**
- * An interactive HTML {@code <input type="checkbox">} component with a font-independent geometric
- * check indicator and an optional text label.
+ * Interactive checkbox component with geometric indicator and optional label.
  */
 public final class Checkbox extends Container<Checkbox> {
 

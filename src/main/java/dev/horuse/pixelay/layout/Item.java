@@ -11,9 +11,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * A 3D item model element inside a layout (like an HTML {@code <img>} for Minecraft items).
- * Keeps its natural square size {@code sizePx}, pinned inside its rectangle by {@link #justifySelf}
- * and {@link #alignSelf} (top-left by default); {@link Align#STRETCH} makes it fill that axis.
+ * Renders an item stack element within a layout.
  */
 public final class Item extends Box<Item> {
 

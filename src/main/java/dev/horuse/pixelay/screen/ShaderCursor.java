@@ -18,27 +18,23 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 
 /**
- * The cursor of a {@link ScreenSession} drawn by the core shader of Pixelay's pack ({@code pixelay_cursor.glsl}):
- * the client draws it every frame where the player looks, so it moves exactly as smoothly as the camera.
+ * Renders the cursor of a {@link ScreenSession} with the Pixelay core shader ({@code pixelay_cursor.glsl}).
+ * The client renders the cursor every frame matching the player look direction.
  * <p>
- * How the shader learns what it needs:
+ * Operational details:
  * <ul>
- *   <li>the look: the client draws its water overlay while the player's eyes are in water, with texture
- *       coordinates that follow the player's own yaw and pitch (not the camera's, which stays locked). The
- *       player gets client-side water at eye height, above the camera, out of its view;</li>
- *   <li>the overlay is never drawn for spectators, as the client reads the game mode from the tab list: the
- *       player's own tab list entry says adventure while the session lasts (they stay a spectator);</li>
- *   <li>which sprite and how wide the canvas looks: a state number sent as a negative world age every tick
- *       (the client counts the age on between packets, the shader rounds that away).</li>
+ *   <li>The client renders a water overlay while player eyes are in water, following player yaw and pitch.
+ *       The server places packet-only water blocks at eye height above the camera.</li>
+ *   <li>The client disables this overlay for spectators. The server sends tab list updates setting mode to ADVENTURE.</li>
+ *   <li>Active sprite and canvas field of view encode as negative world age ticks.</li>
  * </ul>
- * The look starts at yaw 0 and pitch 0 (the camera's direction for the shader); teleports the server sends
- * during the session no longer turn the player's look, so it never jumps.
+ * Look direction begins at yaw 0 and pitch 0. Server teleports preserve player rotation during the session.
  */
 final class ShaderCursor {
 
-    /** The sprite number the shader draws nothing for. */
+    /** Sprite index representing hidden state. */
     static final int HIDDEN_SPRITE = 7;
-    /** Ticks after the start before teleports stop turning the look: the session's own teleport must turn it. */
+    /** Tick delay before teleports stop modifying player rotation. */
     private static final int KEEP_LOOK_AFTER_TICKS = 2;
     private static final int WATER_RESEND_TICKS = 40;
 
@@ -54,20 +50,18 @@ final class ShaderCursor {
         this.player = player;
     }
 
-    /** The cursor shown to a player, if any (packet listeners, network thread). */
+    /** Returns active shader cursor for player if present. */
     static ShaderCursor of(Player player) {
         return player != null ? ACTIVE.get(player.getUniqueId()) : null;
     }
 
-    /** Whether this player can see a shader cursor: Pixelay's pack was built (they need it loaded). */
+    /** Checks if shader cursor is available with current resource pack. */
     static boolean available() {
         return PixelayPack.current() != null;
     }
 
     /**
-     * Starts rewriting the player's packets and tells the client its tab list game mode is adventure. Sent here,
-     * not only when the game mode changes: a player who goes from one screen straight to the next stays a
-     * spectator, and the server sends nothing then.
+     * Starts packet modifications and updates tab list game mode to adventure.
      */
     void start() {
         ACTIVE.put(player.getUniqueId(), this);
@@ -75,18 +69,14 @@ final class ShaderCursor {
     }
 
     /**
-     * Rows of client-side water around the eyes of a player riding a vehicle at {@code seat}, from this much
-     * above the seat to this much (block bottoms): a rider sits 0.6 below the seat, its eyes 1.62 above that,
-     * with room to spare either way.
+     * Vertical bounds for client-side water blocks relative to seat position.
      */
     private static final double WATER_FROM = 0.4;
 
     private static final double WATER_TO = 2.4;
 
     /**
-     * Puts client-side water around the eyes of the player sitting at {@code seat}, so the overlay is drawn: a
-     * 3x3 column, so the eyes are in it even on a block edge, and one block more above (water under water is
-     * full height, so the eyes are in it at any height).
+     * Sends client-side water blocks around player eyes to trigger the underwater overlay.
      */
     void flood(Location seat) {
         clearWater();
@@ -103,9 +93,9 @@ final class ShaderCursor {
     }
 
     /**
-     * Shows sprite {@code sprite} for a canvas whose half height is seen at {@code tan(halfHeight)}.
+     * Displays sprite for given half height tangent.
      *
-     * @return the half height tangent the shader works with (quantized): map looks to pixels with it
+     * @return Quantized half height tangent used by the shader.
      */
     double show(int sprite, double halfHeightTan) {
         int level = level(halfHeightTan);
@@ -113,12 +103,12 @@ final class ShaderCursor {
         return halfHeightTan(level);
     }
 
-    /** Hides the cursor (the overlay draws nothing) until the next {@link #show}. */
+    /** Hides the cursor until next {@link #show} call. */
     void hide() {
         state = state == 0 ? 0 : 1 + HIDDEN_SPRITE + 8 * ((state - 1) / 8);
     }
 
-    /** Every tick: re-sends the state (the client counts the age on), the water now and then. */
+    /** Resends state each tick and periodically refreshes water blocks. */
     void tick() {
         ticks++;
         if (ticks == KEEP_LOOK_AFTER_TICKS) {
@@ -126,14 +116,14 @@ final class ShaderCursor {
         }
         PacketUtils.send(player, new WrapperPlayServerTimeUpdate(worldAge(), player.getPlayerTime(), true));
         if (ticks % WATER_RESEND_TICKS == 0) {
-            // A chunk re-sent by the server would wash the client-side water away.
+            // Periodic chunk updates can clear client-side water blocks.
             sendWater();
         }
-        // The client plays the underwater ambience for eyes in water: cut it before it is heard.
+        // Suppress underwater ambient sound effect.
         player.stopSound(SoundCategory.AMBIENT);
     }
 
-    /** Gives back the real blocks, world age and tab list game mode. */
+    /** Restores real world blocks, world age, and tab list game mode. */
     void stop() {
         ACTIVE.remove(player.getUniqueId(), this);
         if (!player.isOnline()) {
@@ -148,7 +138,7 @@ final class ShaderCursor {
         sendTabListMode(GameMode.valueOf(player.getGameMode().name()));
     }
 
-    /** The game mode of the player's own tab list entry, as their client sees it. */
+    /** Sends tab list packet with specified game mode. */
     private void sendTabListMode(GameMode mode) {
         WrapperPlayServerPlayerInfoUpdate.PlayerInfo entry = new WrapperPlayServerPlayerInfoUpdate.PlayerInfo(
             new UserProfile(player.getUniqueId(), player.getName()),
@@ -165,15 +155,14 @@ final class ShaderCursor {
     }
 
     /**
-     * The world age the client must have, negative (0 = no cursor): near the top of the state's range, as the
-     * client counts it down (the age goes up) until the next packet.
+     * Computes encoded negative world age for current cursor state.
      */
     long worldAge() {
         int step = PixelayPack.STATE_STEP;
         return state == 0 ? 0 : -((long) state * step + step / 2 - 2);
     }
 
-    /** Whether teleports must leave the player's look alone. */
+    /** Returns true if teleports must preserve current look angles. */
     boolean keepsLook() {
         return keepsLook;
     }
@@ -192,7 +181,7 @@ final class ShaderCursor {
         water.clear();
     }
 
-    /** The state level of a half height tangent (log scale, see {@link PixelayPack#LEVELS}). */
+    /** Returns state level for half height tangent on logarithmic scale. */
     static int level(double halfHeightTan) {
         double t = Math.log(halfHeightTan / PixelayPack.TAN_MIN) / Math.log(PixelayPack.TAN_MAX / PixelayPack.TAN_MIN);
         return (int) Math.max(0, Math.min(PixelayPack.LEVELS - 1, Math.round(t * (PixelayPack.LEVELS - 1))));

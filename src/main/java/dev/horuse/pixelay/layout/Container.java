@@ -6,7 +6,7 @@ import dev.horuse.pixelay.data.Size;
 import java.util.ArrayList;
 import java.util.List;
 
-/** A box with children. */
+/** Base class for layout boxes containing child elements. */
 public abstract class Container<S extends Container<S>> extends Box<S> {
 
     protected final List<Box<?>> children = new ArrayList<>();
@@ -18,7 +18,7 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
         }
     }
 
-    /** Space between neighbouring children (CSS {@code gap}). */
+    /** Sets spacing between adjacent child elements. */
     public S gap(double gap) {
         this.gap = gap;
         return self();
@@ -32,14 +32,14 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
         return List.copyOf(children);
     }
 
-    /** Appends a child item to this container and invalidates cached measurements. */
+    /** Appends a child item and invalidates cached measurements. */
     public S addChild(LayoutItem item) {
         children.add(Layout.box(item));
         invalidate();
         return self();
     }
 
-    /** Removes a child box from this container and invalidates cached measurements. */
+    /** Removes a child box and invalidates cached measurements. */
     public S removeChild(Box<?> child) {
         if (children.remove(child)) {
             invalidate();
@@ -47,7 +47,7 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
         return self();
     }
 
-    /** Removes all children from this container and invalidates cached measurements. */
+    /** Removes all children and invalidates cached measurements. */
     public S clearChildren() {
         if (!children.isEmpty()) {
             children.clear();
@@ -73,7 +73,7 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
         children.forEach(child -> child.collectBoxes(out));
     }
 
-    /** Widest child min-content width (for containers that stack children on top of each other). */
+    /** Calculates maximum minimum-width among participating children. */
     protected double widestChildMinWidth() {
         double width = 0;
         for (Box<?> child : children) {
@@ -84,7 +84,7 @@ public abstract class Container<S extends Container<S>> extends Box<S> {
         return width;
     }
 
-    /** Returns only the children participating in normal layout flow (excluding {@link Position#ABSOLUTE} and {@link Box#isHidden()}). */
+    /** Returns children participating in standard layout flow. */
     protected List<Box<?>> flowChildren() {
         boolean anyExcluded = false;
         for (int i = 0; i < children.size(); i++) {

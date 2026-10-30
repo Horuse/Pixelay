@@ -14,21 +14,18 @@ import dev.horuse.pixelay.clicks.CanvasClicks;
 import org.bukkit.entity.Player;
 
 /**
- * Routes screen clicks through client network packets in SPECTATOR mode. In spectator mode, LMB
- * does not send INTERACT_ENTITY/ANIMATION — the client locally switches the camera to the entity
- * under the crosshair (fake Interaction in front of the screen) or to itself (clicking in the air)
- * and sends Spectate to its UUID. Both options are intercepted as a click, the packet is cancelled,
- * and the camera is forcibly returned to the anchor. Attempts to dismount (Shift) are tracked and
- * blocked at the PLAYER_INPUT level ({@code clicks.block-sneak-dismount}), so that a spectator
- * detach via Shift is not considered a click.
+ * Routes screen clicks through client network packets in SPECTATOR mode.
+ * In spectator mode, LMB does not send INTERACT_ENTITY or ANIMATION.
+ * The client changes the camera locally to the entity under crosshairs or to itself, and sends Spectate to its UUID.
+ * The listener intercepts both options as clicks, cancels the packet, and restores the camera anchor.
+ * The listener also monitors and blocks dismount attempts (Shift) at the PLAYER_INPUT level.
  */
 public class CanvasPacketClickListener implements PacketListener {
 
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
         if (event.getPlayer() instanceof Player player && CanvasClickCatcher.isViewer(player)) {
-            // Track and block dismount attempts (Shift): otherwise the server sees a dismount
-            // request and detaches the passenger from the camera anchor.
+            // Tracks and blocks dismount attempts (Shift) to keep passenger attached to the anchor.
             if (event.getPacketType() == PacketType.Play.Client.PLAYER_INPUT) {
                 WrapperPlayClientPlayerInput packet = new WrapperPlayClientPlayerInput(event);
 
@@ -43,9 +40,8 @@ public class CanvasPacketClickListener implements PacketListener {
                 }
             }
 
-            // LMB in spectator mode sends Spectate (the entity under the crosshair, or the player's own UUID
-            // when clicking past it). With a packet-only entity under the crosshair the client may send
-            // INTERACT_ENTITY or ATTACK instead. All of them are a click on the screen under the cursor.
+            // In spectator mode, LMB sends Spectate. With a packet-only entity, the client can send INTERACT_ENTITY or ATTACK.
+            // All these packets represent a screen click under the cursor.
             if (
                 event.getPacketType() == PacketType.Play.Client.SPECTATE ||
                 event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY ||
@@ -55,7 +51,7 @@ public class CanvasPacketClickListener implements PacketListener {
                 return;
             }
 
-            // LMB in the air sends ANIMATION
+            // LMB in the air sends ANIMATION.
             if (event.getPacketType() == PacketType.Play.Client.ANIMATION) {
                 if (CanvasClickCatcher.handleSwing(player)) {
                     Pixelay.debug("click ANIMATION routed");
@@ -63,7 +59,7 @@ public class CanvasPacketClickListener implements PacketListener {
                 return;
             }
 
-            // LMB on blocks sends PLAYER_DIGGING (START_DIGGING)
+            // LMB on blocks sends PLAYER_DIGGING with START_DIGGING.
             if (event.getPacketType() == PacketType.Play.Client.PLAYER_DIGGING) {
                 WrapperPlayClientPlayerDigging packet = new WrapperPlayClientPlayerDigging(event);
                 if (packet.getAction() == DiggingAction.START_DIGGING && CanvasClickCatcher.handleSwing(player)) {
@@ -87,8 +83,7 @@ public class CanvasPacketClickListener implements PacketListener {
     }
 
     /**
-     * A screen click packet: cancelled, routed as a click unless the player holds Shift (that is an attempt
-     * to leave the camera), and the camera put back — the client has already moved it on its own.
+     * Intercepts a screen click packet, routes the click if not sneaking, and restores the camera.
      */
     private static void routeScreenClick(PacketReceiveEvent event, Player player) {
         event.setCancelled(true);

@@ -9,8 +9,8 @@ import org.spongepowered.configurate.ConfigurateException;
 import org.spongepowered.configurate.ConfigurationNode;
 
 /**
- * Immutable snapshot of {@code config.yml}. A fresh snapshot is built on every enable/reload, so
- * components always read consistent values via {@link dev.horuse.pixelay.Pixelay#settings()}.
+ * Immutable snapshot of {@code config.yml}. The plugin builds a snapshot on enable and reload.
+ * Components read consistent values via {@link dev.horuse.pixelay.Pixelay#settings()}.
  */
 public record PixelaySettings(
     boolean debug,
@@ -26,7 +26,7 @@ public record PixelaySettings(
     List<String> resourcePackOrder,
     ResourcePack resourcePack
 ) {
-    /** Text rendering options shared by every renderer. */
+    /** Text rendering options shared by all renderers. */
     public record Text(
         float bottomGapFontPx,
         float viewRange,
@@ -40,36 +40,34 @@ public record PixelaySettings(
     /**
      * Click routing options.
      *
-     * @param hitTileSize size (blocks) of the invisible click tiles laid over a canvas
-     * @param maxDistance farthest (blocks) a player may click a canvas from
+     * @param hitTileSize size in blocks of invisible click tiles on a canvas
+     * @param maxDistance maximum distance in blocks for player canvas clicks
      */
     public record Clicks(long debounceMs, boolean blockSneakDismount, double hitTileSize, double maxDistance) {}
 
     /**
-     * Look-at cursor appearance.
+     * Look-at cursor appearance options.
      *
-     * @param shader whether screens draw the cursor with the core shader of Pixelay's resource pack (smooth,
-     *     every frame) instead of a TextDisplay glyph moved by the server
+     * @param shader true if screens render the cursor with the core shader, false for TextDisplay entities
      */
     public record Cursor(String glyph, double heightPx, boolean shader) {}
 
     /**
-     * The resource pack Pixelay builds ({@code generated-pack} in config.yml).
+     * Configuration options for the generated resource pack.
      *
-     * @param cursorScale screen px per sprite px of the shader cursor, on a 1080 px tall screen
-     * @param sprites the shader cursor's sprites, in atlas order
+     * @param cursorScale screen pixels per sprite pixel on a 1080p display
+     * @param sprites list of cursor sprites in atlas order
      */
     public record ResourcePack(boolean enabled, double cursorScale, List<CursorSprite> sprites) {}
 
-    /** @param step distance (blocks) between two drawing layers, see {@link dev.horuse.pixelay.data.Layers} */
+    /** @param step distance in blocks between drawing layers (see {@link dev.horuse.pixelay.data.Layers}) */
     public record Layers(float step) {}
 
     /** Chat suppression for full-screen canvases. */
     public record ChatSuppression(boolean enabled, int queueLimit, int deliverLimit) {}
 
     /**
-     * Fake entity settings. Display/TextDisplay metadata indexes change between Minecraft versions,
-     * so they are exposed here instead of being hard-coded.
+     * Packet entity settings. Provides metadata indexes that change across Minecraft versions.
      */
     public record Packets(int fakeEntityIdBase, MetadataIndexes metadata) {}
 
@@ -96,7 +94,7 @@ public record PixelaySettings(
         int blockState
     ) {}
 
-    /** Copies the default config.yml if missing, then parses it into a fresh snapshot. */
+    /** Copies default config.yml if missing, then loads configuration into a snapshot. */
     public static PixelaySettings load(JavaPlugin plugin) throws ConfigurateException {
         ConfigurationNode root = YamlFiles.load(plugin, "config.yml");
         ConfigurationNode scheduler = root.node("scheduler");
@@ -172,7 +170,7 @@ public record PixelaySettings(
         );
     }
 
-    /** Sprites as {@code name: [hotSpotX, hotSpotY]}, in file order; the built-in four when none are listed. */
+    /** Parses cursor sprite mappings with names and hotspots in order. Returns defaults when empty. */
     private static List<CursorSprite> cursorSprites(ConfigurationNode node) throws ConfigurateException {
         if (!node.isMap()) {
             return List.of(
@@ -196,12 +194,11 @@ public record PixelaySettings(
         return sprites;
     }
 
-    /** Current config.yml layout; older files still load, with a warning for every changed option. */
+    /** Current configuration format version. Older formats load with migration warnings. */
     private static final int CONFIG_VERSION = 2;
 
     /**
-     * Version 2 replaced {@code text.normal-offset} and {@code cursor.depth-offset} with {@code layers.step},
-     * and the meaning of {@code text.bottom-gap-font-px} (now the same for every alignment, default 0).
+     * Warns about legacy configuration options from version 1.
      */
     private static void warnOutdated(JavaPlugin plugin, ConfigurationNode root) {
         if (root.node("config-version").getInt(1) >= CONFIG_VERSION) {
@@ -226,7 +223,7 @@ public record PixelaySettings(
         log.warning("  then add config-version: " + CONFIG_VERSION + " to hide this message");
     }
 
-    /** Parses {@code #AARRGGBB} (or {@code #RRGGBB}, treated as opaque) into an ARGB int. */
+    /** Parses color strings in {@code #AARRGGBB} or {@code #RRGGBB} format to packed ARGB integers. */
     static int parseArgb(String value) {
         if (value == null || value.isBlank()) {
             return 0;

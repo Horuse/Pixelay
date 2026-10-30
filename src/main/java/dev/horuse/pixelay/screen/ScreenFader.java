@@ -11,16 +11,15 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 /**
- * A packet-only veil over a canvas, driven by one phase value {@code u}: {@code 0} = not yet in view,
- * {@code 1} = fully covered, {@code 2} = gone out the other side. Covering animates {@code 0 → 1}, revealing
- * {@code 1 → 2}, so a wipe keeps moving in one continuous direction through both phases.
- *
- * <p>Every tick update is sent with client-side GPU interpolation ({@link #INTERPOLATION_TICKS}), rendering
- * at the player's full monitor refresh rate (60 Hz, 144 Hz, 240 Hz, 360 Hz+).
+ * A packet-only transition veil over a canvas driven by phase parameter {@code u}.
+ * Phase {@code 0} is out of view, {@code 1} is fully covered, and {@code 2} is completed.
+ * Covering animates {@code 0 -> 1} and reveal animates {@code 1 -> 2}.
+ * <p>
+ * Updates use client-side GPU interpolation ({@link #INTERPOLATION_TICKS}) to match monitor refresh rate.
  */
 final class ScreenFader {
 
-    /** Client-side GPU interpolation duration in ticks (smooths sub-tick frames on the monitor). */
+    /** Duration in ticks for client-side GPU interpolation. */
     private static final int INTERPOLATION_TICKS = 2;
     private static final double SQRT2 = Math.sqrt(2);
 
@@ -63,7 +62,7 @@ final class ScreenFader {
         spawn(u);
     }
 
-    /** Animates the phase from {@code from} to {@code to}, then runs {@code done} once client interpolation finishes. */
+    /** Animates phase from {@code from} to {@code to}, then executes {@code done} when interpolation completes. */
     void animate(double from, double to, Runnable done) {
         cancel();
         long duration = Math.max(1, transition.durationMs());
@@ -80,7 +79,7 @@ final class ScreenFader {
                 apply(from + (to - from) * eased);
                 if (raw >= 1.0) {
                     cancel();
-                    // Wait for the client to finish interpolating the final position before calling done.
+                    // Wait for client to finish interpolation before executing callback.
                     task = Bukkit.getScheduler().runTaskLater(
                         Pixelay.plugin(),
                         () -> {
@@ -98,7 +97,7 @@ final class ScreenFader {
         );
     }
 
-    /** Waits {@code ticks} fully covered, then reveals and removes itself. */
+    /** Waits {@code ticks} while covered, then performs reveal animation and removes itself. */
     void revealAfter(long ticks, Runnable onRevealed) {
         cancel();
         task = Bukkit.getScheduler().runTaskLater(
@@ -171,7 +170,7 @@ final class ScreenFader {
                     double py = cornerY(u);
                     double pivotX = px + size / 2.0;
                     double pivotY = py + size / 2.0;
-                    // Spawn turned 45 degrees around its center
+                    // Spawn panel rotated 45 degrees around its center.
                     id1 = ColorPanel.spawn(
                         player,
                         canvas,
@@ -250,12 +249,12 @@ final class ScreenFader {
         return y + dirY() * (u - 1) * height;
     }
 
-    /** Side length of the 45-degree square: tightly encloses the overlay with a 3% margin. */
+    /** Side length of 45-degree square that encloses the overlay with 3 percent margin. */
     private double diagonalSize() {
         return Math.round(((width + height) / SQRT2) * 1.03);
     }
 
-    /** Distance from overlay center to entry corner, plus half the square size. */
+    /** Distance from overlay center to entry corner, plus half square size. */
     private double diagonalTravel() {
         double dCorner = (width + height) / (2.0 * SQRT2);
         return dCorner + diagonalSize() / 2.0;
@@ -271,7 +270,7 @@ final class ScreenFader {
         return centerY - diagonalSize() / 2.0;
     }
 
-    /** Horizontal travel of a wipe (+ = right, - = left). */
+    /** Horizontal travel direction of a wipe (1 for right, -1 for left). */
     private int dirX() {
         return switch (transition.type()) {
             case LINEAR_WIPE_LEFT, CORNER_WIPE_TOP_RIGHT, CORNER_WIPE_BOTTOM_RIGHT -> -1;
@@ -280,7 +279,7 @@ final class ScreenFader {
         };
     }
 
-    /** Vertical travel of a wipe (+ = down, - = up). */
+    /** Vertical travel direction of a wipe (1 for down, -1 for up). */
     private int dirY() {
         return switch (transition.type()) {
             case LINEAR_WIPE_UP, CORNER_WIPE_BOTTOM_LEFT, CORNER_WIPE_BOTTOM_RIGHT -> -1;

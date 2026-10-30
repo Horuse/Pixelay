@@ -5,14 +5,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 
 /**
- * Global, player-agnostic placeholder resolution.
- *
- * <p>Server-side display entities are shared across all viewers, so only global placeholders
- * (server stats, global variables, …) make sense here. Player-bound placeholders resolve to empty.
- * When PlaceholderAPI is absent the template is returned unchanged.
- *
- * <p>Templates must come from trusted sources (code or config), never from players: every
- * {@code %placeholder%} in them is expanded.
+ * Resolves global placeholders without player context.
+ * Server display entities are shared across viewers, so only global placeholders resolve.
+ * Returns templates unchanged when PlaceholderAPI is missing.
  */
 public final class PlaceholderResolver {
 
@@ -29,10 +24,10 @@ public final class PlaceholderResolver {
     }
 
     /**
-     * Resolves global placeholders in the template. No player context is applied.
+     * Resolves global placeholders in the template string.
      *
-     * @param template raw text possibly containing {@code %...%} placeholders
-     * @return the resolved text, or the template unchanged when PlaceholderAPI is not installed
+     * @param template Raw text that can contain placeholders.
+     * @return Resolved string, or template unchanged if PlaceholderAPI is unavailable.
      */
     public static String resolve(String template) {
         if (template == null || template.isEmpty() || !isAvailable()) {

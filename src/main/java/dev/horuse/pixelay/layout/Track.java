@@ -1,6 +1,6 @@
 package dev.horuse.pixelay.layout;
 
-/** A grid track size: fixed px, a fraction of the free space ({@code fr}) or {@code auto} (content). */
+/** Defines track size in pixels, fractional units, or automatic sizing. */
 public record Track(Kind kind, double value) {
     public enum Kind {
         PX,

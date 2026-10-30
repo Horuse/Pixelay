@@ -4,30 +4,27 @@ import dev.horuse.pixelay.utils.PlaceholderResolver;
 import java.util.function.Supplier;
 
 /**
- * Source of the text rendered by a canvas component. Re-evaluated on every refresh, so dynamic
- * content (suppliers, placeholders) updates live.
+ * Supplies text content for a canvas component. Re-evaluates on each refresh to update dynamic content.
  */
 @FunctionalInterface
 public interface TextContent {
     String render();
 
-    /** Constant text. */
+    /** Creates static text content. */
     static TextContent of(String text) {
         return () -> text;
     }
 
-    /** Text recomputed from a supplier on every refresh. */
+    /** Creates dynamic text content evaluated on each refresh. */
     static TextContent supplier(Supplier<String> supplier) {
         return supplier::get;
     }
 
     /**
-     * Template resolved through global (player-agnostic) placeholders on every refresh.
+     * Creates dynamic text content evaluated with global placeholders on each refresh.
      *
-     * <p><b>Never pass player-supplied text here</b> (chat, names, signs, …): PlaceholderAPI
-     * expands any {@code %placeholder%} in it and the result is parsed as MiniMessage, so a player
-     * could leak server data or inject formatting. Escape such input first, e.g. with {@code
-     * MiniMessage.miniMessage().escapeTags(input)} and by stripping {@code %}.
+     * <p><b>Do not pass untrusted player text to this method.</b> PlaceholderAPI expands placeholders
+     * and parses results as MiniMessage. Players can inject tags or leak data. Sanitize untrusted input first.
      */
     static TextContent placeholder(String template) {
         return () -> PlaceholderResolver.resolve(template);

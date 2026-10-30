@@ -1,18 +1,18 @@
 package dev.horuse.pixelay;
 
 /**
- * A live drawing managed by the {@link CanvasManager}: a canvas plus its components. Consumers
- * implement this and register themselves so refresh and self-healing are ticked centrally.
+ * A live surface that {@link CanvasManager} manages: a canvas and its components. Consumers
+ * implement this interface and register so the manager ticks refresh and self-healing centrally.
  */
 public interface CanvasSurface {
-    /** Re-evaluate dynamic content of all components. */
+    /** Re-evaluates dynamic content of all components. */
     void refresh();
 
     /**
-     * @return whether every backing entity is still alive
+     * @return true if every backing entity is alive, false otherwise
      */
     boolean isValid();
 
-    /** Despawn and spawn everything again (used when self-heal detects a dead entity). */
+    /** Despawns and spawns components again when self-healing detects a dead entity. */
     void respawn();
 }

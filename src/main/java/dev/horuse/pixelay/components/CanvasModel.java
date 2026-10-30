@@ -30,20 +30,19 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /**
- * A 3D model on a canvas — an item ({@link CanvasItem}) or a block ({@link CanvasBlock}) — fitted into a box of
- * canvas px and pressed flat onto its depth layer, so it looks like a picture on the canvas and never pokes
- * through the layers in front of it. The anchor point and alignment work as for texts: {@code align(LEFT, TOP)}
- * makes {@code (pixelX, pixelY)} the top-left corner of the box.
+ * Renders a 3D model on a canvas, such as an item ({@link CanvasItem}) or a block ({@link CanvasBlock}).
+ * Fits the model into a canvas pixel box and flattens it onto its depth layer.
+ * This prevents the model from clipping through layers in front of it.
+ * The anchor coordinates and alignment match text positioning.
  * <p>
- * Drawn with a real display entity seen by everyone, one seen by a single player ({@code perPlayer}), or a
- * packet-only one of a single player ({@code fake}). The content comes from a supplier and is re-read on every
- * refresh. Clicks and hover go through a layout box: {@code node(item).onClick(...)}.
+ * Supports three rendering modes: server entities, per-player entities, and packet-only fake entities.
+ * Content comes from a supplier and updates on refresh.
  *
  * @param <T> the drawn content: an item stack or a block state
  */
 public abstract class CanvasModel<T> implements LayoutComponent {
 
-    /** Packed block/sky light 15/15 — forces full brightness. */
+    /** Packed block and sky light 15/15 for full brightness. */
     private static final int FULL_BRIGHTNESS = 0xF000F0;
     private static final int NO_BRIGHTNESS_OVERRIDE = -1;
     private static final byte BILLBOARD_FIXED = 0;
@@ -61,7 +60,7 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     private VAlign vAlign = VAlign.BOTTOM;
     private volatile int layerStep = Layers.DEFAULT_TEXT_BACKGROUND_STEP;
     private volatile boolean hovered;
-    /** Where a layout lets the model draw, or {@code null} outside layouts (the canvas then). */
+    /** Bounding clip rectangle for layout drawing, or {@code null} outside layouts. */
     private volatile Rect clip;
     private volatile double rotateDeg;
     private volatile double rotateXDeg;
@@ -70,14 +69,14 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     private Canvas canvas;
     private Display display;
     private int fakeId;
-    /** Where the entity stands; it is moved only through its translation, like the fake texts. */
+    /** Base world position of the entity. Movements use translation transformations. */
     private Vector entityPos;
     private T lastContent;
     private Transformation lastTransformation;
 
     /**
-     * @param viewer the only player who sees the model, or {@code null} for everyone
-     * @param fake whether the model is packet-only (requires a viewer)
+     * @param viewer the single player who sees the model, or {@code null} for all players
+     * @param fake true if the model is packet-only, false otherwise
      */
     protected CanvasModel(
         Player viewer,
@@ -102,28 +101,27 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         this.heightPx = heightPx;
     }
 
-    /** The display entity class drawn for everyone or one player. */
+    /** @return display entity class for server-side rendering */
     protected abstract Class<? extends Display> displayClass();
 
-    /** The same display entity type for packets. */
+    /** @return display entity type for packet rendering */
     protected abstract EntityType packetType();
 
-    /** Puts the content into a server display entity (and anything else the entity type needs). */
+    /** Applies content and settings to a server display entity. */
     protected abstract void applyContent(Display display, T content);
 
-    /** The metadata showing the content on a packet-only entity. */
+    /** @return metadata list that displays content on a packet-only entity */
     protected abstract List<EntityData<?>> contentData(T content);
 
     /**
-     * Where the model's origin goes inside its box, in blocks along the canvas right, up and out from the box's
-     * bottom-left corner on its layer.
+     * Calculates the model origin offset in blocks relative to the bottom-left box corner.
      */
     protected abstract Vector3f modelOffset(float width, float height, float thickness);
 
-    /** Rotation of the model before it is scaled to its box, so that its front faces out of the canvas. */
+    /** Model rotation applied before box scaling so the front faces outward. */
     protected abstract Quaternionf modelRotation();
 
-    /** {@code null} content draws nothing. */
+    /** @return empty content instance when supplier returns null */
     protected abstract T empty();
 
     @Override
@@ -178,7 +176,7 @@ public abstract class CanvasModel<T> implements LayoutComponent {
             return;
         }
         if (fake) {
-            // Content and position in one packet: the new content must not blink at the old position.
+            // Send content and position in one packet to prevent flickering at old positions.
             List<EntityData<?>> data = new ArrayList<>();
             if (moved) {
                 data.addAll(transformationData(transformation));
@@ -215,11 +213,11 @@ public abstract class CanvasModel<T> implements LayoutComponent {
 
     @Override
     public boolean isValid() {
-        // Fake entities have no server state; valid until explicitly despawned.
+        // Fake entities have no server state and stay valid until despawn.
         return fake ? fakeId != 0 : display != null && display.isValid();
     }
 
-    /** Switches this model to packet-only rendering for {@code viewer} if it currently has no viewer. */
+    /** Binds a viewer and switches the model to packet-only rendering if unassigned. */
     public void bindViewer(Player viewer) {
         if (viewer != null && this.viewer == null) {
             this.viewer = viewer;
@@ -233,8 +231,8 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     }
 
     /**
-     * Pins the anchor point to the given edges of the model's box, as for texts: {@code align(HAlign.LEFT,
-     * VAlign.TOP)} makes {@code (pixelX, pixelY)} its top-left corner.
+     * Pins the anchor point to specified box edges.
+     * For example, {@code align(HAlign.LEFT, VAlign.TOP)} sets {@code (pixelX, pixelY)} as the top-left corner.
      */
     @SuppressWarnings("unchecked")
     public <S extends CanvasModel<T>> S align(HAlign hAlign, VAlign vAlign) {
@@ -243,12 +241,12 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         return (S) this;
     }
 
-    /** Whether the pointer is over this model's box in its layout (CSS {@code :hover}). */
+    /** @return true if the pointer hovers over this model in its layout (CSS {@code :hover}) */
     public boolean isHovered() {
         return hovered;
     }
 
-    /** The size the model asks for in a layout, in canvas px. */
+    /** @return natural width requested by the model in canvas pixels */
     public double naturalWidthPx() {
         return naturalWidthPx;
     }
@@ -257,7 +255,7 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         return naturalHeightPx;
     }
 
-    /** Set by layouts: the model's box, its top-left corner at {@code (x, y)}. */
+    /** Sets the model box bounds from layout calculations with top-left at {@code (x, y)}. */
     @ApiStatus.Internal
     public void place(double x, double y, double width, double height) {
         this.pixelX = x;
@@ -278,7 +276,7 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     @Override
     @ApiStatus.Internal
     public void setLayerStep(int step) {
-        // Picked up by the next refresh through the transformation.
+        // The next refresh applies the layer step in the transformation.
         layerStep = step;
     }
 
@@ -289,8 +287,8 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     }
 
     /**
-     * A model can not be cut like a text: it disappears once its box is entirely outside the clip (or the
-     * canvas), and is drawn whole while any part of it is inside. Picked up by the next refresh.
+     * Sets the bounding clip rectangle.
+     * Models render fully when partially inside the clip and disappear when completely outside.
      */
     @Override
     @ApiStatus.Internal
@@ -298,7 +296,7 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         this.clip = clip;
     }
 
-    /** Whether the model's box is entirely outside where it may draw. */
+    /** @return true if the model box is entirely outside the clip area, false otherwise */
     private boolean clippedAway() {
         CanvasResolution res = canvas.resolution();
         Rect visible = new Rect(0, 0, res.pixelWidth(), res.pixelHeight());
@@ -315,7 +313,7 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         return value != null ? value : empty();
     }
 
-    /** The bottom-left corner of the box on the model's layer. */
+    /** @return world location of the bottom-left box corner on the model layer */
     private Location cornerWorld() {
         double left = pixelX + hAlign.horizontalOffset(widthPx) - widthPx / 2;
         double bottom = pixelY + vAlign.bottomOffset(heightPx);
@@ -323,21 +321,20 @@ public abstract class CanvasModel<T> implements LayoutComponent {
     }
 
     /**
-     * The model fitted into its box. The entity never moves (its yaw and pitch are 0, so the translation is in
-     * world axes): the box corner relative to it, plus the model's own offset turned with the canvas.
+     * Calculates the model transformation fitted into the target box.
      */
     private Transformation transformation() {
         CanvasResolution res = canvas.resolution();
         float width = (float) ((widthPx * res.blockWidth()) / res.pixelWidth());
         float height = (float) ((heightPx * res.blockHeight()) / res.pixelHeight());
-        // Half a step: the flattened model stays between its own layer and the next one.
+        // Use a half-step thickness to keep the model between adjacent layers.
         float thickness = Layers.at(0.5, viewer);
         Quaternionf rotation = canvas.contentRotation();
         Vector corner = cornerWorld().toVector().subtract(entityPos);
         Vector3f translation = rotation
             .transform(modelOffset(width, height, thickness))
             .add((float) corner.getX(), (float) corner.getY(), (float) corner.getZ());
-        // Clipped away: scaled to nothing, so it comes back in place without a respawn.
+        // Scale to zero when clipped away so content restores without respawning entities.
         Vector3f scale = clippedAway() ? new Vector3f() : new Vector3f(width, height, thickness);
         Quaternionf rightRot = modelRotation();
         if (rotateDeg != 0.0) {
@@ -352,7 +349,7 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         return new Transformation(translation, rotation, scale, rightRot);
     }
 
-    /** Metadata set once at spawn. */
+    /** @return initial metadata list sent at spawn */
     private List<EntityData<?>> staticData() {
         PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
         PixelaySettings.Text style = Pixelay.settings().text();

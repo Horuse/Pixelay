@@ -18,9 +18,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 /**
- * Canvas outlines ({@code /pixelay debug bounds}): every canvas with spawned components near a debugging
- * player is outlined with particles on the plane its components are drawn on, with a cross in its
- * centre — to check that a canvas sits where its background (model, map, wall) is.
+ * Visualizes canvas bounds with particle outlines for debugging.
+ * Draws rectangular boundary lines and center crosses for nearby canvases.
  */
 public final class CanvasBoundsDebug {
 
@@ -29,7 +28,7 @@ public final class CanvasBoundsDebug {
     private static final double STEP_BLOCKS = 0.1;
     private static final Particle.DustOptions DUST = new Particle.DustOptions(Color.fromRGB(0, 255, 255), 0.35f);
 
-    /** Spawned components per canvas; canvases nobody holds any more disappear by themselves. */
+    /** Tracks active component counts per canvas using weak references. */
     private static final Map<Canvas, Integer> CANVASES = new WeakHashMap<>();
     private static final Set<UUID> VIEWERS = ConcurrentHashMap.newKeySet();
     private static BukkitTask task;
@@ -44,7 +43,7 @@ public final class CanvasBoundsDebug {
         CANVASES.computeIfPresent(canvas, (key, count) -> count > 1 ? count - 1 : null);
     }
 
-    /** @return whether the outlines are now shown to the player */
+    /** @return true if boundary outlines are now enabled for the player */
     public static boolean toggle(Player player) {
         return PlayerSet.toggle(VIEWERS, player.getUniqueId());
     }
