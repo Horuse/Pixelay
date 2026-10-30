@@ -196,23 +196,16 @@ public final class ScreenSession {
             performOpen(true);
             return;
         }
-        Location worldView = player.getLocation().clone();
-        worldView.setPitch(0f);
-        player.setGameMode(GameMode.SPECTATOR);
-        ScreenCamera worldCam = new ScreenCamera(player, worldView, 0, worldView.getYaw());
-        worldCam.spawn();
-        ScreenFader cover = worldFader(worldView, fadeIn, 0);
+        Location eye = player.getEyeLocation();
+        ScreenFader cover = worldFader(eye, fadeIn, 0);
         fader = cover;
         cover.animate(0, 1, () -> {
             if (closed || !player.isOnline()) {
                 cover.remove();
-                worldCam.remove(true);
-                player.setGameMode(previousMode);
                 return;
             }
-            worldCam.remove(false);
-            cover.remove();
             performOpen(true);
+            cover.remove();
         });
     }
 
@@ -618,11 +611,13 @@ public final class ScreenSession {
         );
     }
 
-    /** A veil in the world, right in front of the world camera view. */
+    /** A veil in the world, right in front of the player's eyes. */
     private ScreenFader worldFader(Location at, ScreenTransition transition, double u) {
         float yaw = at.getYaw();
-        Vector forward = new Vector(-Math.sin(Math.toRadians(yaw)), 0, Math.cos(Math.toRadians(yaw)));
-        Canvas front = new Canvas(at.clone().add(forward.multiply(options.distance())), 180 - yaw, resolution(1.0));
+        float pitch = at.getPitch();
+        Vector forward = at.getDirection().normalize();
+        Location center = at.clone().add(forward.multiply(options.distance()));
+        Canvas front = new Canvas(center, 180 - yaw, -pitch, 0f, 0f, resolution(1.0));
         return new ScreenFader(
             player,
             front,
@@ -700,29 +695,26 @@ public final class ScreenSession {
 
         if (!hasNextSession) {
             if (veiled) {
+                // Screen is 100% black under veil: restore player and camera to world now!
+                camera.remove(true);
+                if (player.isOnline() && options.restore()) {
+                    player.teleport(previousLocation);
+                    player.setGameMode(previousMode);
+                }
+                if (shaderCursor != null) {
+                    shaderCursor.stop();
+                }
+                showOthers();
+                releaseChunks();
+
+                Location eye = player.getEyeLocation();
+                ScreenFader reveal = worldFader(eye, options.fadeOut(), 1);
+                fader = reveal;
                 if (veil != null) {
                     veil.remove();
                 }
-                camera.remove(false);
-                Location worldView = previousLocation.clone();
-                worldView.setPitch(0f);
-                player.teleport(worldView);
-                ScreenCamera worldCam = new ScreenCamera(player, worldView, 0, worldView.getYaw());
-                worldCam.spawn();
-                ScreenFader reveal = worldFader(worldView, options.fadeOut(), 1);
-                fader = reveal;
                 reveal.revealAfter(REVEAL_HOLD_TICKS, () -> {
                     fader = null;
-                    worldCam.remove(true);
-                    if (player.isOnline() && options.restore()) {
-                        player.teleport(previousLocation);
-                        player.setGameMode(previousMode);
-                    }
-                    if (shaderCursor != null) {
-                        shaderCursor.stop();
-                    }
-                    showOthers();
-                    releaseChunks();
                     SESSIONS.remove(player.getUniqueId(), this);
                     if (options.onClose() != null) {
                         options.onClose().accept(this, reason);
