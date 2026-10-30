@@ -319,7 +319,8 @@ public final class MountedLayout implements CanvasComponent {
                         box.visualRotateXDeg(),
                         box.visualRotateYDeg(),
                         box.visualPivotX(),
-                        box.visualPivotY()
+                        box.visualPivotY(),
+                        box.visualTransformationDurationTicks()
                     );
             }
             syncBoxBorders(box, viewer, bg);
@@ -354,40 +355,38 @@ public final class MountedLayout implements CanvasComponent {
         Rect clip = box.clip();
         float depth = Layers.at(box.paintStep + 1, viewer);
 
-        Rect topRect =
-            b.top() > 0 ? new Rect(r.x(), r.y(), r.width(), Math.min(b.top(), r.height())).intersect(clip) : Rect.EMPTY;
-        Rect bottomRect =
-            b.bottom() > 0
-                ? new Rect(
-                      r.x(),
-                      Math.max(r.y(), r.bottom() - b.bottom()),
-                      r.width(),
-                      Math.min(b.bottom(), r.height())
-                  ).intersect(clip)
-                : Rect.EMPTY;
-        double midY = r.y() + b.top();
-        double midH = Math.max(0, r.height() - b.top() - b.bottom());
-        Rect leftRect =
-            b.left() > 0 ? new Rect(r.x(), midY, Math.min(b.left(), r.width()), midH).intersect(clip) : Rect.EMPTY;
-        Rect rightRect =
-            b.right() > 0
-                ? new Rect(
-                      Math.max(r.x(), r.right() - b.right()),
-                      midY,
-                      Math.min(b.right(), r.width()),
-                      midH
-                  ).intersect(clip)
-                : Rect.EMPTY;
-
         double rotZ = box.visualRotateDeg();
         double rotX = box.visualRotateXDeg();
         double rotY = box.visualRotateYDeg();
         double pivX = box.visualPivotX();
         double pivY = box.visualPivotY();
-        edges[0].sync(canvas, topRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
-        edges[1].sync(canvas, rightRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
-        edges[2].sync(canvas, bottomRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
-        edges[3].sync(canvas, leftRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY);
+        int durationTicks = box.visualTransformationDurationTicks();
+        boolean hasRot = Math.abs(rotZ) >= 1e-4 || Math.abs(rotX) >= 1e-4 || Math.abs(rotY) >= 1e-4;
+
+        Rect topRect = b.top() > 0 ? new Rect(r.x(), r.y(), r.width(), Math.min(b.top(), r.height())) : Rect.EMPTY;
+        Rect bottomRect =
+            b.bottom() > 0
+                ? new Rect(r.x(), Math.max(r.y(), r.bottom() - b.bottom()), r.width(), Math.min(b.bottom(), r.height()))
+                : Rect.EMPTY;
+        double midY = r.y() + b.top();
+        double midH = Math.max(0, r.height() - b.top() - b.bottom());
+        Rect leftRect = b.left() > 0 ? new Rect(r.x(), midY, Math.min(b.left(), r.width()), midH) : Rect.EMPTY;
+        Rect rightRect =
+            b.right() > 0
+                ? new Rect(Math.max(r.x(), r.right() - b.right()), midY, Math.min(b.right(), r.width()), midH)
+                : Rect.EMPTY;
+
+        if (!hasRot && clip != null) {
+            topRect = topRect.intersect(clip);
+            bottomRect = bottomRect.intersect(clip);
+            leftRect = leftRect.intersect(clip);
+            rightRect = rightRect.intersect(clip);
+        }
+
+        edges[0].sync(canvas, topRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY, durationTicks);
+        edges[1].sync(canvas, rightRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY, durationTicks);
+        edges[2].sync(canvas, bottomRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY, durationTicks);
+        edges[3].sync(canvas, leftRect, borderArgb, depth, rotZ, rotX, rotY, pivX, pivY, durationTicks);
     }
 
     private int compositedBackground(Box<?> box) {
@@ -557,7 +556,7 @@ public final class MountedLayout implements CanvasComponent {
             if (
                 !box.isHidden() &&
                 filter.test(box) &&
-                box.rect().contains(x, y) &&
+                box.contains(x, y) &&
                 (box.clip() == null || box.clip().contains(x, y))
             ) {
                 return box;

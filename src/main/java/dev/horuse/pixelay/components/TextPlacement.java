@@ -72,27 +72,8 @@ public final class TextPlacement {
             bottomGapPx(drawable) * drawable.visualScaleY() -
             (boxTop + height / 2.0);
         double boxCenterY = boxTop + height / 2.0;
-        double x;
-        double y;
-        double rotDeg = drawable.rotateDeg();
-        if (Math.abs(rotDeg) < 1e-4) {
-            x = boxCenterX + localDx;
-            y = boxCenterY + localDy;
-        } else {
-            double px = Double.isNaN(drawable.rotatePivotX()) ? boxCenterX : drawable.rotatePivotX();
-            double py = Double.isNaN(drawable.rotatePivotY()) ? boxCenterY : drawable.rotatePivotY();
-            double rad = Math.toRadians(rotDeg);
-            double cos = Math.cos(rad);
-            double sin = Math.sin(rad);
-            double relX = boxCenterX - px;
-            double relY = boxCenterY - py;
-            double rotCenterX = px + relX * cos - relY * sin;
-            double rotCenterY = py + relX * sin + relY * cos;
-            double rotLocalDx = localDx * cos - localDy * sin;
-            double rotLocalDy = localDx * sin + localDy * cos;
-            x = rotCenterX + rotLocalDx;
-            y = rotCenterY + rotLocalDy;
-        }
+        double x = boxCenterX + localDx;
+        double y = boxCenterY + localDy;
         return new Placement(
             explicitOr(drawable, width, height),
             x,

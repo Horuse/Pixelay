@@ -122,6 +122,8 @@ public final class PixelayPack {
         }
         files.put(ATLAS, png(atlas(images, image(files, CURSORS + "water.png"))));
         files.put(CONFIG, config(sprites, images, settings.cursorScale()).getBytes(StandardCharsets.UTF_8));
+        files.put("assets/pixelay/font/transition.json", transitionFontJson().getBytes(StandardCharsets.UTF_8));
+        files.put("assets/pixelay/textures/font/white.png", png(whitePixelImage()));
         // The sprites live in the atlas now.
         files.keySet().removeIf(path -> path.startsWith(CURSORS));
 
@@ -286,5 +288,33 @@ public final class PixelayPack {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private static String transitionFontJson() {
+        return """
+        {
+          "providers": [
+            {
+              "type": "bitmap",
+              "file": "pixelay:font/white.png",
+              "ascent": 7,
+              "height": 8,
+              "chars": [
+                "\\uE000"
+              ]
+            }
+          ]
+        }
+        """;
+    }
+
+    private static BufferedImage whitePixelImage() {
+        BufferedImage img = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
+        int white = 0xFFFFFFFF;
+        img.setRGB(0, 0, white);
+        img.setRGB(0, 1, white);
+        img.setRGB(1, 0, white);
+        img.setRGB(1, 1, white);
+        return img;
     }
 }

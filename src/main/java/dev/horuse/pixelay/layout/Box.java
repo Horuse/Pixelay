@@ -83,6 +83,9 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     private double visualRotateYDeg;
     private double visualPivotX;
     private double visualPivotY;
+    private int visualTransformationDurationTicks;
+    private Transform lastTargetTransform;
+    private long clientTransformUntilTime;
     protected int zIndex;
     private MountedLayout directMount;
     /** Result of the last arrange: does this box (or an ancestor) not fit its space. */
@@ -289,22 +292,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
 
     /** @param insideOverflow an ancestor already does not fit its space */
     final void arrange(Rect rect, boolean insideOverflow) {
-        arrange(rect, insideOverflow, 1.0, 1.0, 0.0, 0.0, 0.0, Double.NaN, Double.NaN);
-    }
-
-    /** Arranges {@code child} inside this container, propagating this container's visual scale and rotation. */
-    final void arrangeChild(Box<?> child, Rect childRect, boolean insideOverflow) {
-        child.arrange(
-            childRect,
-            insideOverflow,
-            this.visualScaleX,
-            this.visualScaleY,
-            this.visualRotateDeg,
-            this.visualRotateXDeg,
-            this.visualRotateYDeg,
-            this.visualPivotX,
-            this.visualPivotY
-        );
+        arrange(rect, insideOverflow, 1.0, 1.0, 0.0, 0.0, 0.0, Double.NaN, Double.NaN, 0);
     }
 
     final void arrange(
@@ -318,6 +306,48 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         double inheritedPivotX,
         double inheritedPivotY
     ) {
+        arrange(
+            rect,
+            insideOverflow,
+            inheritedScaleX,
+            inheritedScaleY,
+            inheritedRotateDeg,
+            inheritedRotateXDeg,
+            inheritedRotateYDeg,
+            inheritedPivotX,
+            inheritedPivotY,
+            0
+        );
+    }
+
+    /** Arranges {@code child} inside this container, propagating this container's visual scale, rotation, and animation ticks. */
+    final void arrangeChild(Box<?> child, Rect childRect, boolean insideOverflow) {
+        child.arrange(
+            childRect,
+            insideOverflow,
+            this.visualScaleX,
+            this.visualScaleY,
+            this.visualRotateDeg,
+            this.visualRotateXDeg,
+            this.visualRotateYDeg,
+            this.visualPivotX,
+            this.visualPivotY,
+            this.visualTransformationDurationTicks
+        );
+    }
+
+    final void arrange(
+        Rect rect,
+        boolean insideOverflow,
+        double inheritedScaleX,
+        double inheritedScaleY,
+        double inheritedRotateDeg,
+        double inheritedRotateXDeg,
+        double inheritedRotateYDeg,
+        double inheritedPivotX,
+        double inheritedPivotY,
+        int inheritedDurationTicks
+    ) {
         if (hidden) {
             this.rect = new Rect(rect.x(), rect.y(), 0, 0);
             this.fit = Fit.NONE;
@@ -328,11 +358,31 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
             this.visualRotateYDeg = 0.0;
             this.visualPivotX = 0.0;
             this.visualPivotY = 0.0;
+            this.visualTransformationDurationTicks = 0;
             arrangeContent(this.rect);
             arrangeAbsoluteChildren(this.rect);
             return;
         }
         Transform tf = effectiveTransform();
+        if (lastTargetTransform != null && !tf.approximatelyEquals(lastTargetTransform)) {
+            if (transformTransition != null) {
+                int ticks = (int) Math.max(1, Math.round(transformTransition.transition().durationMs() / 50.0));
+                this.visualTransformationDurationTicks = Math.max(ticks, inheritedDurationTicks);
+                this.clientTransformUntilTime =
+                    System.currentTimeMillis() + transformTransition.transition().durationMs();
+            } else {
+                this.visualTransformationDurationTicks = inheritedDurationTicks;
+            }
+        } else {
+            this.visualTransformationDurationTicks = inheritedDurationTicks;
+        }
+        this.lastTargetTransform = tf;
+
+        LayoutComponent comp = component();
+        if (comp != null) {
+            comp.setTransformationDuration(this.visualTransformationDurationTicks);
+        }
+
         double sx = tf.scaleX();
         double sy = tf.scaleY();
         this.visualScaleX = inheritedScaleX * sx;
@@ -415,6 +465,10 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return visualPivotY;
     }
 
+    public int visualTransformationDurationTicks() {
+        return visualTransformationDurationTicks;
+    }
+
     /** Hook overridden by {@link Container} to arrange any {@link Position#ABSOLUTE} children inside {@code bounds}. */
     void arrangeAbsoluteChildren(Rect bounds) {}
 
@@ -431,6 +485,44 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     /** The rectangle assigned by the last layout pass. */
     public Rect rect() {
         return rect;
+    }
+
+    /** Whether the canvas point {@code (px, py)} falls within this box, taking its rotation into account. */
+    public boolean contains(double px, double py) {
+        if (rect == null || hidden) {
+            return false;
+        }
+        if (
+            Math.abs(visualRotateDeg) < 1e-4 && Math.abs(visualRotateXDeg) < 1e-4 && Math.abs(visualRotateYDeg) < 1e-4
+        ) {
+            return rect.contains(px, py);
+        }
+        double pivX = visualPivotX;
+        double pivY = visualPivotY;
+        double dx = px - pivX;
+        double dy = py - pivY;
+        if (Math.abs(visualRotateDeg) >= 1e-4) {
+            double rad = Math.toRadians(-visualRotateDeg);
+            double cos = Math.cos(rad);
+            double sin = Math.sin(rad);
+            double rx = dx * cos - dy * sin;
+            double ry = dx * sin + dy * cos;
+            dx = rx;
+            dy = ry;
+        }
+        if (Math.abs(visualRotateXDeg) >= 1e-4) {
+            double cosX = Math.cos(Math.toRadians(visualRotateXDeg));
+            if (Math.abs(cosX) > 0.05) {
+                dy = dy / cosX;
+            }
+        }
+        if (Math.abs(visualRotateYDeg) >= 1e-4) {
+            double cosY = Math.cos(Math.toRadians(visualRotateYDeg));
+            if (Math.abs(cosY) > 0.05) {
+                dx = dx / cosY;
+            }
+        }
+        return rect.contains(pivX + dx, pivY + dy);
     }
 
     public String id() {
@@ -1366,7 +1458,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
         return (
             (backgroundTransition != null && backgroundTransition.isAnimating()) ||
             (borderTransition != null && borderTransition.isAnimating()) ||
-            (transformTransition != null && transformTransition.isAnimating())
+            System.currentTimeMillis() < clientTransformUntilTime
         );
     }
 
@@ -1380,20 +1472,12 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
             effectiveBorderColor(now);
             animating |= borderTransition.isAnimating();
         }
-        if (transformTransition != null) {
-            effectiveTransform(now);
-            animating |= transformTransition.isAnimating();
-        }
         return animating;
     }
 
     Transform effectiveTransform() {
-        return effectiveTransform(System.currentTimeMillis());
-    }
-
-    Transform effectiveTransform(long now) {
         Style style = activeStyle();
-        Transform target = new Transform(
+        return new Transform(
             style != null && style.translateX() != null ? style.translateX() : translateX,
             style != null && style.translateY() != null ? style.translateY() : translateY,
             style != null && style.translatePxX() != null ? style.translatePxX() : translatePxX,
@@ -1406,10 +1490,10 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
             style != null && style.originX() != null ? style.originX() : transformOriginX,
             style != null && style.originY() != null ? style.originY() : transformOriginY
         );
-        if (transformTransition != null) {
-            return transformTransition.update(target, now);
-        }
-        return target;
+    }
+
+    Transform effectiveTransform(long now) {
+        return effectiveTransform();
     }
 
     /** The background to draw now: from the active states, if they set one. */

@@ -106,7 +106,16 @@ abstract class TextRenderer implements CanvasRenderer {
 
     /** The world location of the current placement, on the element's depth layer. */
     protected final Location location() {
-        return canvas.pixelToWorld(placement.x(), placement.y(), drawable.textDepth());
+        return canvas.rotatedPixelToWorld(
+            placement.x(),
+            placement.y(),
+            drawable.textDepth(),
+            drawable.rotateDeg(),
+            drawable.rotateXDeg(),
+            drawable.rotateYDeg(),
+            drawable.rotatePivotX(),
+            drawable.rotatePivotY()
+        );
     }
 
     protected final TextPlacement.Placement placement() {

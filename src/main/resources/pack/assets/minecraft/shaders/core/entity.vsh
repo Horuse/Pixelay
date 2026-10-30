@@ -38,16 +38,16 @@ void main() {
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
 
 #ifdef PER_FACE_LIGHTING
-    vec2 light = pixelay_is_full_brightness(UV2) ? vec2(1.0) : minecraft_compute_light(Light0_Direction, Light1_Direction, Normal);
+    vec2 light = pixelay_is_full_brightness(UV2, ProjMat) ? vec2(1.0) : minecraft_compute_light(Light0_Direction, Light1_Direction, Normal);
     vertexPerFaceColorBack = minecraft_mix_light_separate(-light, Color);
     vertexPerFaceColorFront = minecraft_mix_light_separate(light, Color);
 #elif defined(NO_CARDINAL_LIGHTING)
     vertexColor = Color;
 #else
-    vertexColor = pixelay_is_full_brightness(UV2) ? Color : minecraft_mix_light(Light0_Direction, Light1_Direction, Normal, Color);
+    vertexColor = pixelay_is_full_brightness(UV2, ProjMat) ? Color : minecraft_mix_light(Light0_Direction, Light1_Direction, Normal, Color);
 #endif
 #ifndef EMISSIVE
-    lightMapColor = pixelay_is_full_brightness(UV2) ? vec4(1.0) : texelFetch(Sampler2, UV2 / 16, 0);
+    lightMapColor = pixelay_is_full_brightness(UV2, ProjMat) ? vec4(1.0) : texelFetch(Sampler2, UV2 / 16, 0);
 #endif
     overlayColor = texelFetch(Sampler1, UV1, 0);
 

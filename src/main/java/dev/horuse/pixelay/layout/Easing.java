@@ -25,6 +25,9 @@ public interface Easing {
     /** CSS {@code ease-in-out} ({@code cubic-bezier(0.42, 0.0, 0.58, 1.0)}): slow start and slow finish. */
     Easing EASE_IN_OUT = cubicBezier(0.42, 0.0, 0.58, 1.0);
 
+    /** Hermite smoothstep curve: {@code 3t^2 - 2t^3}. */
+    Easing SMOOTHSTEP = t -> t * t * (3.0 - 2.0 * t);
+
     /** Anticipation curve with slight backstep before acceleration. */
     Easing EASE_IN_BACK = cubicBezier(0.6, -0.28, 0.735, 0.045);
 

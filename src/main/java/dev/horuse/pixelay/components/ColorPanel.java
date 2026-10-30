@@ -100,8 +100,73 @@ public final class ColorPanel {
         double pivotX,
         double pivotY
     ) {
+        return spawn(
+            viewer,
+            canvas,
+            x,
+            y,
+            width,
+            height,
+            argb,
+            depth,
+            rotateDeg,
+            rotateXDeg,
+            rotateYDeg,
+            pivotX,
+            pivotY,
+            FULL_BRIGHTNESS
+        );
+    }
+
+    /** Spawns a panel over canvas px with brightness override (used for screen transition shader signatures). */
+    public static int spawn(
+        Player viewer,
+        Canvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        int argb,
+        float depth,
+        int brightnessOverride
+    ) {
+        return spawn(
+            viewer,
+            canvas,
+            x,
+            y,
+            width,
+            height,
+            argb,
+            depth,
+            0.0,
+            0.0,
+            0.0,
+            Double.NaN,
+            Double.NaN,
+            brightnessOverride
+        );
+    }
+
+    /** Spawns a panel over canvas px {@code (x, y, width, height)} with optional Euler rotation degrees and brightness override. */
+    public static int spawn(
+        Player viewer,
+        Canvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        int argb,
+        float depth,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg,
+        double pivotX,
+        double pivotY,
+        int brightnessOverride
+    ) {
         int id = FakeEntityIds.next();
-        Location origin = origin(canvas, x, y, width, height, depth, rotateDeg, pivotX, pivotY);
+        Location origin = origin(canvas, x, y, width, height, depth, rotateDeg, rotateXDeg, rotateYDeg, pivotX, pivotY);
         PacketUtils.spawnEntity(viewer, id, EntityTypes.TEXT_DISPLAY, origin.getX(), origin.getY(), origin.getZ());
 
         Quaternionf rotation = rotated(canvas.contentRotation(), rotateDeg, rotateXDeg, rotateYDeg);
@@ -113,16 +178,18 @@ public final class ColorPanel {
         data.add(new EntityData<>(idx.positionInterpolationDuration(), EntityDataTypes.INT, 0));
         data.add(new EntityData<>(idx.translation(), EntityDataTypes.VECTOR3F, new Vector3f(0f, 0f, 0f)));
         data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)));
-        data.add(
-            new EntityData<>(
-                idx.leftRotation(),
-                EntityDataTypes.QUATERNION,
-                new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
-            )
-        );
+        if (rotation != null) {
+            data.add(
+                new EntityData<>(
+                    idx.leftRotation(),
+                    EntityDataTypes.QUATERNION,
+                    new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
+                )
+            );
+        }
         data.add(new EntityData<>(idx.rightRotation(), EntityDataTypes.QUATERNION, new Quaternion4f(0f, 0f, 0f, 1f)));
         data.add(new EntityData<>(idx.billboard(), EntityDataTypes.BYTE, (byte) 0));
-        data.add(new EntityData<>(idx.brightnessOverride(), EntityDataTypes.INT, FULL_BRIGHTNESS));
+        data.add(new EntityData<>(idx.brightnessOverride(), EntityDataTypes.INT, brightnessOverride));
         data.add(new EntityData<>(idx.viewRange(), EntityDataTypes.FLOAT, Pixelay.settings().text().viewRange()));
         data.add(new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, Component.text(" ")));
         data.add(new EntityData<>(idx.backgroundColor(), EntityDataTypes.INT, argb));
@@ -151,23 +218,7 @@ public final class ColorPanel {
         double height,
         org.bukkit.util.Vector translation
     ) {
-        PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
-        PacketUtils.send(
-            viewer,
-            new WrapperPlayServerEntityMetadata(
-                id,
-                List.of(
-                    new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0),
-                    new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0),
-                    new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)),
-                    new EntityData<>(
-                        idx.translation(),
-                        EntityDataTypes.VECTOR3F,
-                        new Vector3f((float) translation.getX(), (float) translation.getY(), (float) translation.getZ())
-                    )
-                )
-            )
-        );
+        update(viewer, id, canvas, width, height, translation, null, null, 0);
     }
 
     /** Moves, resizes, and recolors an existing panel in a single metadata packet without recreating it. */
@@ -211,18 +262,37 @@ public final class ColorPanel {
         Quaternionf rotation,
         Integer argb
     ) {
+        update(viewer, id, canvas, width, height, translation, rotation, argb, 0);
+    }
+
+    /** Moves, resizes, rotates, and optionally recolors an existing panel with client interpolation duration in ticks. */
+    public static void update(
+        Player viewer,
+        int id,
+        Canvas canvas,
+        double width,
+        double height,
+        org.bukkit.util.Vector translation,
+        Quaternionf rotation,
+        Integer argb,
+        int transformationDuration
+    ) {
         PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
         List<EntityData<?>> data = new ArrayList<>();
         data.add(new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0));
-        data.add(new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, 0));
-        data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)));
         data.add(
-            new EntityData<>(
-                idx.leftRotation(),
-                EntityDataTypes.QUATERNION,
-                new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
-            )
+            new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, Math.max(0, transformationDuration))
         );
+        data.add(new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, scale(canvas, width, height)));
+        if (rotation != null) {
+            data.add(
+                new EntityData<>(
+                    idx.leftRotation(),
+                    EntityDataTypes.QUATERNION,
+                    new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
+                )
+            );
+        }
         data.add(
             new EntityData<>(
                 idx.translation(),
@@ -312,7 +382,7 @@ public final class ColorPanel {
 
     /** Where a panel's entity stands for the rectangle {@code (x, y, width, height)}. */
     public static Location origin(Canvas canvas, double x, double y, double width, double height, float depth) {
-        return origin(canvas, x, y, width, height, depth, 0.0, Double.NaN, Double.NaN);
+        return origin(canvas, x, y, width, height, depth, 0.0, 0.0, 0.0, Double.NaN, Double.NaN);
     }
 
     /**
@@ -330,27 +400,37 @@ public final class ColorPanel {
         double pivotX,
         double pivotY
     ) {
+        return origin(canvas, x, y, width, height, depth, rotateDeg, 0.0, 0.0, pivotX, pivotY);
+    }
+
+    /**
+     * Where a panel's entity stands for the rectangle {@code (x, y, width, height)} when rotated by
+     * Euler degrees {@code (rotateDeg, rotateXDeg, rotateYDeg)} around {@code (pivotX, pivotY)} in canvas pixels.
+     */
+    public static Location origin(
+        Canvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        float depth,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg,
+        double pivotX,
+        double pivotY
+    ) {
         double unitX = width / BG_WIDTH_FONT_PX;
         double localDx = -0.5 * unitX;
         double localDy = height / 2.0;
         double centerX = x + width / 2.0;
         double centerY = y + height / 2.0;
-        if (Math.abs(rotateDeg) < 1e-4) {
-            return canvas.pixelToWorld(centerX + localDx, centerY + localDy, depth);
-        }
         double px = Double.isNaN(pivotX) ? centerX : pivotX;
         double py = Double.isNaN(pivotY) ? centerY : pivotY;
-        double rad = Math.toRadians(rotateDeg);
-        double cos = Math.cos(rad);
-        double sin = Math.sin(rad);
-        // Rotate the rectangle's center around (px, py)
-        double relX = centerX - px;
-        double relY = centerY - py;
-        double rotCenterX = px + relX * cos - relY * sin;
-        double rotCenterY = py + relX * sin + relY * cos;
-        // Rotate the entity's local offset (localDx, localDy) from its center
-        double rotLocalDx = localDx * cos - localDy * sin;
-        double rotLocalDy = localDx * sin + localDy * cos;
-        return canvas.pixelToWorld(rotCenterX + rotLocalDx, rotCenterY + rotLocalDy, depth);
+
+        double unrotatedX = centerX + localDx;
+        double unrotatedY = centerY + localDy;
+
+        return canvas.rotatedPixelToWorld(unrotatedX, unrotatedY, depth, rotateDeg, rotateXDeg, rotateYDeg, px, py);
     }
 }

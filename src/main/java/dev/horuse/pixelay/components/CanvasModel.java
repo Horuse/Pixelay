@@ -189,6 +189,8 @@ public abstract class CanvasModel<T> implements LayoutComponent {
             PacketUtils.send(viewer, new WrapperPlayServerEntityMetadata(fakeId, data));
         } else {
             if (moved) {
+                display.setInterpolationDuration(transformationDuration);
+                display.setInterpolationDelay(0);
                 display.setTransformation(transformation);
             }
             if (changed) {
@@ -368,9 +370,18 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         );
     }
 
-    private static List<EntityData<?>> transformationData(Transformation t) {
+    private int transformationDuration = 0;
+
+    @Override
+    public void setTransformationDuration(int ticks) {
+        this.transformationDuration = Math.max(0, ticks);
+    }
+
+    private List<EntityData<?>> transformationData(Transformation t) {
         PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
         return List.of(
+            new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0),
+            new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, transformationDuration),
             new EntityData<>(idx.translation(), EntityDataTypes.VECTOR3F, vector(t.getTranslation())),
             new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, vector(t.getScale())),
             new EntityData<>(idx.leftRotation(), EntityDataTypes.QUATERNION, quaternion(t.getLeftRotation())),

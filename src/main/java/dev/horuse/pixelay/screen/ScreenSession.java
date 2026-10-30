@@ -97,6 +97,11 @@ public final class ScreenSession {
     private volatile double cursorY;
     private String hovered;
     private boolean closed;
+    private boolean closing;
+    /** The veil currently shown (cover or reveal), or {@code null}. */
+    private ScreenFader fader;
+    /** Set once this session closed behind a full veil: a session opened right after starts covered. */
+    private boolean handedOff;
     private int lastHeldSlot = -1;
     private int lastScrollDirection;
     private long lastScrollTime;
@@ -110,8 +115,9 @@ public final class ScreenSession {
         this.view.setPitch(0);
         Vector forward = new Vector(-Math.sin(Math.toRadians(facingYaw)), 0, Math.cos(Math.toRadians(facingYaw)));
         this.canvasCenter = view.clone().add(forward.multiply(options.distance()));
-        this.previousMode = player.getGameMode();
-        this.previousLocation = player.getLocation().clone();
+        ScreenSession existing = SESSIONS.get(player.getUniqueId());
+        this.previousMode = existing != null ? existing.previousMode : player.getGameMode();
+        this.previousLocation = existing != null ? existing.previousLocation : player.getLocation().clone();
     }
 
     public static Builder builder(Player player) {
@@ -164,14 +170,57 @@ public final class ScreenSession {
         return closed;
     }
 
+    public Location view() {
+        return view.clone();
+    }
+
     // --- opening -----------------------------------------------------------------------------------------
 
+    /**
+     * Opening runs in three steps: the veil covers the world, the player is seated on the camera behind it
+     * (kept fully black until the client has settled), then the veil reveals the screen.
+     */
     private void open() {
         ScreenSession previous = SESSIONS.put(player.getUniqueId(), this);
-        if (previous != null) {
+        if (previous != null && !previous.closed) {
             previous.close(CloseReason.CLOSED);
             SESSIONS.put(player.getUniqueId(), this);
         }
+        ScreenTransition fadeIn = options.fadeIn();
+        if (!animated(fadeIn)) {
+            performOpen(false);
+            return;
+        }
+        if (previous != null && previous.handedOff) {
+            // The previous screen already covered everything: stay black and only reveal.
+            performOpen(true);
+            return;
+        }
+        if (ShaderTransition.available()) {
+            ShaderTransition trans = new ShaderTransition(player, fadeIn, ShaderTransition.Mode.IN);
+            trans.play(() -> {
+                if (closed || !player.isOnline()) {
+                    ShaderTransition.clear(player);
+                    return;
+                }
+                performOpen(true);
+            });
+            return;
+        }
+        Location eye = player.getEyeLocation();
+        ScreenFader cover = worldFader(eye, fadeIn, 0);
+        fader = cover;
+        cover.animate(0, 1, () -> {
+            if (closed || !player.isOnline()) {
+                cover.remove();
+                return;
+            }
+            performOpen(true);
+            cover.remove();
+        });
+    }
+
+    private void performOpen(boolean covered) {
         World world = view.getWorld();
         forceLoad(world);
         if (options.shaderCursor() && ShaderCursor.available()) {
@@ -179,7 +228,7 @@ public final class ScreenSession {
         }
         // The shader measures the look from yaw 0: the player starts there, the camera keeps facing the canvas.
         lookOrigin = shaderCursor != null ? 0 : facingYaw;
-        Location start = view.clone();
+        Location start = shaderCursor != null ? view.clone().add(0, SHADER_SEAT_HEIGHT, 0) : view.clone();
         start.setYaw(lookOrigin);
         start.setPitch(0f);
         player.teleport(start);
@@ -197,18 +246,44 @@ public final class ScreenSession {
             ChatSuppression.suppress(player);
         }
 
-        // With a shader cursor the player sits high above the camera: the water at their eyes stays out of view.
-        camera = new ScreenCamera(player, view, shaderCursor != null ? SHADER_SEAT_HEIGHT : 0, lookOrigin);
-        camera.spawn();
-        if (shaderCursor != null) {
-            shaderCursor.flood(camera.seatLocation());
-        }
         scale = shaderCursor != null ? shaderScale() : clampScale(options.scale());
         canvas = new Canvas(canvasCenter, canvasYaw(), resolution(scale));
+        if (covered && !ShaderTransition.available()) {
+            // Before any content: the screen is black from the first frame the camera shows it.
+            fader = screenFader(options.fadeIn(), 1);
+        }
         content = options.content().apply(canvas);
         content.viewer(player);
         content.spawn(canvas);
         Pixelay.manager().register(surface);
+
+        camera = new ScreenCamera(player, view, shaderCursor != null ? SHADER_SEAT_HEIGHT : 0, lookOrigin);
+        ScreenFader veil = fader;
+        camera.spawn(() -> {
+            if (covered && !closing && !closed) {
+                if (ShaderTransition.available()) {
+                    Bukkit.getScheduler().runTaskLater(
+                        Pixelay.plugin(),
+                        () -> {
+                            if (!closing && !closed && player.isOnline()) {
+                                ShaderTransition out = new ShaderTransition(
+                                    player,
+                                    options.fadeIn(),
+                                    ShaderTransition.Mode.OUT
+                                );
+                                out.play(() -> ShaderTransition.clear(player));
+                            }
+                        },
+                        REVEAL_HOLD_TICKS
+                    );
+                } else if (veil == fader && fader != null) {
+                    veil.revealAfter(REVEAL_HOLD_TICKS, null);
+                }
+            }
+        });
+        if (shaderCursor != null) {
+            shaderCursor.flood(camera.seatLocation());
+        }
 
         halfHeightTan = Math.tan(Math.toRadians(options.verticalFov() / 2)) * scale;
         cursor =
@@ -344,7 +419,7 @@ public final class ScreenSession {
     }
 
     private void click(Player clicker) {
-        if (!closed && clicker.isOnline()) {
+        if (!closed && !closing && clicker.isOnline()) {
             MountedLayout layout = currentLayout();
             ScrollView dragging = layout.activeDraggingScrollView();
             if (dragging != null) {
@@ -491,17 +566,149 @@ public final class ScreenSession {
     // --- closing -----------------------------------------------------------------------------------------
 
     public void close() {
-        close(CloseReason.CLOSED);
+        close(CloseReason.CLOSED, null);
+    }
+
+    public void close(Runnable onClosed) {
+        close(CloseReason.CLOSED, onClosed);
     }
 
     void close(CloseReason reason) {
+        close(reason, null);
+    }
+
+    void close(CloseReason reason, Runnable onClosed) {
+        if (closed) {
+            return;
+        }
+        if (
+            !closing &&
+            reason == CloseReason.CLOSED &&
+            options.fadeOut() != null &&
+            options.fadeOut().type() != ScreenTransition.Type.NONE &&
+            options.fadeOut().durationMs() > 0 &&
+            player.isOnline()
+        ) {
+            startFadeOut(reason, onClosed);
+            return;
+        }
+        finalizeClose(reason, onClosed);
+    }
+
+    private static final double OVERLAY_MULT = 1.6;
+
+    private double overlayWidth() {
+        return options.pixelWidth() * OVERLAY_MULT;
+    }
+
+    private double overlayHeight() {
+        return options.pixelHeight() * OVERLAY_MULT;
+    }
+
+    private double overlayX() {
+        return (options.pixelWidth() - overlayWidth()) / 2.0;
+    }
+
+    private double overlayY() {
+        return (options.pixelHeight() - overlayHeight()) / 2.0;
+    }
+
+    private float overlayDepth() {
+        return Layers.at(Layers.MAX_STEP + 5, player);
+    }
+
+    /** Ticks the veil stays fully closed after the switch, so the client settles before the reveal. */
+    private static final long REVEAL_HOLD_TICKS = 2;
+
+    private static boolean animated(ScreenTransition transition) {
+        return transition != null && transition.type() != ScreenTransition.Type.NONE && transition.durationMs() > 0;
+    }
+
+    /** A veil over this session's canvas. */
+    private ScreenFader screenFader(ScreenTransition transition, double u) {
+        return new ScreenFader(
+            player,
+            canvas,
+            transition,
+            overlayX(),
+            overlayY(),
+            overlayWidth(),
+            overlayHeight(),
+            overlayDepth(),
+            u
+        );
+    }
+
+    /** A veil in the world, right in front of the player's eyes. */
+    private ScreenFader worldFader(Location at, ScreenTransition transition, double u) {
+        float yaw = at.getYaw();
+        float pitch = at.getPitch();
+        Vector forward = at.getDirection().normalize();
+        Location center = at.clone().add(forward.multiply(options.distance()));
+        Canvas front = new Canvas(center, 180 - yaw, -pitch, 0f, 0f, resolution(1.0));
+        return new ScreenFader(
+            player,
+            front,
+            transition,
+            overlayX(),
+            overlayY(),
+            overlayWidth(),
+            overlayHeight(),
+            Layers.at(Layers.MAX_STEP + 5, player),
+            u
+        );
+    }
+
+    private void removeFader() {
+        if (fader != null) {
+            fader.remove();
+            fader = null;
+        }
+    }
+
+    /** Covers the screen, then closes behind the veil. */
+    private void startFadeOut(CloseReason reason, Runnable onClosed) {
+        closing = true;
+        removeFader();
+        ScreenTransition fadeOut = options.fadeOut();
+        if (ShaderTransition.available()) {
+            ShaderTransition trans = new ShaderTransition(player, fadeOut, ShaderTransition.Mode.IN);
+            trans.play(() -> finalizeClose(reason, onClosed));
+            return;
+        }
+        ScreenFader veil = screenFader(fadeOut, 0);
+        fader = veil;
+        veil.animate(0, 1, () -> finalizeClose(reason, onClosed));
+    }
+
+    private void finalizeClose(CloseReason reason, Runnable onClosed) {
         if (closed) {
             return;
         }
         closed = true;
-        SESSIONS.remove(player.getUniqueId(), this);
+        closing = false;
+        ScreenFader veil = fader;
+        fader = null;
+        boolean shaderTrans = ShaderTransition.available();
+        boolean veiled = (veil != null || shaderTrans) && reason == CloseReason.CLOSED && player.isOnline();
+        if (camera == null) {
+            // Closed while the world was still being covered: nothing was set up yet.
+            if (veil != null) {
+                veil.remove();
+            }
+            if (shaderTrans) {
+                ShaderTransition.clear(player);
+            }
+            SESSIONS.remove(player.getUniqueId(), this);
+            if (options.onClose() != null) {
+                options.onClose().accept(this, reason);
+            }
+            return;
+        }
+
         if (task != null) {
             task.cancel();
+            task = null;
         }
         Pixelay.manager().unregister(surface);
         currentLayout().pointerLeft(player);
@@ -515,19 +722,106 @@ public final class ScreenSession {
         if (options.suppressChat()) {
             ChatSuppression.restore(player);
         }
-        camera.remove();
-        showOthers();
-        releaseChunks();
-        if (player.isOnline() && options.restore()) {
-            player.setGameMode(previousMode);
-            player.teleport(previousLocation);
+
+        handedOff = veiled;
+        if (onClosed != null) {
+            onClosed.run();
         }
-        if (shaderCursor != null) {
-            // After the game mode is back: it also sends the real one to the tab list.
-            shaderCursor.stop();
-        }
-        if (options.onClose() != null) {
-            options.onClose().accept(this, reason);
+
+        ScreenSession nextSession = SESSIONS.get(player.getUniqueId());
+        boolean hasNextSession = nextSession != null && nextSession != this;
+
+        if (!hasNextSession) {
+            if (veiled) {
+                // Screen is 100% black under veil: restore game mode, dismount camera, then teleport to world!
+                if (player.isOnline() && options.restore()) {
+                    player.setGameMode(previousMode);
+                }
+                camera.remove(true);
+                if (player.isOnline() && options.restore()) {
+                    player.teleport(previousLocation);
+                }
+                if (shaderCursor != null) {
+                    shaderCursor.stop();
+                }
+                showOthers();
+                releaseChunks();
+
+                if (shaderTrans) {
+                    Bukkit.getScheduler().runTaskLater(
+                        Pixelay.plugin(),
+                        () -> {
+                            if (!player.isOnline()) {
+                                ShaderTransition.clear(player);
+                                SESSIONS.remove(player.getUniqueId(), this);
+                                if (options.onClose() != null) {
+                                    options.onClose().accept(this, reason);
+                                }
+                                return;
+                            }
+                            ShaderTransition reveal = new ShaderTransition(
+                                player,
+                                options.fadeOut(),
+                                ShaderTransition.Mode.OUT
+                            );
+                            reveal.play(() -> {
+                                ShaderTransition.clear(player);
+                                SESSIONS.remove(player.getUniqueId(), this);
+                                if (options.onClose() != null) {
+                                    options.onClose().accept(this, reason);
+                                }
+                            });
+                        },
+                        REVEAL_HOLD_TICKS
+                    );
+                } else {
+                    Location eye = player.getEyeLocation();
+                    ScreenFader reveal = worldFader(eye, options.fadeOut(), 1);
+                    fader = reveal;
+                    if (veil != null) {
+                        veil.remove();
+                    }
+                    reveal.revealAfter(REVEAL_HOLD_TICKS, () -> {
+                        fader = null;
+                        SESSIONS.remove(player.getUniqueId(), this);
+                        if (options.onClose() != null) {
+                            options.onClose().accept(this, reason);
+                        }
+                    });
+                }
+            } else {
+                if (veil != null) {
+                    veil.remove();
+                }
+                if (shaderTrans) {
+                    ShaderTransition.clear(player);
+                }
+                if (player.isOnline() && options.restore()) {
+                    player.setGameMode(previousMode);
+                }
+                camera.remove(true);
+                if (player.isOnline() && options.restore()) {
+                    player.teleport(previousLocation);
+                }
+                if (shaderCursor != null) {
+                    shaderCursor.stop();
+                }
+                showOthers();
+                releaseChunks();
+                SESSIONS.remove(player.getUniqueId(), this);
+                if (options.onClose() != null) {
+                    options.onClose().accept(this, reason);
+                }
+            }
+        } else {
+            // The next session already has its camera and its own veil: keep the player's view on it.
+            camera.remove(false);
+            if (veil != null) {
+                veil.remove();
+            }
+            if (options.onClose() != null) {
+                options.onClose().accept(this, reason);
+            }
         }
     }
 
@@ -645,6 +939,8 @@ public final class ScreenSession {
         boolean hideOthers,
         boolean suppressChat,
         boolean restore,
+        ScreenTransition fadeIn,
+        ScreenTransition fadeOut,
         Consumer<ScreenSession> onOpen,
         BiConsumer<ScreenSession, CloseReason> onClose,
         BiConsumer<ScreenSession, String> onHover
@@ -673,6 +969,8 @@ public final class ScreenSession {
         private boolean hideOthers = true;
         private boolean suppressChat = true;
         private boolean restore = true;
+        private ScreenTransition fadeIn = ScreenTransition.none();
+        private ScreenTransition fadeOut = ScreenTransition.none();
         private Consumer<ScreenSession> onOpen;
         private BiConsumer<ScreenSession, CloseReason> onClose;
         private BiConsumer<ScreenSession, String> onHover;
@@ -791,6 +1089,35 @@ public final class ScreenSession {
             return this;
         }
 
+        /** Configures matching fade in and fade out screen transitions. */
+        public Builder transition(ScreenTransition transition) {
+            this.fadeIn = transition != null ? transition : ScreenTransition.none();
+            this.fadeOut = this.fadeIn;
+            return this;
+        }
+
+        /** Configures a screen transition when opening the session. */
+        public Builder fadeIn(ScreenTransition transition) {
+            this.fadeIn = Objects.requireNonNullElse(transition, ScreenTransition.none());
+            return this;
+        }
+
+        /** Configures a simple black fade-in with the given duration in milliseconds. */
+        public Builder fadeIn(long durationMs) {
+            return fadeIn(ScreenTransition.fade(durationMs));
+        }
+
+        /** Configures a screen transition when closing the session. */
+        public Builder fadeOut(ScreenTransition transition) {
+            this.fadeOut = Objects.requireNonNullElse(transition, ScreenTransition.none());
+            return this;
+        }
+
+        /** Configures a simple black fade-out with the given duration in milliseconds. */
+        public Builder fadeOut(long durationMs) {
+            return fadeOut(ScreenTransition.fade(durationMs));
+        }
+
         private Options snapshot() {
             return new Options(
                 camera.clone(),
@@ -810,6 +1137,8 @@ public final class ScreenSession {
                 hideOthers,
                 suppressChat,
                 restore,
+                fadeIn,
+                fadeOut,
                 onOpen,
                 onClose,
                 onHover

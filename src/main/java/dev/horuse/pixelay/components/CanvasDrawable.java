@@ -137,6 +137,11 @@ public interface CanvasDrawable {
         return 0.0;
     }
 
+    /** Duration in game ticks for client-side GPU transformation interpolation (for 140+ FPS animations). */
+    default int transformationDuration() {
+        return 0;
+    }
+
     /** Pivot X in canvas px around which {@link #rotateDeg()} revolves (or {@code Double.NaN} for self center). */
     default double rotatePivotX() {
         return Double.NaN;

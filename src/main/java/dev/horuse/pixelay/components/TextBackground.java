@@ -95,17 +95,33 @@ public final class TextBackground {
         double pivotX,
         double pivotY
     ) {
+        sync(canvas, bounds, argb, depth, rotateDeg, rotateXDeg, rotateYDeg, pivotX, pivotY, 0);
+    }
+
+    public void sync(
+        Canvas canvas,
+        Rect bounds,
+        int argb,
+        float depth,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg,
+        double pivotX,
+        double pivotY,
+        int transformationDurationTicks
+    ) {
         boolean empty = bounds == null || bounds.width() <= 0 || bounds.height() <= 0 || argb >>> 24 == 0;
         if (empty) {
             remove();
             return;
         }
+        boolean hasRotation =
+            Math.abs(rotateDeg) >= 1e-3 || Math.abs(rotateXDeg) >= 1e-3 || Math.abs(rotateYDeg) >= 1e-3;
         boolean sameRot =
             Math.abs(rotateDeg - lastRotateDeg) < 1e-3 &&
             Math.abs(rotateXDeg - lastRotateXDeg) < 1e-3 &&
             Math.abs(rotateYDeg - lastRotateYDeg) < 1e-3 &&
-            (Math.abs(rotateDeg) < 1e-3 ||
-                (Math.abs(pivotX - lastPivotX) < 1e-2 && Math.abs(pivotY - lastPivotY) < 1e-2));
+            (!hasRotation || (Math.abs(pivotX - lastPivotX) < 1e-2 && Math.abs(pivotY - lastPivotY) < 1e-2));
         if (exists() && bounds.equals(box) && depth == lastDepth && sameRot) {
             if (argb != color) {
                 if (viewer != null) {
@@ -121,7 +137,19 @@ public final class TextBackground {
         double y = bounds.y();
         double width = bounds.width();
         double height = bounds.height();
-        Location origin = ColorPanel.origin(canvas, x, y, width, height, depth, rotateDeg, pivotX, pivotY);
+        Location origin = ColorPanel.origin(
+            canvas,
+            x,
+            y,
+            width,
+            height,
+            depth,
+            rotateDeg,
+            rotateXDeg,
+            rotateYDeg,
+            pivotX,
+            pivotY
+        );
         Quaternionf rotation = ColorPanel.rotated(canvas.contentRotation(), rotateDeg, rotateXDeg, rotateYDeg);
         if (viewer != null) {
             if (fakeId == 0) {
@@ -151,7 +179,8 @@ public final class TextBackground {
                     height,
                     translation,
                     rotation,
-                    argb != color ? argb : null
+                    argb != color ? argb : null,
+                    transformationDurationTicks
                 );
             }
         } else {
@@ -168,6 +197,8 @@ public final class TextBackground {
                     entity.setBackgroundColor(Color.fromARGB(argb));
                 }
             }
+            entity.setInterpolationDuration(transformationDurationTicks);
+            entity.setInterpolationDelay(0);
             entity.setTransformation(
                 new Transformation(new Vector3f(), new Quaternionf(rotation), scale, new Quaternionf())
             );

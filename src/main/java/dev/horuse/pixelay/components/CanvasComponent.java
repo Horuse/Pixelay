@@ -17,4 +17,7 @@ public interface CanvasComponent {
 
     /** Re-evaluates dynamic content and updates the entities in place. */
     void refresh();
+
+    /** Sets the client-side GPU transformation interpolation duration in game ticks (for 140+ FPS transitions). */
+    default void setTransformationDuration(int ticks) {}
 }

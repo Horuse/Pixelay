@@ -23,7 +23,7 @@ final class ScreenCamera {
     /** Ticks after opening during which the camera packets are re-sent (the client resets after a game mode change). */
     private static final int RESEND_TICKS = 10;
     /** Delay before mounting: the client must finish switching to spectator first. */
-    private static final long MOUNT_DELAY_TICKS = 5;
+    private static final long MOUNT_DELAY_TICKS = 2;
     /** Size (blocks) of the click catcher box around the camera. */
     private static final float CLICK_TARGET_SIZE = 1.5f;
 
@@ -52,9 +52,24 @@ final class ScreenCamera {
 
     /** Spawns the camera entity and locks the player onto it a few ticks later. */
     void spawn() {
+        spawn(null);
+    }
+
+    /** Spawns the camera entity, locks the player onto it, and runs {@code onMounted} once mounted. */
+    void spawn(Runnable onMounted) {
         anchor = spawnStand(view);
         seat = seatHeight > 0 ? spawnStand(seatLocation()) : anchor;
-        Bukkit.getScheduler().runTaskLater(Pixelay.plugin(), this::mount, MOUNT_DELAY_TICKS);
+        mount();
+        Bukkit.getScheduler().runTaskLater(
+            Pixelay.plugin(),
+            () -> {
+                mount();
+                if (onMounted != null) {
+                    onMounted.run();
+                }
+            },
+            1
+        );
     }
 
     /** Where the player's vehicle stands. */
@@ -115,12 +130,19 @@ final class ScreenCamera {
         });
     }
 
-    /** Gives the player their own view back and removes the camera. */
-    void remove() {
+    /**
+     * Removes the camera.
+     *
+     * @param restoreView give the player their own view back; {@code false} when a next screen's camera
+     *     already holds the view and must not be overridden
+     */
+    void remove(boolean restoreView) {
         removed = true;
         if (player.isOnline()) {
             PacketUtils.destroy(player, clickTargetId);
-            PacketUtils.sendCamera(player, player);
+            if (restoreView) {
+                PacketUtils.sendCamera(player, player);
+            }
         }
         if (seat != null && seat != anchor) {
             seat.eject();

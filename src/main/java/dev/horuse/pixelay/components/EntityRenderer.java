@@ -59,6 +59,8 @@ public class EntityRenderer extends TextRenderer {
             (float) (baseScale * drawable.visualScaleY()),
             baseScale
         );
+        display.setInterpolationDuration(drawable.transformationDuration());
+        display.setInterpolationDelay(0);
         display.setTransformation(
             new org.bukkit.util.Transformation(
                 new org.joml.Vector3f(),

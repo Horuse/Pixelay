@@ -136,6 +136,52 @@ public class Canvas {
     }
 
     /**
+     * Converts a canvas pixel coordinate into a 3D world location with layer depth,
+     * rotated around a pivot (pivotX, pivotY) by Euler degrees (rotateDeg, rotateXDeg, rotateYDeg).
+     */
+    public Location rotatedPixelToWorld(
+        double pixelX,
+        double pixelY,
+        float layerDepth,
+        double rotateDeg,
+        double rotateXDeg,
+        double rotateYDeg,
+        double pivotX,
+        double pivotY
+    ) {
+        if (Math.abs(rotateDeg) < 1e-4 && Math.abs(rotateXDeg) < 1e-4 && Math.abs(rotateYDeg) < 1e-4) {
+            return pixelToWorld(pixelX, pixelY, layerDepth);
+        }
+        double px = Double.isNaN(pivotX) ? pixelX : pivotX;
+        double py = Double.isNaN(pivotY) ? pixelY : pivotY;
+
+        double deltaX = pixelX - px;
+        double deltaY = pixelY - py;
+        double localRight = (deltaX / resolution.pixelWidth()) * resolution.blockWidth();
+        double localUp = (-deltaY / resolution.pixelHeight()) * resolution.blockHeight();
+
+        Quaternionf qLocal = new Quaternionf();
+        if (Math.abs(rotateDeg) >= 1e-4) {
+            qLocal.rotateZ((float) Math.toRadians(-rotateDeg));
+        }
+        if (Math.abs(rotateXDeg) >= 1e-4) {
+            qLocal.rotateX((float) Math.toRadians(rotateXDeg));
+        }
+        if (Math.abs(rotateYDeg) >= 1e-4) {
+            qLocal.rotateY((float) Math.toRadians(rotateYDeg));
+        }
+
+        Vector3f vRot = qLocal.transform(new Vector3f((float) localRight, (float) localUp, 0f));
+
+        Location pivotWorld = pixelToWorld(px, py, layerDepth);
+        double x = pivotWorld.getX() + right.x * vRot.x + up.x * vRot.y + normal.x * vRot.z;
+        double y = pivotWorld.getY() + right.y * vRot.x + up.y * vRot.y + normal.y * vRot.z;
+        double z = pivotWorld.getZ() + right.z * vRot.x + up.z * vRot.y + normal.z * vRot.z;
+
+        return new Location(pivotWorld.getWorld(), x, y, z);
+    }
+
+    /**
      * @return world height in blocks for a pixel height on this plane
      */
     public float blocksForHeightPx(double heightPx) {
