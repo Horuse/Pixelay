@@ -733,11 +733,13 @@ public final class ScreenSession {
 
         if (!hasNextSession) {
             if (veiled) {
-                // Screen is 100% black under veil: restore player and camera to world now!
+                // Screen is 100% black under veil: restore game mode, dismount camera, then teleport to world!
+                if (player.isOnline() && options.restore()) {
+                    player.setGameMode(previousMode);
+                }
                 camera.remove(true);
                 if (player.isOnline() && options.restore()) {
                     player.teleport(previousLocation);
-                    player.setGameMode(previousMode);
                 }
                 if (shaderCursor != null) {
                     shaderCursor.stop();
@@ -763,9 +765,6 @@ public final class ScreenSession {
                                 ShaderTransition.Mode.OUT
                             );
                             reveal.play(() -> {
-                                if (player.isOnline() && options.restore()) {
-                                    player.teleport(previousLocation);
-                                }
                                 ShaderTransition.clear(player);
                                 SESSIONS.remove(player.getUniqueId(), this);
                                 if (options.onClose() != null) {
@@ -783,9 +782,6 @@ public final class ScreenSession {
                         veil.remove();
                     }
                     reveal.revealAfter(REVEAL_HOLD_TICKS, () -> {
-                        if (player.isOnline() && options.restore()) {
-                            player.teleport(previousLocation);
-                        }
                         fader = null;
                         SESSIONS.remove(player.getUniqueId(), this);
                         if (options.onClose() != null) {
@@ -800,10 +796,12 @@ public final class ScreenSession {
                 if (shaderTrans) {
                     ShaderTransition.clear(player);
                 }
+                if (player.isOnline() && options.restore()) {
+                    player.setGameMode(previousMode);
+                }
                 camera.remove(true);
                 if (player.isOnline() && options.restore()) {
                     player.teleport(previousLocation);
-                    player.setGameMode(previousMode);
                 }
                 if (shaderCursor != null) {
                     shaderCursor.stop();
