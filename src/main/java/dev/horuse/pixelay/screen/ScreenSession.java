@@ -184,11 +184,15 @@ public final class ScreenSession {
      * Executes opening sequence: covers world with veil, mounts player, and reveals screen.
      */
     private void open() {
-        Transitions.clear(player);
         ScreenSession previous = SESSIONS.put(player.getUniqueId(), this);
         if (previous != null && !previous.closed) {
             previous.close(CloseReason.CLOSED);
             SESSIONS.put(player.getUniqueId(), this);
+        }
+        if (previous == null || !previous.handedOff) {
+            if (Transitions.isTransitioning(player)) {
+                Transitions.clear(player);
+            }
         }
         ScreenTransition fadeIn = options.fadeIn();
         if (!animated(fadeIn)) {

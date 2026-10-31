@@ -239,8 +239,6 @@ public final class Transitions {
         ActiveTransition active = ACTIVE.remove(player.getUniqueId());
         if (active != null) {
             active.cancel();
-        } else if (player.isOnline()) {
-            ShaderTransition.clear(player);
         }
     }
 
