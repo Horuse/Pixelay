@@ -121,3 +121,59 @@ When the Pixelay resource pack is active:
 When the client does not use the resource pack:
 - The transition uses packet-level `TextDisplay` background panels (`ScreenFader`).
 - Panels use a 1.6× safety margin to cover ultrawide monitors and high FOV settings.
+
+---
+
+## 3. Standalone Transitions (Outside Canvas)
+
+You can play screen transitions outside `ScreenSession`.
+Use these transitions for server joins, teleportation, cutscenes, and click events.
+
+### Server Join Fade-In
+
+To reveal the game world from black when a player joins:
+
+```java
+@EventHandler
+public void onJoin(PlayerJoinEvent event) {
+    Player player = event.getPlayer();
+    Transitions.fadeIn(player, 500);
+}
+```
+
+### Teleportation and Click Transitions
+
+To mask teleportation or camera jumps:
+
+```java
+Transitions.play(player, ScreenTransition.linearWipe(300), () -> {
+    player.teleport(targetLocation);
+    player.playSound(targetLocation, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.0f);
+});
+```
+
+### One-Way Transitions
+
+You can cover or reveal the screen independently:
+
+```java
+// Cover the screen to black
+Transitions.fadeOut(player, 400);
+
+// Reveal the screen from black
+Transitions.fadeIn(player, 400);
+
+// Use custom transitions
+Transitions.cover(player, ScreenTransition.cornerWipe(350));
+Transitions.reveal(player, ScreenTransition.cornerWipe(350));
+```
+
+### Fluent Invocation
+
+You can also start transitions directly from `ScreenTransition`:
+
+```java
+ScreenTransition.fade(300).play(player, () -> player.teleport(loc));
+ScreenTransition.curtain(400).reveal(player);
+```
+

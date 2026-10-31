@@ -5,6 +5,7 @@ import dev.horuse.pixelay.clicks.CanvasClicks;
 import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.debug.CanvasBoundsDebug;
 import dev.horuse.pixelay.debug.LayoutDebug;
+import dev.horuse.pixelay.screen.Transitions;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -19,5 +20,6 @@ public class PlayerQuitCleanup implements Listener {
         CanvasBoundsDebug.remove(event.getPlayer().getUniqueId());
         Layers.forget(event.getPlayer().getUniqueId());
         CanvasClickCatcher.forget(event.getPlayer().getUniqueId());
+        Transitions.clear(event.getPlayer());
     }
 }

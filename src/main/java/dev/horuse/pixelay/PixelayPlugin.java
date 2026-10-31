@@ -19,6 +19,7 @@ import dev.horuse.pixelay.screen.ScreenListener;
 import dev.horuse.pixelay.screen.ScreenLookListener;
 import dev.horuse.pixelay.screen.ScreenSession;
 import dev.horuse.pixelay.screen.ShaderCursorListener;
+import dev.horuse.pixelay.screen.Transitions;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +39,7 @@ import org.spongepowered.configurate.ConfigurateException;
 public final class PixelayPlugin extends JavaPlugin {
 
     private final CanvasManager manager = new CanvasManager();
+    private final Transitions transitions = new Transitions();
     private NamespacedKey entityKey;
     private PixelaySettings settings;
     private final List<PacketListenerCommon> packetListeners = new ArrayList<>();
@@ -84,6 +86,7 @@ public final class PixelayPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        Transitions.clearAll();
         // Restore player game mode and position before closing sessions.
         ScreenSession.closeAll();
         manager.stop();
@@ -132,6 +135,10 @@ public final class PixelayPlugin extends JavaPlugin {
 
     public CanvasManager manager() {
         return manager;
+    }
+
+    public Transitions transitions() {
+        return transitions;
     }
 
     public PixelaySettings settings() {

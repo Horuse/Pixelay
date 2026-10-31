@@ -1,6 +1,7 @@
 package dev.horuse.pixelay;
 
 import dev.horuse.pixelay.config.PixelaySettings;
+import dev.horuse.pixelay.screen.Transitions;
 import org.bukkit.NamespacedKey;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -43,6 +44,13 @@ public final class Pixelay {
      */
     public static CanvasManager manager() {
         return instance().manager();
+    }
+
+    /**
+     * @return the transition service for full-screen transitions outside canvas sessions
+     */
+    public static Transitions transitions() {
+        return instance().transitions();
     }
 
     /**

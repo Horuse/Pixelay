@@ -2,6 +2,7 @@ package dev.horuse.pixelay.screen;
 
 import dev.horuse.pixelay.layout.Easing;
 import java.util.Objects;
+import org.bukkit.entity.Player;
 
 /**
  * Defines a screen transition effect when opening or closing a {@link ScreenSession}.
@@ -139,5 +140,40 @@ public final class ScreenTransition {
 
     public Easing easing() {
         return easing;
+    }
+
+    /** Plays this transition on a player with a midpoint action and completion callback. */
+    public void play(Player player, Runnable onCovered, Runnable onFinished) {
+        Transitions.play(player, this, onCovered, onFinished);
+    }
+
+    /** Plays this transition on a player and executes an action when covered. */
+    public void play(Player player, Runnable onCovered) {
+        Transitions.play(player, this, onCovered);
+    }
+
+    /** Plays this transition on a player without midpoint actions. */
+    public void play(Player player) {
+        Transitions.play(player, this);
+    }
+
+    /** Covers the screen of a player with this transition. */
+    public void cover(Player player, Runnable onCovered) {
+        Transitions.cover(player, this, onCovered);
+    }
+
+    /** Covers the screen of a player with this transition. */
+    public void cover(Player player) {
+        Transitions.cover(player, this);
+    }
+
+    /** Reveals the screen of a player with this transition. */
+    public void reveal(Player player, Runnable onRevealed) {
+        Transitions.reveal(player, this, onRevealed);
+    }
+
+    /** Reveals the screen of a player with this transition. */
+    public void reveal(Player player) {
+        Transitions.reveal(player, this);
     }
 }

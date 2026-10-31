@@ -132,6 +132,11 @@ public final class ScreenSession {
         return player != null && SESSIONS.containsKey(player.getUniqueId());
     }
 
+    /** Finds active session for a player. */
+    public static ScreenSession session(Player player) {
+        return player != null ? SESSIONS.get(player.getUniqueId()) : null;
+    }
+
     /** Checks if entity is the camera vehicle for a session player. */
     public static boolean isCamera(Player player, Entity entity) {
         ScreenSession session = SESSIONS.get(player.getUniqueId());
@@ -179,6 +184,7 @@ public final class ScreenSession {
      * Executes opening sequence: covers world with veil, mounts player, and reveals screen.
      */
     private void open() {
+        Transitions.clear(player);
         ScreenSession previous = SESSIONS.put(player.getUniqueId(), this);
         if (previous != null && !previous.closed) {
             previous.close(CloseReason.CLOSED);
@@ -632,21 +638,15 @@ public final class ScreenSession {
 
     /** Creates a veil in front of player eyes. */
     private ScreenFader worldFader(Location at, ScreenTransition transition, double u) {
-        float yaw = at.getYaw();
-        float pitch = at.getPitch();
-        Vector forward = at.getDirection().normalize();
-        Location center = at.clone().add(forward.multiply(options.distance()));
-        Canvas front = new Canvas(center, 180 - yaw, -pitch, 0f, 0f, resolution(1.0));
-        return new ScreenFader(
+        return ScreenFader.createWorldFader(
             player,
-            front,
+            at,
             transition,
-            overlayX(),
-            overlayY(),
-            overlayWidth(),
-            overlayHeight(),
-            Layers.at(Layers.MAX_STEP + 5, player),
-            u
+            u,
+            options.distance(),
+            options.verticalFov(),
+            options.pixelWidth(),
+            options.pixelHeight()
         );
     }
 

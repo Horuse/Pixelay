@@ -30,12 +30,18 @@ final class ShaderTransition {
     private final Player player;
     private final ScreenTransition transition;
     private final Mode mode;
+    private final int stayTicks;
     private BukkitTask task;
 
     ShaderTransition(Player player, ScreenTransition transition, Mode mode) {
+        this(player, transition, mode, 40);
+    }
+
+    ShaderTransition(Player player, ScreenTransition transition, Mode mode, int stayTicks) {
         this.player = player;
         this.transition = transition;
         this.mode = mode;
+        this.stayTicks = stayTicks;
     }
 
     /** Checks if shader transitions are available with the active resource pack. */
@@ -62,12 +68,12 @@ final class ShaderTransition {
         TextColor color = TextColor.color(SIGNATURE_RED, green, blue);
         Component titleComponent = Component.text(GLYPH).font(FONT_KEY).color(color);
 
-        // Mode.IN: fadeIn=durationTicks, stay=40, fadeOut=0. Alpha animates from 0.0 to 1.0.
+        // Mode.IN: fadeIn=durationTicks, stay=stayTicks, fadeOut=0. Alpha animates from 0.0 to 1.0.
         // Mode.OUT: fadeIn=0, stay=0, fadeOut=durationTicks. Alpha animates from 1.0 to 0.0.
         // Mode.OUT starts at alpha 1.0 to prevent dropped frames on client.
         Title.Times times =
             mode == Mode.IN
-                ? Title.Times.times(Ticks.duration(durationTicks), Ticks.duration(40), Ticks.duration(0))
+                ? Title.Times.times(Ticks.duration(durationTicks), Ticks.duration(stayTicks), Ticks.duration(0))
                 : Title.Times.times(Ticks.duration(0), Ticks.duration(0), Ticks.duration(durationTicks));
 
         player.showTitle(Title.title(titleComponent, Component.empty(), times));

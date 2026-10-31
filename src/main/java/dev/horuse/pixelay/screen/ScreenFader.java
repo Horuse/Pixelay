@@ -3,6 +3,8 @@ package dev.horuse.pixelay.screen;
 import dev.horuse.pixelay.Pixelay;
 import dev.horuse.pixelay.components.ColorPanel;
 import dev.horuse.pixelay.data.Canvas;
+import dev.horuse.pixelay.data.CanvasResolution;
+import dev.horuse.pixelay.data.Layers;
 import dev.horuse.pixelay.utils.PacketUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -294,5 +296,42 @@ final class ScreenFader {
 
     private int argb(int alpha) {
         return (alpha << 24) | color;
+    }
+
+    /** Creates a transition veil in front of player eyes. */
+    static ScreenFader createWorldFader(
+        Player player,
+        Location at,
+        ScreenTransition transition,
+        double u,
+        double distance,
+        double verticalFov,
+        double pixelWidth,
+        double pixelHeight
+    ) {
+        double overlayMult = 1.6;
+        double toText = distance - Layers.text();
+        double height = 2 * toText * Math.tan(Math.toRadians(verticalFov / 2.0));
+        double width = (height * pixelWidth) / pixelHeight;
+        CanvasResolution resolution = new CanvasResolution(pixelWidth, pixelHeight, width, height);
+
+        float yaw = at.getYaw();
+        float pitch = at.getPitch();
+        Vector forward = at.getDirection().normalize();
+        Location center = at.clone().add(forward.multiply(distance));
+        Canvas front = new Canvas(center, 180.0f - yaw, -pitch, 0.0f, 0.0f, resolution);
+
+        double overlayW = pixelWidth * overlayMult;
+        double overlayH = pixelHeight * overlayMult;
+        double overlayX = (pixelWidth - overlayW) / 2.0;
+        double overlayY = (pixelHeight - overlayH) / 2.0;
+        float depth = Layers.at(Layers.MAX_STEP + 5, player);
+
+        return new ScreenFader(player, front, transition, overlayX, overlayY, overlayW, overlayH, depth, u);
+    }
+
+    /** Creates a default transition veil in front of player eyes. */
+    static ScreenFader createWorldFader(Player player, Location at, ScreenTransition transition, double u) {
+        return createWorldFader(player, at, transition, u, 1.5, 70.0, 1920.0, 1080.0);
     }
 }
