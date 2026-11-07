@@ -11,6 +11,7 @@
 #define PIXELAY_LEVELS 93
 #define PIXELAY_TAN_MIN 0.12
 #define PIXELAY_TAN_MAX 3.0
+#define PIXELAY_TARGET_ASPECT (16.0 / 9.0)
 
 int pixelay_state(float gameTime) {
     float ticks = -gameTime * PIXELAY_DAY_TICKS;
@@ -34,9 +35,9 @@ float pixelay_half_height(int level) {
     return PIXELAY_TAN_MIN * pow(PIXELAY_TAN_MAX / PIXELAY_TAN_MIN, t);
 }
 
-// During a screen session, world geometry is projected with the field of view the canvas was made for, not
-// the player's own one: the canvas fills the screen whatever FOV the player plays with, and the cursor (drawn
-// with the same field of view) is always over the pixel it clicks. GUI (orthographic) is left alone.
+// During a screen session, world geometry is projected with the canvas field of view.
+// If the screen aspect ratio is narrower than the canvas, scale down so horizontal content fits.
+// GUI (orthographic) projection remains unchanged.
 vec4 pixelay_screen_projection(vec4 clip, mat4 projection) {
     int state = pixelay_state(GameTime);
     if (state == 0 || projection[2][3] == 0.0) {
@@ -44,7 +45,8 @@ vec4 pixelay_screen_projection(vec4 clip, mat4 projection) {
     }
     float halfHeight = pixelay_half_height(pixelay_level(state));
     float aspect = ScreenSize.x / max(ScreenSize.y, 1.0);
-    clip.x *= 1.0 / (halfHeight * aspect * projection[0][0]);
-    clip.y *= 1.0 / (halfHeight * projection[1][1]);
+    float fitScale = max(1.0, PIXELAY_TARGET_ASPECT / max(aspect, 0.01));
+    clip.x *= 1.0 / (halfHeight * aspect * projection[0][0] * fitScale);
+    clip.y *= 1.0 / (halfHeight * projection[1][1] * fitScale);
     return clip;
 }

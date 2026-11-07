@@ -38,7 +38,8 @@ vec2 pixelay_look_point(vec2 look, float halfHeight, vec2 screen) {
         -tan(pitch) / max(forward, 1.0e-4)
     );
     float aspect = screen.x / max(screen.y, 1.0);
-    vec2 ndc = clamp(vec2(tangent.x / (halfHeight * aspect), tangent.y / halfHeight), -1.0, 1.0);
+    float fitScale = max(1.0, PIXELAY_TARGET_ASPECT / max(aspect, 0.01));
+    vec2 ndc = clamp(vec2(tangent.x / (halfHeight * aspect * fitScale), tangent.y / (halfHeight * fitScale)), -1.0, 1.0);
     return (ndc * 0.5 + 0.5) * screen;
 }
 
