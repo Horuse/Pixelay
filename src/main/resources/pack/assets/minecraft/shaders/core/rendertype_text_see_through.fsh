@@ -9,11 +9,12 @@ in vec4 vertexColor;
 in vec2 texCoord0;
 flat in vec4 pixelayClip;
 in vec2 pixelayLocal;
+flat in int pixelayDoClip;
 
 out vec4 fragColor;
 
 void main() {
-    if (pixelay_clipped(pixelayClip, pixelayLocal)) {
+    if (pixelayDoClip == 1 && pixelay_clipped(pixelayClip, pixelayLocal)) {
         discard;
     }
     vec4 color = texture(Sampler0, texCoord0) * vertexColor;

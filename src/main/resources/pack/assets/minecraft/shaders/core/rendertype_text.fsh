@@ -16,6 +16,7 @@ in vec2 pixelayLocal;
 flat in int pixelayTransition;
 flat in ivec2 pixelayTransParams;
 in vec2 pixelayScreenUV;
+flat in int pixelayDoClip;
 
 out vec4 fragColor;
 
@@ -29,7 +30,7 @@ void main() {
         return;
     }
 
-    if (pixelay_clipped(pixelayClip, pixelayLocal)) {
+    if (pixelayDoClip == 1 && pixelay_clipped(pixelayClip, pixelayLocal)) {
         discard;
     }
     vec4 color = texture(Sampler0, texCoord0) * vertexColor * ColorModulator;

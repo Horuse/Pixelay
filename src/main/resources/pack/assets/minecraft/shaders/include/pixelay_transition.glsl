@@ -24,22 +24,22 @@ vec3 pixelay_trans_color(int idx) {
     return vec3(0.0, 0.0, 0.0);                     // #000000 (Black)
 }
 
-// Check if this text quad is a Pixelay transition title
+// Returns true when this text quad is a Pixelay transition title.
 bool pixelay_is_trans(vec4 color, mat4 proj) {
-    // Only in 2D GUI projection (where titles render above the HUD)
-    if (proj[2][3] != 0.0) {
+    // Only in 2D GUI projection where titles render above the HUD.
+    if (proj[2][3] != 0.0 || proj[3][3] != 1.0) {
         return false;
     }
-    int r = int(color.r * 255.0 + 0.5);
+    int r = int(round(color.r * 255.0));
     return r == PIXELAY_TRANS_SIGNATURE;
 }
 
-// Check if this is the text shadow quad of a transition title
+// Returns true when this is the text shadow quad of a transition title.
 bool pixelay_is_trans_shadow(vec4 color, mat4 proj) {
-    if (proj[2][3] != 0.0) {
+    if (proj[2][3] != 0.0 || proj[3][3] != 1.0) {
         return false;
     }
-    int r = int(color.r * 255.0 + 0.5);
+    int r = int(round(color.r * 255.0));
     return r == (PIXELAY_TRANS_SIGNATURE >> 2); // 31
 }
 
