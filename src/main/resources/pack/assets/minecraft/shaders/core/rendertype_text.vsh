@@ -37,7 +37,7 @@ void main() {
         pixelayScreenUV = corner;
         vertexColor = Color;
         texCoord0 = UV0;
-        pixelayClip = vec4(0.0, 0.0, 1.0, 1.0);
+        pixelayClip = PIXELAY_NO_CLIP;
         pixelayLocal = corner;
         sphericalVertexDistance = 0.0;
         cylindricalVertexDistance = 0.0;
@@ -52,7 +52,7 @@ void main() {
         pixelayScreenUV = vec2(0.0);
         vertexColor = vec4(0.0);
         texCoord0 = vec2(0.0);
-        pixelayClip = vec4(0.0);
+        pixelayClip = PIXELAY_NO_CLIP;
         pixelayLocal = vec2(0.0);
         sphericalVertexDistance = 0.0;
         cylindricalVertexDistance = 0.0;
