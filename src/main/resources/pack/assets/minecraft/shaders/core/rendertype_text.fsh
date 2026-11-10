@@ -21,12 +21,9 @@ flat in int pixelayDoClip;
 out vec4 fragColor;
 
 void main() {
+    // DEBUG: magenta if ordinary text is classified as a transition.
     if (pixelayTransition == 1) {
-        vec4 transColor;
-        if (!pixelay_trans_frag(pixelayScreenUV, vertexColor.a, pixelayTransParams, transColor)) {
-            discard;
-        }
-        fragColor = transColor;
+        fragColor = vec4(1.0, 0.0, 1.0, 1.0);
         return;
     }
 

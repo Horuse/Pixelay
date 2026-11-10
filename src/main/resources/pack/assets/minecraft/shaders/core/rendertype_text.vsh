@@ -39,25 +39,9 @@ void main() {
     pixelayScreenUV = vec2(0.0);
     pixelayDoClip = 0;
 
+    // DEBUG: flag only; normal path always runs below and no early return.
     if (pixelay_is_trans(Color, ProjMat)) {
-        vec4 normalPos = ProjMat * ModelViewMat * vec4(Position, 1.0);
-        vec2 corner = PIXELAY_GLYPH_CORNERS[gl_VertexID % 4];
-        // Full-screen quad in NDC clip space: (-1, 1) top-left to (1, -1) bottom-right
-        gl_Position = vec4(corner.x * 2.0 - 1.0, 1.0 - corner.y * 2.0, normalPos.z, 1.0);
         pixelayTransition = 1;
-        ivec3 c = ivec3(round(Color.rgb * 255.0));
-        pixelayTransParams = ivec2(c.g, c.b);
-        pixelayScreenUV = corner;
-        vertexColor = Color;
-        texCoord0 = UV0;
-        pixelayLocal = corner;
-        return;
-    }
-
-    if (pixelay_is_trans_shadow(Color, ProjMat)) {
-        // Discard shadow quad of the transition title by collapsing it outside NDC
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-        return;
     }
 
     // Pixelay: screen sessions draw with the canvas field of view (see pixelay_state.glsl).
