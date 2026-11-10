@@ -24,7 +24,6 @@ out vec2 pixelayLocal;
 flat out int pixelayTransition;
 flat out ivec2 pixelayTransParams;
 out vec2 pixelayScreenUV;
-flat out int pixelayDoClip;
 
 void main() {
     // Single exit, no early return and no branch: transition quads are handled with selects only.
@@ -49,9 +48,7 @@ void main() {
     vertexColor = isTrans ? Color : Color * texelFetch(Sampler2, UV2 / 16, 0);
     texCoord0 = UV0;
 
-    pixelayDoClip = 0;
-    vec4 clipRange = pixelay_clip_range(Color, ProjMat, pixelayDoClip);
-    pixelayClip = clipRange;
+    pixelayClip = pixelay_clip_range(Color, ProjMat);
     pixelayLocal = corner;
 
     pixelayTransition = isTrans ? 1 : 0;
