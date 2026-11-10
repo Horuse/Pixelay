@@ -21,18 +21,23 @@ flat in int pixelayDoClip;
 out vec4 fragColor;
 
 void main() {
-    // DEBUG: magenta if ordinary text is classified as a transition.
-    if (pixelayTransition == 1) {
-        fragColor = vec4(1.0, 0.0, 1.0, 1.0);
-        return;
-    }
+    // Sample before any branch so that implicit derivatives stay in uniform control flow.
+    vec4 sampled = texture(Sampler0, texCoord0);
 
-    if (pixelayDoClip == 1 && pixelay_clipped(pixelayClip, pixelayLocal)) {
-        discard;
+    if (pixelayTransition == 1) {
+        vec4 transColor = vec4(0.0);
+        if (!pixelay_trans_frag(pixelayScreenUV, vertexColor.a, pixelayTransParams, transColor)) {
+            discard;
+        }
+        fragColor = transColor;
+    } else {
+        if (pixelayDoClip == 1 && pixelay_clipped(pixelayClip, pixelayLocal)) {
+            discard;
+        }
+        vec4 color = sampled * vertexColor * ColorModulator;
+        if (color.a < 0.1) {
+            discard;
+        }
+        fragColor = apply_fog(color, sphericalVertexDistance, cylindricalVertexDistance, FogEnvironmentalStart, FogEnvironmentalEnd, FogRenderDistanceStart, FogRenderDistanceEnd, FogColor);
     }
-    vec4 color = texture(Sampler0, texCoord0) * vertexColor * ColorModulator;
-    if (color.a < 0.1) {
-        discard;
-    }
-    fragColor = apply_fog(color, sphericalVertexDistance, cylindricalVertexDistance, FogEnvironmentalStart, FogEnvironmentalEnd, FogRenderDistanceStart, FogRenderDistanceEnd, FogColor);
 }
