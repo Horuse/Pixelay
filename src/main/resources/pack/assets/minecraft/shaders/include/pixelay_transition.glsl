@@ -3,6 +3,10 @@
 
 #define PIXELAY_TRANS_SIGNATURE 126
 
+// Blue carries the colour index in its low 5 bits and this tag in its high 3 bits.
+// The tag makes it unlikely that ordinary coloured text looks like a transition.
+#define PIXELAY_TRANS_TAG 5
+
 #define PIXELAY_TYPE_FADE 0
 #define PIXELAY_TYPE_WIPE_RIGHT 1
 #define PIXELAY_TYPE_WIPE_LEFT 2
@@ -31,16 +35,19 @@ bool pixelay_is_trans(vec4 color, mat4 proj) {
         return false;
     }
     int r = int(round(color.r * 255.0));
-    return r == PIXELAY_TRANS_SIGNATURE;
+    int b = int(round(color.b * 255.0));
+    return r == PIXELAY_TRANS_SIGNATURE && (b >> 5) == PIXELAY_TRANS_TAG;
 }
 
 // Returns true when this is the text shadow quad of a transition title.
+// The client scales the shadow colour by 0.25, so red is 31 and the tag moves to bits 3 to 5.
 bool pixelay_is_trans_shadow(vec4 color, mat4 proj) {
     if (proj[2][3] != 0.0 || proj[3][3] != 1.0) {
         return false;
     }
     int r = int(round(color.r * 255.0));
-    return r == (PIXELAY_TRANS_SIGNATURE >> 2); // 31
+    int b = int(round(color.b * 255.0));
+    return r == (PIXELAY_TRANS_SIGNATURE >> 2) && (b >> 3) == PIXELAY_TRANS_TAG;
 }
 
 // Ease the linear time progress [0.0, 1.0]
@@ -66,7 +73,7 @@ bool pixelay_trans_frag(vec2 uv, float vertexAlpha, ivec2 params, out vec4 outCo
     int type = params.x & 15;
     int mode = (params.x >> 4) & 1; // 0 = IN (cover), 1 = OUT (reveal)
     int easing = (params.x >> 5) & 7;
-    int colorIdx = params.y;
+    int colorIdx = params.y & 31;
 
     vec3 col = pixelay_trans_color(colorIdx);
     // In Mode.IN: vertexAlpha goes 0.0 -> 1.0 during fadeIn.
