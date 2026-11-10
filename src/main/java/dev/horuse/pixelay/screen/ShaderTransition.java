@@ -26,6 +26,7 @@ final class ShaderTransition {
     private static final Key FONT_KEY = Key.key("pixelay", "transition");
     private static final String GLYPH = "\uE000";
     private static final int SIGNATURE_RED = 126; // 0x7E
+    private static final int SIGNATURE_TAG = 5; // High 3 bits of blue, see pixelay_transition.glsl.
 
     private final Player player;
     private final ScreenTransition transition;
@@ -63,7 +64,7 @@ final class ShaderTransition {
 
         int modeBit = mode == Mode.OUT ? 1 : 0;
         int green = (typeCode & 15) | (modeBit << 4) | ((easingCode & 7) << 5);
-        int blue = colorIdx & 0xFF;
+        int blue = (SIGNATURE_TAG << 5) | (colorIdx & 0x1F);
 
         TextColor color = TextColor.color(SIGNATURE_RED, green, blue);
         Component titleComponent = Component.text(GLYPH).font(FONT_KEY).color(color);

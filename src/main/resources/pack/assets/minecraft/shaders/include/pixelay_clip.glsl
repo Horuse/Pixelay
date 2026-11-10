@@ -26,11 +26,9 @@ vec2 pixelay_kept(int cut) {
 }
 
 // Returns the kept box (left, top, right, bottom) in glyph space.
-// Sets doClip to 1 when text clipping is active.
-// Sets doClip to 0 when text is not cut.
+// Returns PIXELAY_NO_CLIP when text is not cut.
 // The shader decodes only world texts with perspective projection.
-vec4 pixelay_clip_range(vec4 color, mat4 projection, out int doClip) {
-    doClip = 0;
+vec4 pixelay_clip_range(vec4 color, mat4 projection) {
     // Perspective projection check in Minecraft:
     // Perspective has m23 != 0 and m33 == 0.
     // Orthographic GUI has m23 == 0 and m33 == 1.
@@ -51,13 +49,11 @@ vec4 pixelay_clip_range(vec4 color, mat4 projection, out int doClip) {
     int vertical = (code >> 4) & 15;
     if (horizontal == 8 || vertical == 8) {
         // Return an inverted range to discard the full glyph.
-        doClip = 1;
         return vec4(2.0, 2.0, -1.0, -1.0);
     }
     if (horizontal == 0 && vertical == 0) {
         return PIXELAY_NO_CLIP;
     }
-    doClip = 1;
     vec2 x = pixelay_kept(horizontal);
     vec2 y = pixelay_kept(vertical);
     return vec4(x.x, y.x, x.y, y.y);
