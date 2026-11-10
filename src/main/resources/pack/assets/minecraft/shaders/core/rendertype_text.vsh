@@ -27,47 +27,35 @@ out vec2 pixelayScreenUV;
 flat out int pixelayDoClip;
 
 void main() {
-    // Initialize all output variables before any conditional branches.
-    sphericalVertexDistance = 0.0;
-    cylindricalVertexDistance = 0.0;
-    vertexColor = vec4(0.0);
-    texCoord0 = vec2(0.0);
-    pixelayClip = PIXELAY_NO_CLIP;
-    pixelayLocal = vec2(0.0);
-    pixelayTransition = 0;
-    pixelayTransParams = ivec2(0);
-    pixelayScreenUV = vec2(0.0);
-    pixelayDoClip = 0;
-
-    if (pixelay_is_trans(Color, ProjMat)) {
-        vec4 normalPos = ProjMat * ModelViewMat * vec4(Position, 1.0);
-        vec2 corner = PIXELAY_GLYPH_CORNERS[gl_VertexID % 4];
-        // Full-screen quad in NDC clip space: (-1, 1) top-left to (1, -1) bottom-right
-        gl_Position = vec4(corner.x * 2.0 - 1.0, 1.0 - corner.y * 2.0, normalPos.z, 1.0);
-        pixelayTransition = 1;
-        ivec3 c = ivec3(round(Color.rgb * 255.0));
-        pixelayTransParams = ivec2(c.g, c.b);
-        pixelayScreenUV = corner;
-        vertexColor = Color;
-        texCoord0 = UV0;
-        pixelayLocal = corner;
-        return;
-    }
-
-    if (pixelay_is_trans_shadow(Color, ProjMat)) {
-        // Discard shadow quad of the transition title by collapsing it outside NDC
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-        return;
-    }
+    // Single exit, no early return and no branch: transition quads are handled with selects only.
+    // Early returns with a replaced gl_Position break text on NVIDIA drivers.
+    bool isTrans = pixelay_is_trans(Color, ProjMat);
+    bool isTransShadow = pixelay_is_trans_shadow(Color, ProjMat);
 
     // Pixelay: screen sessions draw with the canvas field of view (see pixelay_state.glsl).
-    gl_Position = pixelay_screen_projection(ProjMat * ModelViewMat * vec4(Position, 1.0), ProjMat);
+    vec4 normalPos = pixelay_screen_projection(ProjMat * ModelViewMat * vec4(Position, 1.0), ProjMat);
+
+    // Quads have 4 vertices each, so the vertex index selects the corner.
+    vec2 corner = PIXELAY_GLYPH_CORNERS[gl_VertexID % 4];
+    // Full-screen quad in NDC: (-1, 1) top-left to (1, -1) bottom-right.
+    vec4 transPos = vec4(corner.x * 2.0 - 1.0, 1.0 - corner.y * 2.0, normalPos.z, 1.0);
+    // Shadow quad of the transition title is collapsed outside NDC.
+    vec4 hiddenPos = vec4(2.0, 2.0, 2.0, 1.0);
+
+    gl_Position = isTrans ? transPos : (isTransShadow ? hiddenPos : normalPos);
 
     sphericalVertexDistance = fog_spherical_distance(Position);
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
-    vertexColor = Color * texelFetch(Sampler2, UV2 / 16, 0);
+    vertexColor = isTrans ? Color : Color * texelFetch(Sampler2, UV2 / 16, 0);
     texCoord0 = UV0;
-    pixelayClip = pixelay_clip_range(Color, ProjMat, pixelayDoClip);
-    // Quads have 4 vertices each, so the vertex index selects the corner.
-    pixelayLocal = PIXELAY_GLYPH_CORNERS[gl_VertexID % 4];
+
+    pixelayDoClip = 0;
+    vec4 clipRange = pixelay_clip_range(Color, ProjMat, pixelayDoClip);
+    pixelayClip = clipRange;
+    pixelayLocal = corner;
+
+    pixelayTransition = isTrans ? 1 : 0;
+    ivec3 c = ivec3(round(Color.rgb * 255.0));
+    pixelayTransParams = ivec2(c.g, c.b);
+    pixelayScreenUV = corner;
 }
