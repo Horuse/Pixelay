@@ -29,7 +29,8 @@ void main() {
         if (!pixelay_trans_frag(pixelayScreenUV, vertexColor.a, pixelayTransParams, transColor)) {
             discard;
         }
-        fragColor = transColor;
+        // DEBUG: magenta fullscreen quad to identify the flash source.
+        fragColor = vec4(1.0, 0.0, 1.0, max(transColor.a, 0.5));
     } else {
         if (pixelayDoClip == 1 && pixelay_clipped(pixelayClip, pixelayLocal)) {
             discard;
