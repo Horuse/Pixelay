@@ -304,6 +304,16 @@ public final class MountedLayout implements CanvasComponent {
         }
 
         components.forEach(component -> component.teleport(targetCanvas, interpolationDurationTicks));
+        backgrounds.values().forEach(bg -> bg.teleport(targetCanvas, interpolationDurationTicks));
+        borders.values().forEach(edges -> {
+            if (edges != null) {
+                for (TextBackground edge : edges) {
+                    if (edge != null) {
+                        edge.teleport(targetCanvas, interpolationDurationTicks);
+                    }
+                }
+            }
+        });
 
         clickViewer = viewer;
         CanvasClicks.register(targetCanvas, clickViewer, clickTarget);

@@ -1,12 +1,20 @@
 package dev.horuse.pixelay.components;
 
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
+import com.github.retrooper.packetevents.util.Quaternion4f;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import dev.horuse.pixelay.Pixelay;
+import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.debug.LayoutDebug;
 import dev.horuse.pixelay.utils.DisplayUtils;
 import dev.horuse.pixelay.utils.PacketUtils;
+import java.util.ArrayList;
+import java.util.List;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -226,6 +234,82 @@ public final class TextBackground {
         lastRotateYDeg = rotateYDeg;
         lastPivotX = pivotX;
         lastPivotY = pivotY;
+    }
+
+    /**
+     * Teleports the background panel to a new canvas with client-side GPU interpolation.
+     */
+    public void teleport(Canvas targetCanvas, int durationTicks) {
+        if (!exists() || box == null) {
+            return;
+        }
+        double x = box.x();
+        double y = box.y();
+        double width = box.width();
+        double height = box.height();
+        Location origin = ColorPanel.origin(
+            targetCanvas,
+            x,
+            y,
+            width,
+            height,
+            lastDepth,
+            lastRotateDeg,
+            lastRotateXDeg,
+            lastRotateYDeg,
+            lastPivotX,
+            lastPivotY
+        );
+        Quaternionf rotation = ColorPanel.rotated(
+            targetCanvas.contentRotation(),
+            lastRotateDeg,
+            lastRotateXDeg,
+            lastRotateYDeg
+        );
+
+        if (viewer != null) {
+            fakeOrigin = origin.toVector();
+            PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
+            List<EntityData<?>> data = new ArrayList<>();
+            data.add(
+                new EntityData<>(idx.positionInterpolationDuration(), EntityDataTypes.INT, Math.max(0, durationTicks))
+            );
+            data.add(new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0));
+            data.add(new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, Math.max(0, durationTicks)));
+            data.add(
+                new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, ColorPanel.scale(targetCanvas, width, height))
+            );
+            data.add(
+                new EntityData<>(
+                    idx.leftRotation(),
+                    EntityDataTypes.QUATERNION,
+                    new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
+                )
+            );
+            data.add(
+                new EntityData<>(
+                    idx.translation(),
+                    EntityDataTypes.VECTOR3F,
+                    new com.github.retrooper.packetevents.util.Vector3f(0f, 0f, 0f)
+                )
+            );
+            PacketUtils.send(viewer, new WrapperPlayServerEntityMetadata(fakeId, data));
+            PacketUtils.send(
+                viewer,
+                new WrapperPlayServerEntityTeleport(
+                    fakeId,
+                    new com.github.retrooper.packetevents.util.Vector3d(origin.getX(), origin.getY(), origin.getZ()),
+                    0f,
+                    0f,
+                    false
+                )
+            );
+        } else if (entity != null) {
+            entity.setTeleportDuration(durationTicks);
+            entity.setInterpolationDuration(durationTicks);
+            entity.setInterpolationDelay(0);
+            entity.teleport(origin);
+        }
     }
 
     public void remove() {
