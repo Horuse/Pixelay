@@ -37,3 +37,16 @@ The transition system automatically animates:
 In vanilla Minecraft, the server ticks only 20 times per second.
 Pixelay tells the client graphics card to interpolate transitions on every render frame.
 Players on 144 Hz, 240 Hz, or 360 Hz monitors see completely smooth movement with zero server lag.
+
+## 3D World Space Canvas Interpolation
+
+Pixelay supports smooth 3D world space movement of entire mounted layouts:
+
+```java
+Canvas targetCanvas = currentCanvas.withLocation(targetLocation, targetYaw);
+
+// Smoothly glides all text and background elements across 3D space over 20 ticks (1.0 s)
+mountedLayout.teleport(targetCanvas, 20);
+```
+
+The Minecraft client interpolates world coordinates, scale, and 3D rotations simultaneously without entity recreation or screen flicker.
