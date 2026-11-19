@@ -374,11 +374,22 @@ public abstract class CanvasModel<T> implements LayoutComponent {
         this.transformationDuration = Math.max(0, ticks);
     }
 
+    @Override
+    public void teleport(Canvas newCanvas, int interpolationTicks) {
+        this.canvas = newCanvas;
+        setTransformationDuration(interpolationTicks);
+        if (display != null && interpolationTicks > 0) {
+            display.setTeleportDuration(interpolationTicks);
+        }
+        refresh();
+    }
+
     private List<EntityData<?>> transformationData(Transformation t) {
         PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
         return List.of(
             new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0),
             new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, transformationDuration),
+            new EntityData<>(idx.positionInterpolationDuration(), EntityDataTypes.INT, transformationDuration),
             new EntityData<>(idx.translation(), EntityDataTypes.VECTOR3F, vector(t.getTranslation())),
             new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, vector(t.getScale())),
             new EntityData<>(idx.leftRotation(), EntityDataTypes.QUATERNION, quaternion(t.getLeftRotation())),

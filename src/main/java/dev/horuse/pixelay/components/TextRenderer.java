@@ -81,6 +81,29 @@ abstract class TextRenderer implements CanvasRenderer {
     }
 
     @Override
+    public final void teleport(Canvas newCanvas, int interpolationDurationTicks) {
+        if (!isValid()) {
+            spawn(newCanvas);
+            return;
+        }
+        if (this.canvas != null) {
+            CanvasClicks.unregister(this.canvas, viewer, clickTarget);
+        }
+        this.canvas = newCanvas;
+        drawable.setTransformationDuration(interpolationDurationTicks);
+        if (placement == null) {
+            String text = drawable.renderText();
+            placement = clipped(TextPlacement.place(drawable, text));
+            remember(text);
+        }
+        updateEntity(placement, location());
+        syncBackground(interpolationDurationTicks);
+        if (drawable.onClick() != null) {
+            CanvasClicks.register(newCanvas, viewer, clickTarget);
+        }
+    }
+
+    @Override
     public final void despawn() {
         background.remove();
         removeEntity();
@@ -145,8 +168,19 @@ abstract class TextRenderer implements CanvasRenderer {
 
     /** Synchronizes background panel color based on debug and layout settings. */
     protected final void syncBackground() {
+        syncBackground(drawable.transformationDuration());
+    }
+
+    /** Synchronizes background panel color with interpolation duration in ticks. */
+    protected final void syncBackground(int interpolationDurationTicks) {
         boolean debugging = viewer != null ? LayoutDebug.isEnabled(viewer) : LayoutDebug.anyEnabled();
-        background.sync(canvas, drawable, measuredHitboxPx(), TextBackground.colorOf(drawable, debugging));
+        background.sync(
+            canvas,
+            drawable,
+            measuredHitboxPx(),
+            TextBackground.colorOf(drawable, debugging),
+            interpolationDurationTicks
+        );
     }
 
     private boolean unchanged(String text) {

@@ -20,4 +20,15 @@ public interface CanvasComponent {
 
     /** Sets the client-side GPU transformation interpolation duration in game ticks (for 140+ FPS transitions). */
     default void setTransformationDuration(int ticks) {}
+
+    /**
+     * Teleports the component to a new canvas location with client-side interpolation.
+     *
+     * @param newCanvas the target canvas
+     * @param interpolationTicks client-side interpolation duration in game ticks (0 for instant)
+     */
+    default void teleport(Canvas newCanvas, int interpolationTicks) {
+        setTransformationDuration(interpolationTicks);
+        spawn(newCanvas);
+    }
 }

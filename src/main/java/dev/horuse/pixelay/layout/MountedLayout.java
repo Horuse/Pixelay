@@ -285,10 +285,54 @@ public final class MountedLayout implements CanvasComponent {
     }
 
     /**
+     * Smoothly teleports the mounted layout to a new canvas location with client-side GPU interpolation.
+     *
+     * @param targetCanvas the target canvas position and orientation
+     * @param interpolationDurationTicks duration in server ticks for smooth client interpolation
+     */
+    public void teleport(dev.horuse.pixelay.data.Canvas targetCanvas, int interpolationDurationTicks) {
+        if (this.canvas != null) {
+            CanvasClicks.unregister(this.canvas, clickViewer, clickTarget);
+            Layers.forgetTopStep(this.canvas, this);
+        }
+        this.canvas = targetCanvas;
+        layout(targetCanvas);
+
+        Player viewer = viewer();
+        if (viewer != null) {
+            PacketUtils.sendBundle(viewer);
+        }
+
+        components.forEach(component -> component.teleport(targetCanvas, interpolationDurationTicks));
+
+        clickViewer = viewer;
+        CanvasClicks.register(targetCanvas, clickViewer, clickTarget);
+        syncBackgrounds(interpolationDurationTicks);
+        debugOverlay.update(root, targetCanvas);
+
+        if (viewer != null) {
+            PacketUtils.sendBundle(viewer);
+        }
+    }
+
+    /**
+     * Instantly teleports the mounted layout to a new canvas location without interpolation.
+     *
+     * @param targetCanvas the target canvas position and orientation
+     */
+    public void teleport(dev.horuse.pixelay.data.Canvas targetCanvas) {
+        teleport(targetCanvas, 0);
+    }
+
+    /**
      * Renders and updates background panels for boxes.
      * Alpha composites translucent child boxes with ancestor backgrounds to prevent depth buffer artifacts.
      */
     private void syncBackgrounds() {
+        syncBackgrounds(0);
+    }
+
+    private void syncBackgrounds(int durationTicks) {
         Player viewer = viewer();
         compositedColors.clear();
         for (Box<?> box : boxes) {
@@ -297,6 +341,7 @@ public final class MountedLayout implements CanvasComponent {
                 compositedColors.put(box, bg);
             }
             if (bg != 0 || backgrounds.containsKey(box)) {
+                int effectiveDuration = durationTicks > 0 ? durationTicks : box.visualTransformationDurationTicks();
                 backgrounds
                     .computeIfAbsent(box, key -> new TextBackground(viewer))
                     .sync(
@@ -309,7 +354,7 @@ public final class MountedLayout implements CanvasComponent {
                         box.visualRotateYDeg(),
                         box.visualPivotX(),
                         box.visualPivotY(),
-                        box.visualTransformationDurationTicks()
+                        effectiveDuration
                     );
             }
             syncBoxBorders(box, viewer, bg);

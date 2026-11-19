@@ -78,6 +78,41 @@ public class Canvas {
         warnIfPixelsNotSquare(resolution);
     }
 
+    /**
+     * Creates a new Canvas instance with an updated world center location and yaw angle.
+     * Preserves resolution, pitch, and depth settings.
+     *
+     * @param newCenter new world center location
+     * @param newYawDegrees new yaw orientation in degrees
+     * @return new Canvas instance at the target position
+     */
+    public Canvas withLocation(Location newCenter, float newYawDegrees) {
+        return withLocation(newCenter, newYawDegrees, this.pitchDegrees);
+    }
+
+    /**
+     * Creates a new Canvas instance with an updated world center location, yaw, and pitch angles.
+     * Preserves resolution and depth settings.
+     *
+     * @param newCenter new world center location
+     * @param newYawDegrees new yaw orientation in degrees
+     * @param newPitchDegrees new pitch orientation in degrees
+     * @return new Canvas instance at the target position
+     */
+    public Canvas withLocation(Location newCenter, float newYawDegrees, float newPitchDegrees) {
+        Canvas c = new Canvas(
+            newCenter,
+            newYawDegrees,
+            newPitchDegrees,
+            0f,
+            this.depthOffset,
+            this.resolution,
+            this.paddingPx
+        );
+        c.worldClicks(this.worldClicks);
+        return c;
+    }
+
     /** Validates that pixel aspect ratio matches block dimensions. */
     private static void warnIfPixelsNotSquare(CanvasResolution resolution) {
         double pixelWidth = resolution.blockWidth() / resolution.pixelWidth();

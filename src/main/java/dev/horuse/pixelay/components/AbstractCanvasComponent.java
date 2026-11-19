@@ -75,6 +75,14 @@ public abstract class AbstractCanvasComponent implements LayoutComponent, Canvas
     }
 
     @Override
+    public void teleport(Canvas newCanvas, int interpolationTicks) {
+        this.canvas = newCanvas;
+        setTransformationDuration(interpolationTicks);
+        renderer.teleport(newCanvas, interpolationTicks);
+        CanvasBoundsDebug.track(newCanvas);
+    }
+
+    @Override
     public void despawn() {
         renderer.despawn();
         if (canvas != null) {

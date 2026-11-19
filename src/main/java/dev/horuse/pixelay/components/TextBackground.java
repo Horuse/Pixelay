@@ -55,12 +55,28 @@ public final class TextBackground {
 
     /** Synchronizes the panel over the measured element bounds. */
     void sync(Canvas canvas, CanvasDrawable drawable, Size hitbox, int argb) {
+        sync(canvas, drawable, hitbox, argb, 0);
+    }
+
+    /** Synchronizes the panel over the measured element bounds with transformation duration in ticks. */
+    void sync(Canvas canvas, CanvasDrawable drawable, Size hitbox, int argb, int transformationDurationTicks) {
         Rect bounds = hitbox != null ? TextPlacement.bounds(drawable, hitbox) : null;
         // Clip background to match text overflow boundaries.
         if (bounds != null && drawable.clip() != null) {
             bounds = bounds.intersect(drawable.clip());
         }
-        sync(canvas, bounds, argb, drawable.textBackgroundDepth());
+        sync(
+            canvas,
+            bounds,
+            argb,
+            drawable.textBackgroundDepth(),
+            0.0,
+            0.0,
+            0.0,
+            Double.NaN,
+            Double.NaN,
+            transformationDurationTicks
+        );
     }
 
     /**
