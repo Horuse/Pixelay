@@ -31,7 +31,7 @@ void main() {
     // Early returns with a replaced gl_Position break text on NVIDIA drivers.
     bool isTrans = pixelay_is_trans(Color, ProjMat);
     bool isTransShadow = pixelay_is_trans_shadow(Color, ProjMat);
-    bool isHud = pixelay_is_hud(Position, ProjMat);
+    bool isHud = pixelay_is_hud(Position, ProjMat, Color);
 
     // Pixelay: screen sessions draw with the canvas field of view (see pixelay_state.glsl).
     vec4 normalPos = pixelay_screen_projection(ProjMat * ModelViewMat * vec4(Position, 1.0), ProjMat);
@@ -49,7 +49,10 @@ void main() {
     sphericalVertexDistance = fog_spherical_distance(Position);
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
     vec4 baseColor = Color * texelFetch(Sampler2, UV2 / 16, 0);
-    vertexColor = (isTrans || isHud) ? Color : baseColor;
+
+    ivec3 c = ivec3(round(Color.rgb * 255.0));
+    vec4 hudColor = ((c.b & 7) == PIXELAY_HUD_COMPASS_TAG) ? vec4(1.0, 1.0, 1.0, Color.a) : Color;
+    vertexColor = isTrans ? Color : (isHud ? hudColor : baseColor);
     texCoord0 = UV0;
 
     pixelayClip = pixelay_clip_range(Color, ProjMat);

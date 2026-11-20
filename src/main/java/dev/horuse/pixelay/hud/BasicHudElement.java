@@ -63,6 +63,13 @@ public class BasicHudElement implements HudElement {
 
     @Override
     public Component render() {
-        return Component.text().append(HudSpace.offset(offsetX)).append(content).build();
+        if (offsetX == 0 || Component.empty().equals(content)) {
+            return content;
+        }
+        return Component.text()
+            .append(HudSpace.offset(offsetX))
+            .append(content)
+            .append(HudSpace.offset(-offsetX))
+            .build();
     }
 }

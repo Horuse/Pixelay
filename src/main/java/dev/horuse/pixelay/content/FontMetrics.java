@@ -248,7 +248,7 @@ public final class FontMetrics {
     }
 
     /** Gets the glyph advance in font pixels, adding one pixel when bold. */
-    static int advance(int codePoint, boolean bold) {
+    public static int advance(int codePoint, boolean bold) {
         Integer overridden = OVERRIDES.get(codePoint);
         int width = overridden != null ? overridden : FontWidths.advance(codePoint);
         return bold && width > 0 ? width + 1 : width;
