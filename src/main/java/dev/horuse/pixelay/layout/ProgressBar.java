@@ -118,13 +118,14 @@ public final class ProgressBar extends Container<ProgressBar> {
 
     @Override
     protected void arrangeContent(Rect content) {
-        double h = hasFixedHeight() ? content.height() : trackHeight;
+        double sy = visualScaleY();
+        double h = hasFixedHeight() ? content.height() : trackHeight * sy;
         double y = content.y() + Math.max(0, (content.height() - h) / 2.0);
         Rect trackRect = new Rect(content.x(), y, content.width(), h);
-        trackBox.arrange(trackRect, overflowsHere());
+        arrangeChild(trackBox, trackRect, overflowsHere());
 
         double current = progress();
         double fillW = content.width() * current;
-        fillBox.arrange(new Rect(content.x(), y, fillW, h), false);
+        arrangeChild(fillBox, new Rect(content.x(), y, fillW, h), false);
     }
 }

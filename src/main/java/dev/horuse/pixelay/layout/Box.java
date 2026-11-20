@@ -426,13 +426,23 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
             (natural.width() > rect.width() + OVERFLOW_EPSILON || natural.height() > rect.height() + OVERFLOW_EPSILON);
         fit = selfOverflow ? Fit.SELF : insideOverflow ? Fit.INSIDE : Fit.NONE;
         Insets b = effectiveBorderWidths();
-        if (Math.abs(sx - 1.0) > 1e-4 || Math.abs(sy - 1.0) > 1e-4) {
-            b = new Insets(b.top() * sy, b.right() * sx, b.bottom() * sy, b.left() * sx);
+        if (Math.abs(visualScaleX - 1.0) > 1e-4 || Math.abs(visualScaleY - 1.0) > 1e-4) {
+            b = new Insets(
+                b.top() * visualScaleY,
+                b.right() * visualScaleX,
+                b.bottom() * visualScaleY,
+                b.left() * visualScaleX
+            );
         }
         Rect inner = b.shrink(rect);
         Insets p = effectivePadding();
-        if (Math.abs(sx - 1.0) > 1e-4 || Math.abs(sy - 1.0) > 1e-4) {
-            p = new Insets(p.top() * sy, p.right() * sx, p.bottom() * sy, p.left() * sx);
+        if (Math.abs(visualScaleX - 1.0) > 1e-4 || Math.abs(visualScaleY - 1.0) > 1e-4) {
+            p = new Insets(
+                p.top() * visualScaleY,
+                p.right() * visualScaleX,
+                p.bottom() * visualScaleY,
+                p.left() * visualScaleX
+            );
         }
         arrangeContent(p.shrink(inner));
         arrangeAbsoluteChildren(inner);
