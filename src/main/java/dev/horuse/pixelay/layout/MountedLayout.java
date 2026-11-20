@@ -367,14 +367,14 @@ public final class MountedLayout implements CanvasComponent {
                         effectiveDuration
                     );
             }
-            syncBoxBorders(box, viewer, bg);
+            syncBoxBorders(box, viewer, bg, durationTicks);
             if (box instanceof Canvas pixelCanvas) {
                 pixelCanvas.sync(canvas, viewer, bg, Layers.at(box.paintStep + 1, viewer));
             }
         }
     }
 
-    private void syncBoxBorders(Box<?> box, Player viewer, int boxBg) {
+    private void syncBoxBorders(Box<?> box, Player viewer, int boxBg, int durationTicksParam) {
         Insets rawB = box.effectiveBorderWidths();
         Insets b = new Insets(
             rawB.top() * box.visualScaleY(),
@@ -404,7 +404,7 @@ public final class MountedLayout implements CanvasComponent {
         double rotY = box.visualRotateYDeg();
         double pivX = box.visualPivotX();
         double pivY = box.visualPivotY();
-        int durationTicks = box.visualTransformationDurationTicks();
+        int durationTicks = durationTicksParam > 0 ? durationTicksParam : box.visualTransformationDurationTicks();
         boolean hasRot = Math.abs(rotZ) >= 1e-4 || Math.abs(rotX) >= 1e-4 || Math.abs(rotY) >= 1e-4;
 
         Rect topRect = b.top() > 0 ? new Rect(r.x(), r.y(), r.width(), Math.min(b.top(), r.height())) : Rect.EMPTY;

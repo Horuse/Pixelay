@@ -1,20 +1,12 @@
 package dev.horuse.pixelay.components;
 
-import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
-import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
-import com.github.retrooper.packetevents.util.Quaternion4f;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import dev.horuse.pixelay.Pixelay;
-import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.data.Canvas;
 import dev.horuse.pixelay.data.Rect;
 import dev.horuse.pixelay.data.Size;
 import dev.horuse.pixelay.debug.LayoutDebug;
 import dev.horuse.pixelay.utils.DisplayUtils;
 import dev.horuse.pixelay.utils.PacketUtils;
-import java.util.ArrayList;
-import java.util.List;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -47,6 +39,7 @@ public final class TextBackground {
     private double lastRotateYDeg;
     private double lastPivotX = Double.NaN;
     private double lastPivotY = Double.NaN;
+    private Canvas lastCanvas;
 
     /** @param viewer player who sees the panel, or {@code null} for a shared server entity */
     public TextBackground(Player viewer) {
@@ -145,7 +138,13 @@ public final class TextBackground {
             Math.abs(rotateXDeg - lastRotateXDeg) < 1e-3 &&
             Math.abs(rotateYDeg - lastRotateYDeg) < 1e-3 &&
             (!hasRotation || (Math.abs(pivotX - lastPivotX) < 1e-2 && Math.abs(pivotY - lastPivotY) < 1e-2));
-        if (exists() && bounds.equals(box) && depth == lastDepth && sameRot) {
+        boolean sameCanvas =
+            canvas == lastCanvas ||
+            (lastCanvas != null &&
+                canvas.center().equals(lastCanvas.center()) &&
+                Math.abs(canvas.yawDegrees() - lastCanvas.yawDegrees()) < 1e-3 &&
+                Math.abs(canvas.pitchDegrees() - lastCanvas.pitchDegrees()) < 1e-3);
+        if (exists() && bounds.equals(box) && depth == lastDepth && sameRot && sameCanvas) {
             if (argb != color) {
                 if (viewer != null) {
                     ColorPanel.updateColor(viewer, fakeId, argb);
@@ -234,6 +233,7 @@ public final class TextBackground {
         lastRotateYDeg = rotateYDeg;
         lastPivotX = pivotX;
         lastPivotY = pivotY;
+        lastCanvas = canvas;
     }
 
     /**
@@ -268,48 +268,18 @@ public final class TextBackground {
         );
 
         if (viewer != null) {
-            fakeOrigin = origin.toVector();
-            PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
-            List<EntityData<?>> data = new ArrayList<>();
-            data.add(
-                new EntityData<>(idx.positionInterpolationDuration(), EntityDataTypes.INT, Math.max(0, durationTicks))
-            );
-            data.add(new EntityData<>(idx.transformationStartDelta(), EntityDataTypes.INT, 0));
-            data.add(new EntityData<>(idx.transformationDuration(), EntityDataTypes.INT, Math.max(0, durationTicks)));
-            data.add(
-                new EntityData<>(idx.scale(), EntityDataTypes.VECTOR3F, ColorPanel.scale(targetCanvas, width, height))
-            );
-            data.add(
-                new EntityData<>(
-                    idx.leftRotation(),
-                    EntityDataTypes.QUATERNION,
-                    new Quaternion4f(rotation.x, rotation.y, rotation.z, rotation.w)
-                )
-            );
-            data.add(
-                new EntityData<>(
-                    idx.translation(),
-                    EntityDataTypes.VECTOR3F,
-                    new com.github.retrooper.packetevents.util.Vector3f(0f, 0f, 0f)
-                )
-            );
-            PacketUtils.send(viewer, new WrapperPlayServerEntityMetadata(fakeId, data));
-            PacketUtils.send(
-                viewer,
-                new WrapperPlayServerEntityTeleport(
-                    fakeId,
-                    new com.github.retrooper.packetevents.util.Vector3d(origin.getX(), origin.getY(), origin.getZ()),
-                    0f,
-                    0f,
-                    false
-                )
-            );
+            if (fakeOrigin == null) {
+                fakeOrigin = origin.toVector();
+            }
+            org.bukkit.util.Vector translation = origin.toVector().subtract(fakeOrigin);
+            ColorPanel.update(viewer, fakeId, targetCanvas, width, height, translation, rotation, null, durationTicks);
         } else if (entity != null) {
             entity.setTeleportDuration(durationTicks);
             entity.setInterpolationDuration(durationTicks);
             entity.setInterpolationDelay(0);
             entity.teleport(origin);
         }
+        lastCanvas = targetCanvas;
     }
 
     public void remove() {
@@ -323,6 +293,8 @@ public final class TextBackground {
             entity = null;
         }
         box = null;
+        color = 0;
+        lastCanvas = null;
     }
 
     private boolean exists() {
