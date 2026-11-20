@@ -32,9 +32,8 @@ public final class HudCodec {
         if (component == null) {
             return Component.empty();
         }
-        int code = HUD_TAG | ((lineIndex & 15) << 4) | (anchor.id() & 15);
         int[] widthTracker = new int[] { 0 };
-        Component encoded = encodeComponent(component, code, DEFAULT_COLOR, widthTracker);
+        Component encoded = encodeComponent(component, anchor.id(), lineIndex, DEFAULT_COLOR, widthTracker);
         int lineWidth = widthTracker[0];
         if (lineWidth <= 0) {
             return encoded;
@@ -58,12 +57,12 @@ public final class HudCodec {
         int normPrev = Math.round(((((prevYaw % 360.0f) + 360.0f) % 360.0f) / 360.0f) * 255.0f);
         int r = Math.clamp(normTarget, 0, 255);
         int g = Math.clamp(normPrev, 0, 255);
-        int b = 0xF8 | COMPASS_TAG;
+        int b = 253;
         int packedRgb = (r << 16) | (g << 8) | b;
         return applyFixedColor(component, packedRgb);
     }
 
-    private static Component encodeComponent(Component component, int code, int inheritedColor, int[] widthTracker) {
+    private static Component encodeComponent(Component component, int anchor, int lineIndex, int inheritedColor, int[] widthTracker) {
         int color = component.style().color() != null ? component.style().color().value() : inheritedColor;
         boolean bold = component.style().hasDecoration(net.kyori.adventure.text.format.TextDecoration.BOLD);
         List<Component> children = new ArrayList<>();
@@ -75,14 +74,14 @@ public final class HudCodec {
                 int codePoint = content.codePointAt(i);
                 widthTracker[0] += FontMetrics.advance(codePoint, bold);
                 String piece = new String(Character.toChars(codePoint));
-                children.add(Component.text(piece, TextColor.color(withCode(color, code))));
+                children.add(Component.text(piece, TextColor.color(withCode(color, anchor, lineIndex))));
                 i += Character.charCount(codePoint);
             }
             result = text.content("");
         }
 
         for (Component child : component.children()) {
-            children.add(encodeComponent(child, code, color, widthTracker));
+            children.add(encodeComponent(child, anchor, lineIndex, color, widthTracker));
         }
 
         return result.children(children);
@@ -100,10 +99,15 @@ public final class HudCodec {
         return result.children(children);
     }
 
-    private static int withCode(int rgb, int code) {
-        int red = ((rgb >> 16) & 0xF8) | (code & 7);
-        int green = ((rgb >> 8) & 0xF8) | ((code >> 3) & 7);
-        int blue = (rgb & 0xF8) | ((code >> 6) & 7);
+    private static int withCode(int rgb, int anchor, int lineIndex) {
+        int r = (rgb >> 16) & 0xFF;
+        int g = (rgb >> 8) & 0xFF;
+        int b = rgb & 0xFF;
+
+        int red = (r & 0xF0) | (anchor & 15);
+        int green = (g & 0xF8) | 4 | (lineIndex & 3);
+        int blue = (b & 0xF8) | 6;
+
         return (red << 16) | (green << 8) | blue;
     }
 }

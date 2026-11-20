@@ -32,26 +32,28 @@ void main() {
     bool isTrans = pixelay_is_trans(Color, ProjMat);
     bool isTransShadow = pixelay_is_trans_shadow(Color, ProjMat);
     bool isHud = pixelay_is_hud(Position, ProjMat, Color);
+    bool isHudShadow = pixelay_is_hud_shadow(Position, ProjMat, Color);
 
     // Pixelay: screen sessions draw with the canvas field of view (see pixelay_state.glsl).
     vec4 normalPos = pixelay_screen_projection(ProjMat * ModelViewMat * vec4(Position, 1.0), ProjMat);
-    vec4 hudPos = pixelay_hud_position(Position, ProjMat, ModelViewMat, Color);
+    vec4 hudPos = pixelay_hud_position(Position, ProjMat, ModelViewMat, Color, gl_VertexID);
 
     // Quads have 4 vertices each, so the vertex index selects the corner.
     vec2 corner = PIXELAY_GLYPH_CORNERS[gl_VertexID % 4];
     // Full-screen quad in NDC: (-1, 1) top-left to (1, -1) bottom-right.
     vec4 transPos = vec4(corner.x * 2.0 - 1.0, 1.0 - corner.y * 2.0, normalPos.z, 1.0);
-    // Shadow quad of the transition title is collapsed outside NDC.
+    // Shadow quad of transition/hud is collapsed outside NDC.
     vec4 hiddenPos = vec4(2.0, 2.0, 2.0, 1.0);
 
-    gl_Position = isTrans ? transPos : (isTransShadow ? hiddenPos : (isHud ? hudPos : normalPos));
+    bool shouldHide = isTransShadow || isHudShadow;
+    gl_Position = isTrans ? transPos : (shouldHide ? hiddenPos : (isHud ? hudPos : normalPos));
 
     sphericalVertexDistance = fog_spherical_distance(Position);
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
     vec4 baseColor = Color * texelFetch(Sampler2, UV2 / 16, 0);
 
     ivec3 c = ivec3(round(Color.rgb * 255.0));
-    vec4 hudColor = ((c.b & 7) == PIXELAY_HUD_COMPASS_TAG) ? vec4(1.0, 1.0, 1.0, Color.a) : Color;
+    vec4 hudColor = (c.b == 253) ? vec4(1.0, 1.0, 1.0, Color.a) : Color;
     vertexColor = isTrans ? Color : (isHud ? hudColor : baseColor);
     texCoord0 = UV0;
 
@@ -59,7 +61,6 @@ void main() {
     pixelayLocal = corner;
 
     pixelayTransition = isTrans ? 1 : 0;
-    ivec3 c = ivec3(round(Color.rgb * 255.0));
     pixelayTransParams = ivec2(c.g, c.b);
     pixelayScreenUV = corner;
 }
