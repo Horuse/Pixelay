@@ -62,5 +62,5 @@ void main() {
 
     pixelayTransition = isTrans ? 1 : 0;
     pixelayTransParams = ivec2(c.g, c.b);
-    pixelayScreenUV = isTrans ? corner : ((isHud && (c.b == 253)) ? vec2(89.0 * ProjMat[0][0], 0.0) : vec2(-1.0, 0.0));
+    pixelayScreenUV = isTrans ? corner : ((isHud && (c.b == 253)) ? vec2(gl_Position.x, 89.0 * ProjMat[0][0]) : vec2(0.0, -1.0));
 }
