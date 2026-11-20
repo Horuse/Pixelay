@@ -71,6 +71,11 @@ public final class FontMetrics {
             return metrics;
         }
 
+        /** Gets the parsed text before line breaks. Glyph boxes use the glyph order of this component. */
+        public Component source() {
+            return source;
+        }
+
         /** Gets the component with line breaks to send to the client. */
         public Component component() {
             return component;
@@ -167,6 +172,12 @@ public final class FontMetrics {
     /** Sets a manual glyph width override in font pixels. */
     public static void setOverride(int codePoint, int advancePx) {
         OVERRIDES.put(codePoint, advancePx);
+    }
+
+    /** Sets the advance and the vertical bounds of a glyph. The values come from a bitmap font provider. */
+    public static void setGlyph(int codePoint, int advancePx, int ascent, int height) {
+        OVERRIDES.put(codePoint, advancePx);
+        setVertical(codePoint, ascent, height);
     }
 
     /** Loads glyph widths from resource packs and manual configuration. */

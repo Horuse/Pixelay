@@ -28,6 +28,8 @@ public class CanvasItem extends CanvasModel<ItemStack> {
      */
     private static final Quaternionf FRONT = new Quaternionf().rotateY((float) Math.PI);
 
+    private ItemDisplay.ItemDisplayTransform displayTransform = ItemDisplay.ItemDisplayTransform.GUI;
+
     protected CanvasItem(
         Player viewer,
         boolean fake,
@@ -37,6 +39,22 @@ public class CanvasItem extends CanvasModel<ItemStack> {
         Supplier<ItemStack> item
     ) {
         super(viewer, fake, pixelX, pixelY, sizePx, sizePx, item);
+    }
+
+    /**
+     * Sets display transform mode for item rendering.
+     * Use {@link ItemDisplay.ItemDisplayTransform#FIXED} to prevent isometric tilt.
+     */
+    public CanvasItem displayTransform(ItemDisplay.ItemDisplayTransform transform) {
+        this.displayTransform = transform != null ? transform : ItemDisplay.ItemDisplayTransform.GUI;
+        return this;
+    }
+
+    /**
+     * @return current display transform mode
+     */
+    public ItemDisplay.ItemDisplayTransform displayTransform() {
+        return displayTransform;
     }
 
     /** Creates an item with a server entity visible to all players. The supplier re-reads {@code item} on refresh. */
@@ -79,7 +97,7 @@ public class CanvasItem extends CanvasModel<ItemStack> {
     @Override
     protected void applyContent(Display display, ItemStack item) {
         ItemDisplay itemDisplay = (ItemDisplay) display;
-        itemDisplay.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.GUI);
+        itemDisplay.setItemDisplayTransform(displayTransform);
         itemDisplay.setItemStack(item);
     }
 
@@ -88,7 +106,7 @@ public class CanvasItem extends CanvasModel<ItemStack> {
         PixelaySettings.MetadataIndexes idx = Pixelay.settings().packets().metadata();
         return List.of(
             new EntityData<>(idx.item(), EntityDataTypes.ITEMSTACK, SpigotConversionUtil.fromBukkitItemStack(item)),
-            new EntityData<>(idx.itemDisplayTransform(), EntityDataTypes.BYTE, DISPLAY_GUI)
+            new EntityData<>(idx.itemDisplayTransform(), EntityDataTypes.BYTE, (byte) displayTransform.ordinal())
         );
     }
 

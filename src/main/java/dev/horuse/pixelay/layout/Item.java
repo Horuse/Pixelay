@@ -50,6 +50,12 @@ public final class Item extends Box<Item> {
         return "item";
     }
 
+    /** Sets display transformation mode (e.g. {@link org.bukkit.entity.ItemDisplay.ItemDisplayTransform#FIXED}). */
+    public Item displayTransform(org.bukkit.entity.ItemDisplay.ItemDisplayTransform transform) {
+        model.displayTransform(transform);
+        return this;
+    }
+
     @Override
     public CanvasItem component() {
         return model;

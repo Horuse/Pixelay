@@ -33,4 +33,14 @@ public interface CanvasRenderer {
 
     /** @return the only player who sees this element, or {@code null} when everyone does */
     Player viewer();
+
+    /**
+     * Teleports the renderer's backing entities to a new canvas with interpolation.
+     *
+     * @param newCanvas the target canvas
+     * @param interpolationDurationTicks client-side interpolation duration in game ticks
+     */
+    default void teleport(Canvas newCanvas, int interpolationDurationTicks) {
+        spawn(newCanvas);
+    }
 }

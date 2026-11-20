@@ -39,6 +39,7 @@ public final class TextBackground {
     private double lastRotateYDeg;
     private double lastPivotX = Double.NaN;
     private double lastPivotY = Double.NaN;
+    private Canvas lastCanvas;
 
     /** @param viewer player who sees the panel, or {@code null} for a shared server entity */
     public TextBackground(Player viewer) {
@@ -55,12 +56,28 @@ public final class TextBackground {
 
     /** Synchronizes the panel over the measured element bounds. */
     void sync(Canvas canvas, CanvasDrawable drawable, Size hitbox, int argb) {
+        sync(canvas, drawable, hitbox, argb, 0);
+    }
+
+    /** Synchronizes the panel over the measured element bounds with transformation duration in ticks. */
+    void sync(Canvas canvas, CanvasDrawable drawable, Size hitbox, int argb, int transformationDurationTicks) {
         Rect bounds = hitbox != null ? TextPlacement.bounds(drawable, hitbox) : null;
         // Clip background to match text overflow boundaries.
         if (bounds != null && drawable.clip() != null) {
             bounds = bounds.intersect(drawable.clip());
         }
-        sync(canvas, bounds, argb, drawable.textBackgroundDepth());
+        sync(
+            canvas,
+            bounds,
+            argb,
+            drawable.textBackgroundDepth(),
+            0.0,
+            0.0,
+            0.0,
+            Double.NaN,
+            Double.NaN,
+            transformationDurationTicks
+        );
     }
 
     /**
@@ -121,7 +138,13 @@ public final class TextBackground {
             Math.abs(rotateXDeg - lastRotateXDeg) < 1e-3 &&
             Math.abs(rotateYDeg - lastRotateYDeg) < 1e-3 &&
             (!hasRotation || (Math.abs(pivotX - lastPivotX) < 1e-2 && Math.abs(pivotY - lastPivotY) < 1e-2));
-        if (exists() && bounds.equals(box) && depth == lastDepth && sameRot) {
+        boolean sameCanvas =
+            canvas == lastCanvas ||
+            (lastCanvas != null &&
+                canvas.center().equals(lastCanvas.center()) &&
+                Math.abs(canvas.yawDegrees() - lastCanvas.yawDegrees()) < 1e-3 &&
+                Math.abs(canvas.pitchDegrees() - lastCanvas.pitchDegrees()) < 1e-3);
+        if (exists() && bounds.equals(box) && depth == lastDepth && sameRot && sameCanvas) {
             if (argb != color) {
                 if (viewer != null) {
                     ColorPanel.updateColor(viewer, fakeId, argb);
@@ -210,6 +233,53 @@ public final class TextBackground {
         lastRotateYDeg = rotateYDeg;
         lastPivotX = pivotX;
         lastPivotY = pivotY;
+        lastCanvas = canvas;
+    }
+
+    /**
+     * Teleports the background panel to a new canvas with client-side GPU interpolation.
+     */
+    public void teleport(Canvas targetCanvas, int durationTicks) {
+        if (!exists() || box == null) {
+            return;
+        }
+        double x = box.x();
+        double y = box.y();
+        double width = box.width();
+        double height = box.height();
+        Location origin = ColorPanel.origin(
+            targetCanvas,
+            x,
+            y,
+            width,
+            height,
+            lastDepth,
+            lastRotateDeg,
+            lastRotateXDeg,
+            lastRotateYDeg,
+            lastPivotX,
+            lastPivotY
+        );
+        Quaternionf rotation = ColorPanel.rotated(
+            targetCanvas.contentRotation(),
+            lastRotateDeg,
+            lastRotateXDeg,
+            lastRotateYDeg
+        );
+
+        if (viewer != null) {
+            if (fakeOrigin == null) {
+                fakeOrigin = origin.toVector();
+            }
+            org.bukkit.util.Vector translation = origin.toVector().subtract(fakeOrigin);
+            ColorPanel.update(viewer, fakeId, targetCanvas, width, height, translation, rotation, null, durationTicks);
+        } else if (entity != null) {
+            entity.setTeleportDuration(durationTicks);
+            entity.setInterpolationDuration(durationTicks);
+            entity.setInterpolationDelay(0);
+            entity.teleport(origin);
+        }
+        lastCanvas = targetCanvas;
     }
 
     public void remove() {
@@ -223,6 +293,8 @@ public final class TextBackground {
             entity = null;
         }
         box = null;
+        color = 0;
+        lastCanvas = null;
     }
 
     private boolean exists() {

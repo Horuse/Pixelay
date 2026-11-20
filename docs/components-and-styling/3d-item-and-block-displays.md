@@ -16,7 +16,18 @@ Item swordDisplay = item(new ItemStack(Material.DIAMOND_SWORD))
     .size(64, 64)
     .scale(1.2)
     .rotation(0, 45, 0); // Yaw, pitch, roll
+
+// Use FIXED transform to show flat items without 3D isometric tilt
+Item cartridgeDisplay = item(cartridgeStack)
+    .displayTransform(org.bukkit.entity.ItemDisplay.ItemDisplayTransform.FIXED)
+    .size(32, 32);
 ```
+
+### Display Transform Modes
+
+By default, `Item` uses `ItemDisplayTransform.GUI`.
+Custom weapon or ammo models can have isometric angles in GUI mode.
+Use `displayTransform(ItemDisplay.ItemDisplayTransform.FIXED)` to show items flat against the UI plane.
 
 ## Block Display (`Block`)
 

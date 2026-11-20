@@ -31,6 +31,22 @@ Use these methods to inspect or interact with the canvas plane:
 | `canvas.yaw()` | `float` | Returns the rotation angle in degrees. |
 | `canvas.pixelToWorld(x, y)` | `Location` | Converts pixel coordinates `(x, y)` to an exact Bukkit world location. |
 | `canvas.worldClicks(boolean)` | `void` | Enables or disables click interactions from players standing in the world. |
+| `canvas.withLocation(newCenter, newYaw)` | `Canvas` | Creates a copy of the canvas at a new world location and yaw angle. |
+| `canvas.withLocation(newCenter, newYaw, newPitch)` | `Canvas` | Creates a copy of the canvas at a new world location, yaw, and pitch angles. |
+
+## Moving a Canvas in 3D Space
+
+Use `withLocation(...)` to create a new canvas at a target position:
+
+```java
+Location targetLocation = player.getLocation().add(3, 1.5, 4);
+float targetYaw = 45.0f;
+
+// Creates a target canvas with the same resolution and padding settings
+Canvas newCanvas = canvas.withLocation(targetLocation, targetYaw);
+```
+
+You can then pass this new canvas to `mountedLayout.teleport(newCanvas, durationTicks)` to move the entire interface smoothly.
 
 ## Pixel Aspect Ratio Tip
 

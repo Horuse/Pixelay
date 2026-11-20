@@ -104,6 +104,11 @@ public class FakeRenderer extends TextRenderer {
                         EntityDataTypes.INT,
                         drawable.transformationDuration()
                     ),
+                    new EntityData<>(
+                        idx.positionInterpolationDuration(),
+                        EntityDataTypes.INT,
+                        drawable.transformationDuration()
+                    ),
                     new EntityData<>(idx.text(), EntityDataTypes.ADV_COMPONENT, placement.component()),
                     // Send cut codes and opacity marker together (see TextClip).
                     new EntityData<>(idx.textOpacity(), EntityDataTypes.BYTE, textOpacity()),

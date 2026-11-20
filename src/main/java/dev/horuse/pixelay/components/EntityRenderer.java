@@ -44,6 +44,10 @@ public class EntityRenderer extends TextRenderer {
 
     @Override
     protected void updateEntity(TextPlacement.Placement placement, Location at) {
+        int duration = drawable.transformationDuration();
+        if (duration > 0) {
+            display.setTeleportDuration(duration);
+        }
         // Update position before text to prevent rendering new text at old coordinates.
         display.teleport(at);
         applyScaleAndRotation(display, canvas.scaleForHeightPx(drawable.heightPx()));
