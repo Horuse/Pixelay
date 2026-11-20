@@ -16,12 +16,9 @@ bool pixelay_is_hud(vec3 pos, mat4 proj, vec4 color) {
         return false;
     }
 
-    vec2 ui = ceil(2.0 / vec2(proj[0][0], -proj[1][1]));
-
-    // Strictly limit to the BossBar area (top of screen, centered):
-    // pos.y in [0.0, 85.0] and within 170px of screen center.
-    // Excludes scoreboard, chat, inventory, action bar, hotbar.
-    if (pos.y < 0.0 || pos.y > 85.0 || abs(pos.x - ui.x * 0.5) > 170.0) {
+    // Limit to the top BossBar area where HUD bossbars render.
+    // Excludes scoreboard (y >= 75), chat (y >= ui.y - 120), inventory, etc.
+    if (pos.y < 0.0 || pos.y > 65.0) {
         return false;
     }
 
@@ -44,10 +41,7 @@ bool pixelay_is_hud_shadow(vec3 pos, mat4 proj, vec4 color) {
         return false;
     }
 
-    vec2 ui = ceil(2.0 / vec2(proj[0][0], -proj[1][1]));
-
-    // Must be in the BossBar area where the shadow is drawn:
-    if (pos.y < 0.0 || pos.y > 85.0 || abs(pos.x - ui.x * 0.5) > 170.0) {
+    if (pos.y < 0.0 || pos.y > 65.0) {
         return false;
     }
 
@@ -131,15 +125,6 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
     }
 
     vec3 outPos = vec3(anchorPos.x + localX, anchorPos.y + yOffset + glyphY, pos.z);
-
-    // Clip tape strip inside the 183px frame boundaries:
-    if (isCompassTape) {
-        float frameCenter = ui.x * 0.5;
-        if (outPos.x < (frameCenter - 89.0) || outPos.x > (frameCenter + 89.0)) {
-            return vec4(2.0, 2.0, 2.0, 1.0);
-        }
-    }
-
     return proj * modelView * vec4(outPos, 1.0);
 }
 

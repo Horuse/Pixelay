@@ -30,6 +30,14 @@ void main() {
         }
         fragColor = transColor;
     } else {
+        // Discard compass tape fragments outside the 183px frame boundaries (in NDC):
+        if (pixelayScreenUV.x > 0.0) {
+            float ndcX = (gl_FragCoord.x / ScreenSize.x) * 2.0 - 1.0;
+            if (abs(ndcX) > pixelayScreenUV.x) {
+                discard;
+            }
+        }
+
         if (pixelay_clipped(pixelayClip, pixelayLocal)) {
             discard;
         }
