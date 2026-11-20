@@ -19,6 +19,9 @@ public final class Pixelay {
 
     private static PixelayPlugin plugin;
 
+    /** Fixed settings for offline use. The value is null when a server runs Pixelay. */
+    private static PixelaySettings headlessSettings;
+
     private Pixelay() {}
 
     static void bind(PixelayPlugin instance) {
@@ -57,7 +60,23 @@ public final class Pixelay {
      * @return the current configuration snapshot (replaced on {@code /pixelay reload})
      */
     public static PixelaySettings settings() {
+        if (headlessSettings != null) {
+            return headlessSettings;
+        }
         return instance().settings();
+    }
+
+    /**
+     * Sets a fixed settings snapshot for offline use without a running server.
+     * Layout previews use this method. Pass {@code null} to remove the snapshot.
+     */
+    public static void bindHeadlessSettings(PixelaySettings settings) {
+        headlessSettings = settings;
+    }
+
+    /** @return true if a fixed settings snapshot is bound for offline use */
+    public static boolean hasHeadlessSettings() {
+        return headlessSettings != null;
     }
 
     /**
