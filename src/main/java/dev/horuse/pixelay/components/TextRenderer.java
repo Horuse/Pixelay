@@ -91,8 +91,8 @@ abstract class TextRenderer implements CanvasRenderer {
         }
         this.canvas = newCanvas;
         drawable.setTransformationDuration(interpolationDurationTicks);
-        if (placement == null) {
-            String text = drawable.renderText();
+        String text = drawable.renderText();
+        if (placement == null || !unchanged(text)) {
             placement = clipped(TextPlacement.place(drawable, text));
             remember(text);
         }
