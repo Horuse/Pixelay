@@ -261,7 +261,9 @@ public final class LayoutPreview {
         }
 
         if (box instanceof Text textBox) {
-            paintText(g, textBox);
+            paintText(g, textBox.component());
+        } else if (box instanceof Button buttonBox) {
+            paintText(g, buttonBox.component());
         } else if (box instanceof Item) {
             paintItemPlaceholder(g, r);
         }
@@ -279,8 +281,7 @@ public final class LayoutPreview {
         g.drawLine((int) r.right() - 1, (int) r.y(), (int) r.x(), (int) r.bottom() - 1);
     }
 
-    private static void paintText(Graphics2D g, Text textBox) {
-        AbstractCanvasComponent component = textBox.component();
+    private static void paintText(Graphics2D g, AbstractCanvasComponent component) {
         String raw = component.renderText();
         if (raw == null || raw.isEmpty()) {
             return;
