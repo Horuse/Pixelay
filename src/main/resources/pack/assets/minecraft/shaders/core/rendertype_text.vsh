@@ -7,6 +7,7 @@
 #moj_import <minecraft:pixelay_clip.glsl>
 #moj_import <minecraft:pixelay_state.glsl>
 #moj_import <minecraft:pixelay_transition.glsl>
+#moj_import <minecraft:pixelay_hud.glsl>
 
 in vec3 Position;
 in vec4 Color;
@@ -26,13 +27,15 @@ flat out ivec2 pixelayTransParams;
 out vec2 pixelayScreenUV;
 
 void main() {
-    // Single exit, no early return and no branch: transition quads are handled with selects only.
+    // Single exit, no early return and no branch: transition and HUD quads are handled with selects only.
     // Early returns with a replaced gl_Position break text on NVIDIA drivers.
     bool isTrans = pixelay_is_trans(Color, ProjMat);
     bool isTransShadow = pixelay_is_trans_shadow(Color, ProjMat);
+    bool isHud = pixelay_is_hud(Position, ProjMat);
 
     // Pixelay: screen sessions draw with the canvas field of view (see pixelay_state.glsl).
     vec4 normalPos = pixelay_screen_projection(ProjMat * ModelViewMat * vec4(Position, 1.0), ProjMat);
+    vec4 hudPos = pixelay_hud_position(Position, ProjMat, ModelViewMat, Color);
 
     // Quads have 4 vertices each, so the vertex index selects the corner.
     vec2 corner = PIXELAY_GLYPH_CORNERS[gl_VertexID % 4];
@@ -41,11 +44,12 @@ void main() {
     // Shadow quad of the transition title is collapsed outside NDC.
     vec4 hiddenPos = vec4(2.0, 2.0, 2.0, 1.0);
 
-    gl_Position = isTrans ? transPos : (isTransShadow ? hiddenPos : normalPos);
+    gl_Position = isTrans ? transPos : (isTransShadow ? hiddenPos : (isHud ? hudPos : normalPos));
 
     sphericalVertexDistance = fog_spherical_distance(Position);
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
-    vertexColor = isTrans ? Color : Color * texelFetch(Sampler2, UV2 / 16, 0);
+    vec4 baseColor = Color * texelFetch(Sampler2, UV2 / 16, 0);
+    vertexColor = (isTrans || isHud) ? Color : baseColor;
     texCoord0 = UV0;
 
     pixelayClip = pixelay_clip_range(Color, ProjMat);

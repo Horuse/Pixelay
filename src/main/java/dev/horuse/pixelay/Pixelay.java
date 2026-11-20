@@ -57,6 +57,16 @@ public final class Pixelay {
     }
 
     /**
+     * Creates a screen HUD controller for the specified player.
+     *
+     * @param player the target player
+     * @return a new screen HUD instance
+     */
+    public static dev.horuse.pixelay.hud.ScreenHud hud(org.bukkit.entity.Player player) {
+        return new dev.horuse.pixelay.hud.ScreenHud(player);
+    }
+
+    /**
      * @return the current configuration snapshot (replaced on {@code /pixelay reload})
      */
     public static PixelaySettings settings() {
