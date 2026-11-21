@@ -13,7 +13,7 @@ bool pixelay_is_hud(vec3 pos, mat4 proj, vec4 color) {
         return false;
     }
 
-    if (pos.y < 0.0 || pos.y > 65.0) {
+    if (pos.y < -30.0 || pos.y > 65.0) {
         return false;
     }
 
@@ -38,18 +38,18 @@ bool pixelay_is_hud_shadow(vec3 pos, mat4 proj, vec4 color) {
     }
 
     // Limit to the bossbar area
-    if (pos.y < 0.0 || pos.y > 45.0) {
+    if (pos.y < -30.0 || pos.y > 65.0) {
         return false;
     }
 
     ivec3 c = ivec3(round(color.rgb * 255.0));
 
     // Tagged HUD widget shadow quad signature after client divides color by 4:
-    // Red bits 0..1 == 1
+    // Main quad had red bits 2..3 == 1, so shadow quad has red bits 0..1 == 1 and bits 2..3 == 0.
     // Green bits 0..1 == 2 (text) or 3 (background)
     // Blue bits 0..1 == 1
     int gShadow = c.g & 3;
-    bool isShadowSig = ((c.r & 3) == 1) && (gShadow == 2 || gShadow == 3) && ((c.b & 3) == 1);
+    bool isShadowSig = (((c.r >> 2) & 3) == 0) && ((c.r & 3) == 1) && (gShadow == 2 || gShadow == 3) && ((c.b & 3) == 1);
 
     return isShadowSig;
 }
@@ -89,7 +89,6 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
 
     float glyphY;
     float yOffset;
-    float zPos = pos.z;
 
     if (isBg) {
         int bgHeight = ((c.g >> 4) & 15) | (((c.b >> 4) & 15) << 4);
@@ -98,8 +97,6 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
 
         glyphY = corner.y * float(bgHeight);
         yOffset = shift;
-        // Position the background quad slightly behind the text
-        zPos = pos.z - 0.02;
     } else {
         int lineIndex = c.g & 3;
         float lineSpacing = 10.0;
@@ -113,7 +110,7 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
         }
     }
 
-    vec3 outPos = vec3(anchorPos.x + localX, anchorPos.y + yOffset + glyphY, zPos);
+    vec3 outPos = vec3(anchorPos.x + localX, anchorPos.y + yOffset + glyphY, pos.z);
     return proj * modelView * vec4(outPos, 1.0);
 }
 
