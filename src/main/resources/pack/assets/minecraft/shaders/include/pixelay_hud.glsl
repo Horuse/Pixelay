@@ -21,9 +21,10 @@ bool pixelay_is_hud(vec3 pos, mat4 proj, vec4 color) {
 
     // Tagged HUD widget main quad signature:
     // Red bits 2..3 == 1
-    // Green bits 2..3 == 2
+    // Green bits 2..3 == 2 (text) or 3 (background)
     // Blue bits 2..3 == 1
-    bool isSig = (((c.r >> 2) & 3) == 1) && (((c.g >> 2) & 3) == 2) && (((c.b >> 2) & 3) == 1);
+    int gSig = (c.g >> 2) & 3;
+    bool isSig = (((c.r >> 2) & 3) == 1) && (gSig == 2 || gSig == 3) && (((c.b >> 2) & 3) == 1);
     int anchor = (c.r & 3) | ((c.b & 3) << 2);
 
     return isSig && (anchor <= 8);
@@ -43,11 +44,12 @@ bool pixelay_is_hud_shadow(vec3 pos, mat4 proj, vec4 color) {
 
     ivec3 c = ivec3(round(color.rgb * 255.0));
 
-    // Tagged HUD widget shadow quad signature after client divides by 4:
+    // Tagged HUD widget shadow quad signature after client divides color by 4:
     // Red bits 0..1 == 1
-    // Green bits 0..1 == 2
+    // Green bits 0..1 == 2 (text) or 3 (background)
     // Blue bits 0..1 == 1
-    bool isShadowSig = ((c.r & 3) == 1) && ((c.g & 3) == 2) && ((c.b & 3) == 1);
+    int gShadow = c.g & 3;
+    bool isShadowSig = ((c.r & 3) == 1) && (gShadow == 2 || gShadow == 3) && ((c.b & 3) == 1);
 
     return isShadowSig;
 }
@@ -58,18 +60,13 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
 
     ivec3 c = ivec3(round(color.rgb * 255.0));
     int anchor = (c.r & 3) | ((c.b & 3) << 2);
-    int lineIndex = c.g & 3;
+    int gSig = (c.g >> 2) & 3;
+    bool isBg = (gSig == 3);
 
     float localX = pos.x - ui.x * 0.5;
-
-    // Use vanilla Minecraft 8.0px glyph height to match scoreboard and chat aspect ratio
     vec2 corner = PIXELAY_HUD_CORNERS[vertexId % 4];
-    float glyphY = corner.y * 8.0;
 
     vec2 anchorPos = vec2(0.0);
-    float lineSpacing = 10.0;
-    float yOffset = float(lineIndex) * lineSpacing;
-
     if (anchor == 0) { // TOP_LEFT
         anchorPos = vec2(0.0, 10.0);
     } else if (anchor == 1) { // TOP_CENTER (degree heading under compass)
@@ -84,16 +81,39 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
         anchorPos = vec2(ui.x, ui.y * 0.5);
     } else if (anchor == 6) { // BOTTOM_LEFT
         anchorPos = vec2(0.0, ui.y - 20.0);
-        yOffset = -float(lineIndex) * lineSpacing;
     } else if (anchor == 7) { // BOTTOM_CENTER
         anchorPos = vec2(ui.x * 0.5, ui.y - 20.0);
-        yOffset = -float(lineIndex) * lineSpacing;
     } else if (anchor == 8) { // BOTTOM_RIGHT
         anchorPos = vec2(ui.x, ui.y - 20.0);
-        yOffset = -float(lineIndex) * lineSpacing;
     }
 
-    vec3 outPos = vec3(anchorPos.x + localX, anchorPos.y + yOffset + glyphY, pos.z);
+    float glyphY;
+    float yOffset;
+    float zPos = pos.z;
+
+    if (isBg) {
+        int bgHeight = ((c.g >> 4) & 15) | (((c.b >> 4) & 15) << 4);
+        int yShift = ((c.r >> 4) & 15) | ((c.g & 3) << 4);
+        float shift = float(yShift - 32);
+
+        glyphY = corner.y * float(bgHeight);
+        yOffset = shift;
+        // Position the background quad slightly behind the text
+        zPos = pos.z - 0.02;
+    } else {
+        int lineIndex = c.g & 3;
+        float lineSpacing = 10.0;
+        // Use standard 8.0px glyph height for text
+        glyphY = corner.y * 8.0;
+
+        if (anchor >= 6) {
+            yOffset = -float(lineIndex) * lineSpacing;
+        } else {
+            yOffset = float(lineIndex) * lineSpacing;
+        }
+    }
+
+    vec3 outPos = vec3(anchorPos.x + localX, anchorPos.y + yOffset + glyphY, zPos);
     return proj * modelView * vec4(outPos, 1.0);
 }
 

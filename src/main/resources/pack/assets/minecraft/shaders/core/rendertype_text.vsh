@@ -51,7 +51,8 @@ void main() {
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
     vec4 baseColor = Color * texelFetch(Sampler2, UV2 / 16, 0);
 
-    vertexColor = isTrans ? Color : (isHud ? Color : baseColor);
+    bool isHudBg = isHud && (((ivec3(round(Color.rgb * 255.0)).g >> 2) & 3) == 3);
+    vertexColor = isHudBg ? vec4(1.0) : (isTrans ? Color : (isHud ? Color : baseColor));
     texCoord0 = UV0;
 
     pixelayClip = pixelay_clip_range(Color, ProjMat);

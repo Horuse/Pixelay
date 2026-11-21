@@ -60,6 +60,33 @@ public final class HudCodec {
     }
 
     /**
+     * Encodes a background quad glyph with anchor, custom pixel height, and vertical shift.
+     *
+     * @param component text component with the background glyph
+     * @param anchor target screen anchor
+     * @param bgHeight pixel height of the background quad from 1 to 255
+     * @param yShift vertical pixel shift from anchor Y from -32 to 31
+     * @return encoded component with background signature
+     */
+    public static Component encodeBackground(Component component, HudAnchor anchor, int bgHeight, int yShift) {
+        if (component == null) {
+            return Component.empty();
+        }
+        int clampedHeight = Math.clamp(bgHeight, 1, 255);
+        int clampedShift = Math.clamp(yShift + 32, 0, 63);
+
+        int heightLow = clampedHeight & 0x0F;
+        int heightHigh = (clampedHeight >> 4) & 0x0F;
+
+        int red = ((clampedShift & 0x0F) << 4) | 0x04 | (anchor.id() & 3);
+        int green = (heightLow << 4) | 0x0C | ((clampedShift >> 4) & 3);
+        int blue = (heightHigh << 4) | 0x04 | ((anchor.id() >> 2) & 3);
+
+        int packedRgb = (red << 16) | (green << 8) | blue;
+        return applyFixedColor(component, packedRgb);
+    }
+
+    /**
      * Encodes compass tape yaw data and compass marker tag into component colors.
      *
      * @param component the tape text component
