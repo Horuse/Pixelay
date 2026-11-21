@@ -6,34 +6,6 @@
 
 const vec2 PIXELAY_HUD_CORNERS[4] = vec2[4](vec2(0.0, 0.0), vec2(0.0, 1.0), vec2(1.0, 1.0), vec2(1.0, 0.0));
 
-// Returns true when this vertex belongs to a Pixelay on-screen HUD widget.
-bool pixelay_is_hud(vec3 pos, mat4 proj, vec4 color) {
-    bool isGui = proj[2][3] == 0.0 && proj[3][3] == 1.0;
-    if (!isGui) {
-        return false;
-    }
-
-    if (pos.y < -30.0 || pos.y > 65.0) {
-        return false;
-    }
-
-    if (pixelay_is_hud_shadow(pos, proj, color)) {
-        return false;
-    }
-
-    ivec3 c = ivec3(round(color.rgb * 255.0));
-
-    // Tagged HUD widget main quad signature:
-    // Red bits 2..3 == 1
-    // Green bits 2..3 == 2 (text) or 3 (background)
-    // Blue bits 2..3 == 1
-    int gSig = (c.g >> 2) & 3;
-    bool isSig = (((c.r >> 2) & 3) == 1) && (gSig == 2 || gSig == 3) && (((c.b >> 2) & 3) == 1);
-    int anchor = (c.r & 3) | ((c.b & 3) << 2);
-
-    return isSig && (anchor <= 8);
-}
-
 // Returns true when this vertex is a bossbar text shadow of a HUD element.
 bool pixelay_is_hud_shadow(vec3 pos, mat4 proj, vec4 color) {
     bool isGui = proj[2][3] == 0.0 && proj[3][3] == 1.0;
@@ -60,6 +32,34 @@ bool pixelay_is_hud_shadow(vec3 pos, mat4 proj, vec4 color) {
     // Blue bits 0..1 are 1.
     int gShadow = c.g & 3;
     return ((c.r & 3) == 1) && (gShadow == 2 || gShadow == 3) && ((c.b & 3) == 1);
+}
+
+// Returns true when this vertex belongs to a Pixelay on-screen HUD widget.
+bool pixelay_is_hud(vec3 pos, mat4 proj, vec4 color) {
+    bool isGui = proj[2][3] == 0.0 && proj[3][3] == 1.0;
+    if (!isGui) {
+        return false;
+    }
+
+    if (pos.y < -30.0 || pos.y > 65.0) {
+        return false;
+    }
+
+    if (pixelay_is_hud_shadow(pos, proj, color)) {
+        return false;
+    }
+
+    ivec3 c = ivec3(round(color.rgb * 255.0));
+
+    // Tagged HUD widget main quad signature:
+    // Red bits 2..3 == 1
+    // Green bits 2..3 == 2 (text) or 3 (background)
+    // Blue bits 2..3 == 1
+    int gSig = (c.g >> 2) & 3;
+    bool isSig = (((c.r >> 2) & 3) == 1) && (gSig == 2 || gSig == 3) && (((c.b >> 2) & 3) == 1);
+    int anchor = (c.r & 3) | ((c.b & 3) << 2);
+
+    return isSig && (anchor <= 8);
 }
 
 // Calculates the screen position for a HUD widget vertex.
