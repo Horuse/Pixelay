@@ -20,14 +20,6 @@ bool pixelay_is_hud_shadow(vec3 pos, mat4 proj, vec4 color) {
 
     ivec3 c = ivec3(round(color.rgb * 255.0));
 
-    // A main HUD quad has bits 2..3: red==1, green==2 or 3, blue==1.
-    // If it matches the main signature, it is not a shadow.
-    int gSig = (c.g >> 2) & 3;
-    bool isMainSig = (((c.r >> 2) & 3) == 1) && (gSig == 2 || gSig == 3) && (((c.b >> 2) & 3) == 1);
-    if (isMainSig) {
-        return false;
-    }
-
     // Shadow quad color values cannot exceed 64 after division by 4
     if (c.r > 64 || c.g > 64 || c.b > 64) {
         return false;
@@ -84,11 +76,11 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
 
     vec2 anchorPos = vec2(0.0);
     if (anchor == 0) { // TOP_LEFT
-        anchorPos = vec2(0.0, 15.0);
+        anchorPos = vec2(0.0, 9.0);
     } else if (anchor == 1) { // TOP_CENTER (degree heading under compass)
         anchorPos = vec2(ui.x * 0.5, 34.0);
     } else if (anchor == 2) { // TOP_RIGHT
-        anchorPos = vec2(ui.x, 15.0);
+        anchorPos = vec2(ui.x, 9.0);
     } else if (anchor == 3) { // CENTER_LEFT
         anchorPos = vec2(0.0, ui.y * 0.5);
     } else if (anchor == 4) { // CENTER
@@ -96,11 +88,11 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
     } else if (anchor == 5) { // CENTER_RIGHT
         anchorPos = vec2(ui.x, ui.y * 0.5);
     } else if (anchor == 6) { // BOTTOM_LEFT
-        anchorPos = vec2(0.0, ui.y - 23.0);
+        anchorPos = vec2(0.0, ui.y - 17.0);
     } else if (anchor == 7) { // BOTTOM_CENTER
-        anchorPos = vec2(ui.x * 0.5, ui.y - 23.0);
+        anchorPos = vec2(ui.x * 0.5, ui.y - 17.0);
     } else if (anchor == 8) { // BOTTOM_RIGHT
-        anchorPos = vec2(ui.x, ui.y - 23.0);
+        anchorPos = vec2(ui.x, ui.y - 17.0);
     }
 
     float glyphY;
