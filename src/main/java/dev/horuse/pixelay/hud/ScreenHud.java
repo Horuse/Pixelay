@@ -114,7 +114,7 @@ public final class ScreenHud {
         }
         TextComponent.Builder root = Component.text();
         for (HudElement element : elements) {
-            Component rendered = element.render();
+            Component rendered = element.renderFor(player);
             if (rendered != null) {
                 root.append(rendered);
             }

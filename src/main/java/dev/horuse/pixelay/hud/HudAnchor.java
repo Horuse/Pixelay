@@ -49,4 +49,31 @@ public enum HudAnchor {
     public int id() {
         return id;
     }
+
+    /**
+     * Returns true if this anchor aligns text to the left screen edge.
+     *
+     * @return true for left alignment
+     */
+    public boolean isLeftAligned() {
+        return this == TOP_LEFT || this == CENTER_LEFT || this == BOTTOM_LEFT;
+    }
+
+    /**
+     * Returns true if this anchor aligns text to the right screen edge.
+     *
+     * @return true for right alignment
+     */
+    public boolean isRightAligned() {
+        return this == TOP_RIGHT || this == CENTER_RIGHT || this == BOTTOM_RIGHT;
+    }
+
+    /**
+     * Returns true if this anchor centers text horizontally.
+     *
+     * @return true for center alignment
+     */
+    public boolean isCenterAligned() {
+        return this == TOP_CENTER || this == CENTER || this == BOTTOM_CENTER || this == COMPASS_TAPE;
+    }
 }

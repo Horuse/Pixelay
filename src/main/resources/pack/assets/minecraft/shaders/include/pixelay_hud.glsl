@@ -19,11 +19,42 @@ bool pixelay_is_hud(vec3 pos, mat4 proj, vec4 color) {
 
     ivec3 c = ivec3(round(color.rgb * 255.0));
 
-    // Tagged HUD widget: blue ends in 6, green has bit 2 set, and anchor <= 8
-    int anchor = c.r & 15;
-    bool isTaggedWidget = ((c.b & 7) == 6) && ((c.g & 4) == 4) && (anchor <= 8);
+    // Tagged HUD widget main quad signature:
+    // Red bits 2..3 == 1
+    // Green bits 2..3 == 2
+    // Blue bits 2..3 == 1
+    bool isSig = (((c.r >> 2) & 3) == 1) && (((c.g >> 2) & 3) == 2) && (((c.b >> 2) & 3) == 1);
+    int anchor = (c.r & 3) | ((c.b & 3) << 2);
 
-    return isTaggedWidget;
+    return isSig && (anchor <= 8);
+}
+
+// Returns true when this vertex is a bossbar text shadow of a HUD element.
+bool pixelay_is_hud_shadow(vec3 pos, mat4 proj, vec4 color) {
+    bool isGui = proj[2][3] == 0.0 && proj[3][3] == 1.0;
+    if (!isGui) {
+        return false;
+    }
+
+    // Limit strictly to the bossbar title area
+    if (pos.y < 0.0 || pos.y > 35.0) {
+        return false;
+    }
+
+    vec2 ui = ceil(2.0 / vec2(proj[0][0], -proj[1][1]));
+    if (abs(pos.x - ui.x * 0.5) > 60.0) {
+        return false;
+    }
+
+    ivec3 c = ivec3(round(color.rgb * 255.0));
+
+    // Tagged HUD widget shadow quad signature after client divides by 4:
+    // Red bits 0..1 == 1
+    // Green bits 0..1 == 2
+    // Blue bits 0..1 == 1
+    bool isShadowSig = ((c.r & 3) == 1) && ((c.g & 3) == 2) && ((c.b & 3) == 1);
+
+    return isShadowSig;
 }
 
 // Calculates the screen position for a HUD widget vertex.
@@ -31,7 +62,7 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
     vec2 ui = ceil(2.0 / vec2(proj[0][0], -proj[1][1]));
 
     ivec3 c = ivec3(round(color.rgb * 255.0));
-    int anchor = c.r & 15;
+    int anchor = (c.r & 3) | ((c.b & 3) << 2);
     int lineIndex = c.g & 3;
 
     float localX = pos.x - ui.x * 0.5;
@@ -44,25 +75,25 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
     float yOffset = float(lineIndex) * lineSpacing;
 
     if (anchor == 0) { // TOP_LEFT
-        anchorPos = vec2(10.0, 10.0);
+        anchorPos = vec2(0.0, 10.0);
     } else if (anchor == 1) { // TOP_CENTER
-        anchorPos = vec2(ui.x * 0.5, 10.0);
+        anchorPos = vec2(ui.x * 0.5, 28.0);
     } else if (anchor == 2) { // TOP_RIGHT
-        anchorPos = vec2(ui.x - 10.0, 10.0);
+        anchorPos = vec2(ui.x, 10.0);
     } else if (anchor == 3) { // CENTER_LEFT
-        anchorPos = vec2(10.0, ui.y * 0.5);
+        anchorPos = vec2(0.0, ui.y * 0.5);
     } else if (anchor == 4) { // CENTER
         anchorPos = vec2(ui.x * 0.5, ui.y * 0.5);
     } else if (anchor == 5) { // CENTER_RIGHT
-        anchorPos = vec2(ui.x - 10.0, ui.y * 0.5);
+        anchorPos = vec2(ui.x, ui.y * 0.5);
     } else if (anchor == 6) { // BOTTOM_LEFT
-        anchorPos = vec2(10.0, ui.y - 20.0);
+        anchorPos = vec2(0.0, ui.y - 20.0);
         yOffset = -float(lineIndex) * lineSpacing;
     } else if (anchor == 7) { // BOTTOM_CENTER
         anchorPos = vec2(ui.x * 0.5, ui.y - 20.0);
         yOffset = -float(lineIndex) * lineSpacing;
     } else if (anchor == 8) { // BOTTOM_RIGHT
-        anchorPos = vec2(ui.x - 10.0, ui.y - 20.0);
+        anchorPos = vec2(ui.x, ui.y - 20.0);
         yOffset = -float(lineIndex) * lineSpacing;
     }
 

@@ -33,4 +33,14 @@ public interface HudElement {
      * @return the rendered component
      */
     Component render();
+
+    /**
+     * Renders this element for a specific viewer.
+     *
+     * @param player viewer player
+     * @return the rendered component
+     */
+    default Component renderFor(org.bukkit.entity.Player player) {
+        return render();
+    }
 }

@@ -127,7 +127,12 @@ public final class Text extends Box<Text> {
         longestWord = -1;
     }
 
-    private String renderText() {
+    /**
+     * Evaluates and returns the rendered text string.
+     *
+     * @return the rendered text
+     */
+    public String renderText() {
         if (text == null) {
             text = component.renderText();
         }
