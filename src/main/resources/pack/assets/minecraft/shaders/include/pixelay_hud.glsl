@@ -44,14 +44,15 @@ bool pixelay_is_hud_shadow(vec3 pos, mat4 proj, vec4 color) {
 
     ivec3 c = ivec3(round(color.rgb * 255.0));
 
-    // Tagged HUD widget shadow quad signature after client divides color by 4:
-    // Main quad had red bits 2..3 == 1, so shadow quad has red bits 0..1 == 1 and bits 2..3 == 0.
-    // Green bits 0..1 == 2 (text) or 3 (background)
-    // Blue bits 0..1 == 1
+    // Identify the shadow quad of a HUD element.
+    // The client divides the vertex color by 4 for the shadow quad.
+    // Red bits 0..1 are 1.
+    // Green bits 0..1 are 2 (text) or 3 (background).
+    // Blue bits 0..1 are 1.
     int gShadow = c.g & 3;
-    bool isShadowSig = (((c.r >> 2) & 3) == 0) && ((c.r & 3) == 1) && (gShadow == 2 || gShadow == 3) && ((c.b & 3) == 1);
+    bool isShadowSig = ((c.r & 3) == 1) && (gShadow == 2 || gShadow == 3) && ((c.b & 3) == 1);
 
-    return isShadowSig;
+    return isShadowSig && !pixelay_is_hud(pos, proj, color);
 }
 
 // Calculates the screen position for a HUD widget vertex.
