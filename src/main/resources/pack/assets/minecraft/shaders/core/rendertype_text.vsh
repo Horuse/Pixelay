@@ -31,8 +31,8 @@ void main() {
     // Early returns with a replaced gl_Position break text on NVIDIA drivers.
     bool isTrans = pixelay_is_trans(Color, ProjMat);
     bool isTransShadow = pixelay_is_trans_shadow(Color, ProjMat);
-    bool isHud = pixelay_is_hud(Position, ProjMat, Color);
     bool isHudShadow = pixelay_is_hud_shadow(Position, ProjMat, Color);
+    bool isHud = !isHudShadow && pixelay_is_hud(Position, ProjMat, Color);
 
     // Pixelay: screen sessions draw with the canvas field of view (see pixelay_state.glsl).
     vec4 normalPos = pixelay_screen_projection(ProjMat * ModelViewMat * vec4(Position, 1.0), ProjMat);

@@ -17,6 +17,10 @@ bool pixelay_is_hud(vec3 pos, mat4 proj, vec4 color) {
         return false;
     }
 
+    if (pixelay_is_hud_shadow(pos, proj, color)) {
+        return false;
+    }
+
     ivec3 c = ivec3(round(color.rgb * 255.0));
 
     // Tagged HUD widget main quad signature:
@@ -44,15 +48,18 @@ bool pixelay_is_hud_shadow(vec3 pos, mat4 proj, vec4 color) {
 
     ivec3 c = ivec3(round(color.rgb * 255.0));
 
+    // Shadow quad color values cannot exceed 64 after division by 4
+    if (c.r > 64 || c.g > 64 || c.b > 64) {
+        return false;
+    }
+
     // Identify the shadow quad of a HUD element.
     // The client divides the vertex color by 4 for the shadow quad.
     // Red bits 0..1 are 1.
     // Green bits 0..1 are 2 (text) or 3 (background).
     // Blue bits 0..1 are 1.
     int gShadow = c.g & 3;
-    bool isShadowSig = ((c.r & 3) == 1) && (gShadow == 2 || gShadow == 3) && ((c.b & 3) == 1);
-
-    return isShadowSig && !pixelay_is_hud(pos, proj, color);
+    return ((c.r & 3) == 1) && (gShadow == 2 || gShadow == 3) && ((c.b & 3) == 1);
 }
 
 // Calculates the screen position for a HUD widget vertex.
@@ -101,8 +108,11 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
     } else {
         int lineIndex = c.g & 3;
         float lineSpacing = 10.0;
-        // Use standard 8.0px glyph height for text
-        glyphY = corner.y * 8.0;
+        // Keep true glyph vertical offset and height relative to the bossbar baseline.
+        // This prevents squishing characters with diacritics.
+        float barIndex = floor((pos.y - 5.0) / 19.0);
+        float barY = barIndex * 19.0 + 12.0;
+        glyphY = pos.y - barY;
 
         if (anchor >= 6) {
             yOffset = -float(lineIndex) * lineSpacing;
