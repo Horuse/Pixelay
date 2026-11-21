@@ -81,11 +81,11 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
     } else if (anchor == 5) { // CENTER_RIGHT
         anchorPos = vec2(ui.x, ui.y * 0.5);
     } else if (anchor == 6) { // BOTTOM_LEFT
-        anchorPos = vec2(0.0, ui.y - 20.0);
+        anchorPos = vec2(0.0, ui.y - 16.0);
     } else if (anchor == 7) { // BOTTOM_CENTER
-        anchorPos = vec2(ui.x * 0.5, ui.y - 20.0);
+        anchorPos = vec2(ui.x * 0.5, ui.y - 16.0);
     } else if (anchor == 8) { // BOTTOM_RIGHT
-        anchorPos = vec2(ui.x, ui.y - 20.0);
+        anchorPos = vec2(ui.x, ui.y - 16.0);
     }
 
     float glyphY;
