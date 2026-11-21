@@ -20,6 +20,14 @@ bool pixelay_is_hud_shadow(vec3 pos, mat4 proj, vec4 color) {
 
     ivec3 c = ivec3(round(color.rgb * 255.0));
 
+    // A main HUD quad has bits 2..3: red==1, green==2 or 3, blue==1.
+    // If it matches the main signature, it is not a shadow.
+    int gSig = (c.g >> 2) & 3;
+    bool isMainSig = (((c.r >> 2) & 3) == 1) && (gSig == 2 || gSig == 3) && (((c.b >> 2) & 3) == 1);
+    if (isMainSig) {
+        return false;
+    }
+
     // Shadow quad color values cannot exceed 64 after division by 4
     if (c.r > 64 || c.g > 64 || c.b > 64) {
         return false;
@@ -108,8 +116,11 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
     } else {
         int lineIndex = c.g & 3;
         float lineSpacing = 10.0;
-        // Keep true glyph local offset from Position.y to preserve accents
-        glyphY = pos.y;
+        // Keep true glyph local offset from the bossbar baseline.
+        // This preserves font metrics and accents without distortion.
+        float barIndex = floor((pos.y + 3.0) / 19.0);
+        float barY = barIndex * 19.0 + 3.0;
+        glyphY = pos.y - barY;
 
         if (anchor >= 6) {
             yOffset = -float(lineIndex) * lineSpacing;
@@ -118,9 +129,7 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
         }
     }
 
-    // Place background quad slightly behind text to prevent occlusion
-    float zPos = isBg ? (pos.z - 0.05) : (pos.z + 0.05);
-    vec3 outPos = vec3(anchorPos.x + localX, anchorPos.y + yOffset + glyphY, zPos);
+    vec3 outPos = vec3(anchorPos.x + localX, anchorPos.y + yOffset + glyphY, pos.z);
     return proj * modelView * vec4(outPos, 1.0);
 }
 
