@@ -51,6 +51,15 @@ public enum HudAnchor {
     }
 
     /**
+     * Returns true if this anchor aligns text to the bottom screen edge.
+     *
+     * @return true for bottom alignment
+     */
+    public boolean isBottomAnchored() {
+        return this == BOTTOM_LEFT || this == BOTTOM_CENTER || this == BOTTOM_RIGHT;
+    }
+
+    /**
      * Returns true if this anchor aligns text to the left screen edge.
      *
      * @return true for left alignment

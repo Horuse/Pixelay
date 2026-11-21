@@ -36,13 +36,8 @@ bool pixelay_is_hud_shadow(vec3 pos, mat4 proj, vec4 color) {
         return false;
     }
 
-    // Limit strictly to the bossbar title area
-    if (pos.y < 0.0 || pos.y > 35.0) {
-        return false;
-    }
-
-    vec2 ui = ceil(2.0 / vec2(proj[0][0], -proj[1][1]));
-    if (abs(pos.x - ui.x * 0.5) > 60.0) {
+    // Limit to the bossbar area
+    if (pos.y < 0.0 || pos.y > 45.0) {
         return false;
     }
 
@@ -67,8 +62,9 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
 
     float localX = pos.x - ui.x * 0.5;
 
+    // Use vanilla Minecraft 8.0px glyph height to match scoreboard and chat aspect ratio
     vec2 corner = PIXELAY_HUD_CORNERS[vertexId % 4];
-    float glyphY = corner.y * 9.0;
+    float glyphY = corner.y * 8.0;
 
     vec2 anchorPos = vec2(0.0);
     float lineSpacing = 10.0;
@@ -76,8 +72,8 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
 
     if (anchor == 0) { // TOP_LEFT
         anchorPos = vec2(0.0, 10.0);
-    } else if (anchor == 1) { // TOP_CENTER
-        anchorPos = vec2(ui.x * 0.5, 28.0);
+    } else if (anchor == 1) { // TOP_CENTER (degree heading under compass)
+        anchorPos = vec2(ui.x * 0.5, 34.0);
     } else if (anchor == 2) { // TOP_RIGHT
         anchorPos = vec2(ui.x, 10.0);
     } else if (anchor == 3) { // CENTER_LEFT
