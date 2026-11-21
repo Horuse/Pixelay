@@ -108,11 +108,8 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
     } else {
         int lineIndex = c.g & 3;
         float lineSpacing = 10.0;
-        // Keep true glyph vertical offset and height relative to the bossbar baseline.
-        // This prevents squishing characters with diacritics.
-        float barIndex = floor((pos.y - 5.0) / 19.0);
-        float barY = barIndex * 19.0 + 12.0;
-        glyphY = pos.y - barY;
+        // Keep true glyph local offset from Position.y to preserve accents
+        glyphY = pos.y;
 
         if (anchor >= 6) {
             yOffset = -float(lineIndex) * lineSpacing;
@@ -121,7 +118,9 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
         }
     }
 
-    vec3 outPos = vec3(anchorPos.x + localX, anchorPos.y + yOffset + glyphY, pos.z);
+    // Place background quad slightly behind text to prevent occlusion
+    float zPos = isBg ? (pos.z - 0.05) : (pos.z + 0.05);
+    vec3 outPos = vec3(anchorPos.x + localX, anchorPos.y + yOffset + glyphY, zPos);
     return proj * modelView * vec4(outPos, 1.0);
 }
 
