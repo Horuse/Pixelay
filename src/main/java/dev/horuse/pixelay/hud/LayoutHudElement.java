@@ -96,7 +96,7 @@ public class LayoutHudElement extends BasicHudElement {
                 continue;
             }
 
-            int shaderLine = anchor().isBottomAnchored() ? (lines.size() - 1 - lineIndex) : lineIndex;
+            int shaderLine = anchor().isBottomAnchored() ? lines.size() - 1 - lineIndex : lineIndex;
             Component encodedLine = renderLine(items, player, shaderLine);
             builder.append(encodedLine);
         }
@@ -107,10 +107,10 @@ public class LayoutHudElement extends BasicHudElement {
         }
 
         return Component.text()
-                .append(HudSpace.offset(offsetX()))
-                .append(content)
-                .append(HudSpace.offset(-offsetX()))
-                .build();
+            .append(HudSpace.offset(offsetX()))
+            .append(content)
+            .append(HudSpace.offset(-offsetX()))
+            .build();
     }
 
     private Component renderLine(List<LineItem> items, Player player, int lineIndex) {
@@ -213,14 +213,14 @@ public class LayoutHudElement extends BasicHudElement {
             double gap = flex.gap();
             List<Box<?>> children = flex.children();
             for (int i = 0; i < children.size(); i++) {
-                double currentGap = (i == 0) ? gapBefore : gap;
+                double currentGap = i == 0 ? gapBefore : gap;
                 collectRowItems(children.get(i), currentGap, out);
             }
         } else if (box instanceof Container<?> container) {
             double gap = container.gap();
             List<Box<?>> children = container.children();
             for (int i = 0; i < children.size(); i++) {
-                double currentGap = (i == 0) ? gapBefore : gap;
+                double currentGap = i == 0 ? gapBefore : gap;
                 collectRowItems(children.get(i), currentGap, out);
             }
         }

@@ -39,23 +39,17 @@ public final class HudCodec {
             return encoded;
         }
         if (anchor.isRightAligned()) {
-            return Component.text()
-                    .append(HudSpace.offset(-lineWidth))
-                    .append(encoded)
-                    .build();
+            return Component.text().append(HudSpace.offset(-lineWidth)).append(encoded).build();
         } else if (anchor.isCenterAligned()) {
             int half = lineWidth / 2;
             int rem = lineWidth - half;
             return Component.text()
-                    .append(HudSpace.offset(-half))
-                    .append(encoded)
-                    .append(HudSpace.offset(-rem))
-                    .build();
+                .append(HudSpace.offset(-half))
+                .append(encoded)
+                .append(HudSpace.offset(-rem))
+                .build();
         } else {
-            return Component.text()
-                    .append(encoded)
-                    .append(HudSpace.offset(-lineWidth))
-                    .build();
+            return Component.text().append(encoded).append(HudSpace.offset(-lineWidth)).build();
         }
     }
 
@@ -124,10 +118,21 @@ public final class HudCodec {
         return encodeComponent(component, anchor.id(), lineIndex, DEFAULT_COLOR, false, widthTracker);
     }
 
-    private static Component encodeComponent(Component component, int anchor, int lineIndex, int inheritedColor, boolean inheritedBold, int[] widthTracker) {
+    private static Component encodeComponent(
+        Component component,
+        int anchor,
+        int lineIndex,
+        int inheritedColor,
+        boolean inheritedBold,
+        int[] widthTracker
+    ) {
         int color = component.style().color() != null ? component.style().color().value() : inheritedColor;
-        boolean bold = component.style().decoration(net.kyori.adventure.text.format.TextDecoration.BOLD) == net.kyori.adventure.text.format.TextDecoration.State.TRUE
-                || (inheritedBold && component.style().decoration(net.kyori.adventure.text.format.TextDecoration.BOLD) != net.kyori.adventure.text.format.TextDecoration.State.FALSE);
+        boolean bold =
+            component.style().decoration(net.kyori.adventure.text.format.TextDecoration.BOLD) ==
+                net.kyori.adventure.text.format.TextDecoration.State.TRUE ||
+            (inheritedBold &&
+                component.style().decoration(net.kyori.adventure.text.format.TextDecoration.BOLD) !=
+                    net.kyori.adventure.text.format.TextDecoration.State.FALSE);
         List<Component> children = new ArrayList<>();
         Component result = component;
 
