@@ -84,11 +84,11 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
 
     vec2 anchorPos = vec2(0.0);
     if (anchor == 0) { // TOP_LEFT
-        anchorPos = vec2(0.0, 10.0);
+        anchorPos = vec2(0.0, 15.0);
     } else if (anchor == 1) { // TOP_CENTER (degree heading under compass)
         anchorPos = vec2(ui.x * 0.5, 34.0);
     } else if (anchor == 2) { // TOP_RIGHT
-        anchorPos = vec2(ui.x, 10.0);
+        anchorPos = vec2(ui.x, 15.0);
     } else if (anchor == 3) { // CENTER_LEFT
         anchorPos = vec2(0.0, ui.y * 0.5);
     } else if (anchor == 4) { // CENTER
@@ -96,11 +96,11 @@ vec4 pixelay_hud_position(vec3 pos, mat4 proj, mat4 modelView, vec4 color, int v
     } else if (anchor == 5) { // CENTER_RIGHT
         anchorPos = vec2(ui.x, ui.y * 0.5);
     } else if (anchor == 6) { // BOTTOM_LEFT
-        anchorPos = vec2(0.0, ui.y - 16.0);
+        anchorPos = vec2(0.0, ui.y - 23.0);
     } else if (anchor == 7) { // BOTTOM_CENTER
-        anchorPos = vec2(ui.x * 0.5, ui.y - 16.0);
+        anchorPos = vec2(ui.x * 0.5, ui.y - 23.0);
     } else if (anchor == 8) { // BOTTOM_RIGHT
-        anchorPos = vec2(ui.x, ui.y - 16.0);
+        anchorPos = vec2(ui.x, ui.y - 23.0);
     }
 
     float glyphY;
