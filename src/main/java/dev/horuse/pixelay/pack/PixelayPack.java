@@ -102,6 +102,27 @@ public final class PixelayPack {
      */
     public static Built build(File pluginJar, Path dataFolder, PixelaySettings.ResourcePack settings, Logger log)
         throws IOException {
+        return build(pluginJar, dataFolder, settings, null, null, log);
+    }
+
+    /**
+     * Builds the resource pack into {@code dataFolder/pixelay-pack.zip}.
+     *
+     * @param pluginJar The plugin jar file containing built-in assets.
+     * @param dataFolder Plugin data folder.
+     * @param settings Cursor resource pack settings.
+     * @param fontYOffsets HUD font Y-offset positioning configuration.
+     * @param scannedGlyphs Custom glyphs measured from resource packs.
+     * @param log System logger.
+     */
+    public static Built build(
+        File pluginJar,
+        Path dataFolder,
+        PixelaySettings.ResourcePack settings,
+        PixelaySettings.FontYOffsets fontYOffsets,
+        Map<Integer, dev.horuse.pixelay.content.PackFontScanner.Glyph> scannedGlyphs,
+        Logger log
+    ) throws IOException {
         Map<String, byte[]> files = new TreeMap<>();
         readBuiltIn(pluginJar, files);
         Path overrides = dataFolder.resolve("pack");
@@ -121,6 +142,9 @@ public final class PixelayPack {
         files.put(CONFIG, config(sprites, images, settings.cursorScale()).getBytes(StandardCharsets.UTF_8));
         files.put("assets/pixelay/font/transition.json", transitionFontJson().getBytes(StandardCharsets.UTF_8));
         files.put("assets/pixelay/textures/font/white.png", png(whitePixelImage()));
+        if (fontYOffsets != null && fontYOffsets.enabled()) {
+            dev.horuse.pixelay.hud.YFontGenerator.generate(fontYOffsets, scannedGlyphs, files);
+        }
         // Sprites are now stored in the atlas.
         files.keySet().removeIf(path -> path.startsWith(CURSORS));
 

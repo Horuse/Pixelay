@@ -53,6 +53,25 @@ cursor:
   # (glyph above) moved by the server every tick.
   shader: true
 
+hud:
+  # On-screen HUD font Y-offset positioning system.
+  # Generates assets/pixelay/font/y_<offset>.json files into pixelay-pack.zip.
+  font-y-offsets:
+    enabled: true
+    min-y: -20
+    max-y: 220
+    step: 1
+    # Languages to include:
+    # en: Latin alphabet, digits, punctuation (minecraft:font/ascii.png)
+    # uk: Ukrainian Cyrillic, Ї, Ґ, є, і (nonlatin_european.png, accented.png)
+    # symbols: common arrows, bullet points, currency (nonlatin_european.png)
+    languages:
+      - en
+      - uk
+      - symbols
+    # Include custom glyphs scanned from plugins/Pixelay/resourcepacks/
+    include-scanned-glyphs: true
+
 layers:
   # Distance (blocks) between two drawing layers in front of a canvas surface: box backgrounds, debug
   # panels, text backgrounds, text, cursor, in this order. The surface itself is the canvas' depthOffset

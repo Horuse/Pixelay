@@ -125,6 +125,8 @@ public final class PixelayPlugin extends JavaPlugin {
                 getFile(),
                 getDataFolder().toPath(),
                 settings.resourcePack(),
+                settings.hud().fontYOffsets(),
+                dev.horuse.pixelay.content.FontMetrics.scannedGlyphs(),
                 getLogger()
             );
             getLogger().info("Resource pack built: " + pack.zip() + " (sha1 " + pack.sha1() + ")");

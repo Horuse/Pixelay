@@ -28,6 +28,8 @@ public final class FontMetrics {
     private static final Map<Integer, Integer> OVERRIDES = new ConcurrentHashMap<>();
     /** Glyphs rendered outside the standard line box. */
     private static final Map<Integer, int[]> VERTICAL = new ConcurrentHashMap<>();
+    /** Custom glyphs measured from resource packs. */
+    private static final Map<Integer, PackFontScanner.Glyph> SCANNED = new ConcurrentHashMap<>();
 
     private FontMetrics() {}
 
@@ -184,7 +186,10 @@ public final class FontMetrics {
     public static void loadOverrides(JavaPlugin plugin) throws ConfigurateException {
         OVERRIDES.clear();
         VERTICAL.clear();
-        PackFontWidths.generate(plugin).forEach((codePoint, glyph) -> {
+        SCANNED.clear();
+        Map<Integer, PackFontScanner.Glyph> generated = PackFontWidths.generate(plugin);
+        SCANNED.putAll(generated);
+        generated.forEach((codePoint, glyph) -> {
             OVERRIDES.put(codePoint, glyph.advance());
             if (glyph.height() > 0) {
                 setVertical(codePoint, glyph.ascent(), glyph.height());
@@ -252,6 +257,15 @@ public final class FontMetrics {
         Integer overridden = OVERRIDES.get(codePoint);
         int width = overridden != null ? overridden : FontWidths.advance(codePoint);
         return bold && width > 0 ? width + 1 : width;
+    }
+
+    /**
+     * Returns an unmodifiable map of custom glyphs measured from resource packs.
+     *
+     * @return the measured custom glyphs
+     */
+    public static Map<Integer, PackFontScanner.Glyph> scannedGlyphs() {
+        return Map.copyOf(SCANNED);
     }
 
     /**
