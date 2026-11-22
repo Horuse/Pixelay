@@ -38,46 +38,33 @@ public final class HudCodec {
         if (lineWidth <= 0) {
             return encoded;
         }
+        int yOffset = lineIndex * 10;
+        Component withY = encoded.font(HudPosition.font(yOffset));
         if (anchor.isRightAligned()) {
-            return Component.text().append(HudSpace.offset(-lineWidth)).append(encoded).build();
+            return Component.text().append(HudSpace.offset(-lineWidth)).append(withY).build();
         } else if (anchor.isCenterAligned()) {
             int half = lineWidth / 2;
             int rem = lineWidth - half;
-            return Component.text()
-                .append(HudSpace.offset(-half))
-                .append(encoded)
-                .append(HudSpace.offset(-rem))
-                .build();
+            return Component.text().append(HudSpace.offset(-half)).append(withY).append(HudSpace.offset(-rem)).build();
         } else {
-            return Component.text().append(encoded).append(HudSpace.offset(-lineWidth)).build();
+            return Component.text().append(withY).append(HudSpace.offset(-lineWidth)).build();
         }
     }
 
     /**
-     * Encodes a background quad glyph with anchor, custom pixel height, and vertical shift.
+     * Encodes a background quad glyph with vertical offset.
      *
      * @param component text component with the background glyph
      * @param anchor target screen anchor
-     * @param bgHeight pixel height of the background quad from 1 to 255
-     * @param yShift vertical pixel shift from anchor Y from -32 to 31
-     * @return encoded component with background signature
+     * @param bgHeight pixel height of the background quad
+     * @param yShift vertical pixel shift from anchor Y
+     * @return component positioned with font vertical ascent
      */
     public static Component encodeBackground(Component component, HudAnchor anchor, int bgHeight, int yShift) {
         if (component == null) {
             return Component.empty();
         }
-        int clampedHeight = Math.clamp(bgHeight, 1, 255);
-        int clampedShift = Math.clamp(yShift + 32, 0, 63);
-
-        int heightLow = clampedHeight & 0x0F;
-        int heightHigh = (clampedHeight >> 4) & 0x0F;
-
-        int red = ((clampedShift & 0x0F) << 4) | 0x04 | (anchor.id() & 3);
-        int green = (heightLow << 4) | 0x0C | ((clampedShift >> 4) & 3);
-        int blue = (heightHigh << 4) | 0x04 | ((anchor.id() >> 2) & 3);
-
-        int packedRgb = (red << 16) | (green << 8) | blue;
-        return applyFixedColor(component, packedRgb);
+        return component.font(HudPosition.font(yShift));
     }
 
     /**
@@ -142,7 +129,7 @@ public final class HudCodec {
                 int codePoint = content.codePointAt(i);
                 widthTracker[0] += FontMetrics.advance(codePoint, bold);
                 String piece = new String(Character.toChars(codePoint));
-                children.add(Component.text(piece, TextColor.color(withCode(color, anchor, lineIndex))));
+                children.add(Component.text(piece, TextColor.color(color)));
                 i += Character.charCount(codePoint);
             }
             result = text.content("");
@@ -165,17 +152,5 @@ public final class HudCodec {
             children.add(applyFixedColor(child, rgb));
         }
         return result.children(children);
-    }
-
-    private static int withCode(int rgb, int anchor, int lineIndex) {
-        int r = (rgb >> 16) & 0xFF;
-        int g = (rgb >> 8) & 0xFF;
-        int b = rgb & 0xFF;
-
-        int red = (r & 0xF0) | 0x04 | (anchor & 3);
-        int green = (g & 0xF0) | 0x08 | (lineIndex & 3);
-        int blue = (b & 0xF0) | 0x04 | ((anchor >> 2) & 3);
-
-        return (red << 16) | (green << 8) | blue;
     }
 }

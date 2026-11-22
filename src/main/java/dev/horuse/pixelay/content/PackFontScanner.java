@@ -69,9 +69,15 @@ public final class PackFontScanner {
         Map<Integer, Glyph> glyphs = new LinkedHashMap<>();
         Set<String> seen = new HashSet<>();
         for (Pack pack : packs) {
-            byte[] json = pack.read(fontPath(DEFAULT_FONT));
-            if (json != null) {
-                readFont(pack, DEFAULT_FONT, json, glyphs, seen);
+            byte[] defaultJson = pack.read(fontPath(DEFAULT_FONT));
+            if (defaultJson != null) {
+                readFont(pack, DEFAULT_FONT, defaultJson, glyphs, seen);
+            }
+            for (String fontFile : pack.listFontFiles()) {
+                byte[] json = pack.read(fontFile);
+                if (json != null) {
+                    readFont(pack, fontFile, json, glyphs, seen);
+                }
             }
         }
         return glyphs;
@@ -248,6 +254,8 @@ public final class PackFontScanner {
 
         abstract byte[] read(String path);
 
+        abstract List<String> listFontFiles();
+
         static Pack open(Path root) throws IOException {
             String name = root.getFileName().toString();
             if (Files.isDirectory(root)) {
@@ -277,6 +285,23 @@ public final class PackFontScanner {
             } catch (IOException e) {
                 return null;
             }
+        }
+
+        @Override
+        List<String> listFontFiles() {
+            List<String> list = new ArrayList<>();
+            Path assets = root.resolve("assets");
+            if (Files.isDirectory(assets)) {
+                try (java.util.stream.Stream<Path> walk = Files.walk(assets)) {
+                    for (Path p : walk.filter(Files::isRegularFile).toList()) {
+                        String rel = root.relativize(p).toString().replace(java.io.File.separatorChar, '/');
+                        if (rel.contains("/font/") && rel.endsWith(".json")) {
+                            list.add(rel);
+                        }
+                    }
+                } catch (IOException ignored) {}
+            }
+            return list;
         }
     }
 
@@ -317,6 +342,23 @@ public final class PackFontScanner {
             } catch (IOException e) {
                 return null;
             }
+        }
+
+        @Override
+        List<String> listFontFiles() {
+            List<String> list = new ArrayList<>();
+            var entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry e = entries.nextElement();
+                String name = e.getName();
+                if (name.startsWith(prefix)) {
+                    String rel = name.substring(prefix.length());
+                    if (rel.startsWith("assets/") && rel.contains("/font/") && rel.endsWith(".json")) {
+                        list.add(rel);
+                    }
+                }
+            }
+            return list;
         }
 
         @Override
