@@ -18,13 +18,47 @@ public final class HudPosition {
     private HudPosition() {}
 
     /**
-     * Returns the font key for the specified vertical pixel offset.
+     * Returns the font key for the specified anchor and vertical pixel offset.
+     *
+     * @param anchor the screen anchor
+     * @param y vertical offset in pixels
+     * @return the Adventure font key
+     */
+    public static Key font(HudAnchor anchor, int y) {
+        int anchorId = anchor != null ? anchor.id() : 0;
+        String yStr = y < 0 ? "m" + Math.abs(y) : String.valueOf(y);
+        return Key.key(NAMESPACE, "hud_" + anchorId + "_" + yStr);
+    }
+
+    /**
+     * Returns the font key for the specified vertical pixel offset at default anchor.
      *
      * @param y vertical offset in pixels
      * @return the Adventure font key
      */
     public static Key font(int y) {
         return Key.key(NAMESPACE, "y_" + y);
+    }
+
+    /**
+     * Positions a component at an exact (x, y) offset on screen with anchor.
+     *
+     * @param component text component to position
+     * @param anchor target screen anchor
+     * @param x horizontal pixel offset from anchor
+     * @param y vertical pixel offset
+     * @param width visual width of component in pixels to return cursor
+     * @return positioned composite component
+     */
+    public static Component at(Component component, HudAnchor anchor, int x, int y, int width) {
+        if (component == null) {
+            return Component.empty();
+        }
+        return Component.text()
+            .append(HudSpace.offset(x))
+            .append(component.font(font(anchor, y)))
+            .append(HudSpace.offset(-x - width))
+            .build();
     }
 
     /**
@@ -37,14 +71,7 @@ public final class HudPosition {
      * @return positioned composite component
      */
     public static Component at(Component component, int x, int y, int width) {
-        if (component == null) {
-            return Component.empty();
-        }
-        return Component.text()
-            .append(HudSpace.offset(x))
-            .append(component.font(font(y)))
-            .append(HudSpace.offset(-x - width))
-            .build();
+        return at(component, HudAnchor.TOP_LEFT, x, y, width);
     }
 
     /**

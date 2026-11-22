@@ -90,50 +90,69 @@ public final class YFontGenerator {
         int maxY = config.maxY();
         int step = Math.max(1, config.step());
 
-        for (int y = minY; y <= maxY; y += step) {
-            JsonArray providers = new JsonArray();
-
-            // 1. Cyrillic and international symbols
-            if ((includeUk || includeSymbols) && nonlatinProvider != null) {
-                JsonObject copy = nonlatinProvider.deepCopy();
-                copy.addProperty("ascent", 7 - y);
-                providers.add(copy);
+        // Generate font definitions for all 9 screen anchors
+        for (HudAnchor anchor : HudAnchor.values()) {
+            if (anchor == HudAnchor.COMPASS_TAPE) {
+                continue;
             }
+            int anchorId = anchor.id();
+            int shaderId = anchorId + 1;
+            int bit = 1024 + shaderId;
+            int baseNumber = (bit << 13) + 4105;
 
-            // 2. Accented letters and Ukrainian extended glyphs (Ї, Ґ)
-            if (includeUk && accentedProvider != null) {
-                JsonObject copy = accentedProvider.deepCopy();
-                copy.addProperty("ascent", 10 - y);
-                providers.add(copy);
-            }
+            for (int y = minY; y <= maxY; y += step) {
+                JsonArray providers = new JsonArray();
 
-            // 3. Standard ASCII characters
-            if (includeEn && asciiProvider != null) {
-                JsonObject copy = asciiProvider.deepCopy();
-                copy.addProperty("ascent", 7 - y);
-                providers.add(copy);
-            }
+                // 1. Cyrillic and international symbols
+                if ((includeUk || includeSymbols) && nonlatinProvider != null) {
+                    JsonObject copy = nonlatinProvider.deepCopy();
+                    copy.addProperty("ascent", -(baseNumber + y - 7));
+                    providers.add(copy);
+                }
 
-            // 4. Custom resource pack glyphs
-            for (CustomGlyphGroup group : customGroups) {
-                JsonObject p = new JsonObject();
-                p.addProperty("type", "bitmap");
-                p.addProperty("file", group.file);
-                p.addProperty("ascent", group.baseAscent - y);
-                p.addProperty("height", group.height);
-                JsonArray chars = new JsonArray();
-                chars.add(group.charsString());
-                p.add("chars", chars);
-                providers.add(p);
-            }
+                // 2. Accented letters and Ukrainian extended glyphs (Ї, Ґ)
+                if (includeUk && accentedProvider != null) {
+                    JsonObject copy = accentedProvider.deepCopy();
+                    copy.addProperty("ascent", -(baseNumber + y - 10));
+                    providers.add(copy);
+                }
 
-            JsonObject root = new JsonObject();
-            root.add("providers", providers);
-            byte[] bytes = GSON.toJson(root).getBytes(StandardCharsets.UTF_8);
+                // 3. Standard ASCII characters
+                if (includeEn && asciiProvider != null) {
+                    JsonObject copy = asciiProvider.deepCopy();
+                    copy.addProperty("ascent", -(baseNumber + y - 7));
+                    providers.add(copy);
+                }
 
-            outputFiles.put("assets/pixelay/font/y_" + y + ".json", bytes);
-            if (y < 0) {
-                outputFiles.put("assets/pixelay/font/y_m" + Math.abs(y) + ".json", bytes);
+                // 4. Custom resource pack glyphs
+                for (CustomGlyphGroup group : customGroups) {
+                    JsonObject p = new JsonObject();
+                    p.addProperty("type", "bitmap");
+                    p.addProperty("file", group.file);
+                    p.addProperty("ascent", -(baseNumber + y - group.baseAscent));
+                    p.addProperty("height", group.height);
+                    JsonArray chars = new JsonArray();
+                    chars.add(group.charsString());
+                    p.add("chars", chars);
+                    providers.add(p);
+                }
+
+                JsonObject root = new JsonObject();
+                root.add("providers", providers);
+                byte[] bytes = GSON.toJson(root).getBytes(StandardCharsets.UTF_8);
+
+                outputFiles.put("assets/pixelay/font/hud_" + anchorId + "_" + y + ".json", bytes);
+                if (y < 0) {
+                    outputFiles.put("assets/pixelay/font/hud_" + anchorId + "_m" + Math.abs(y) + ".json", bytes);
+                }
+
+                // Keep y_<offset>.json as backward-compatible alias for TOP_LEFT anchor
+                if (anchorId == 0) {
+                    outputFiles.put("assets/pixelay/font/y_" + y + ".json", bytes);
+                    if (y < 0) {
+                        outputFiles.put("assets/pixelay/font/y_m" + Math.abs(y) + ".json", bytes);
+                    }
+                }
             }
         }
     }

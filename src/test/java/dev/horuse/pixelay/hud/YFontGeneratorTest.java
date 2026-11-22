@@ -61,6 +61,7 @@ class YFontGeneratorTest {
         String jsonStr = new String(files.get("assets/pixelay/font/y_0.json"), StandardCharsets.UTF_8);
         assertTrue(jsonStr.contains("custom:font/icon.png"));
         assertTrue(jsonStr.contains("\uE001"));
+        assertTrue(jsonStr.contains("-8400897"));
     }
 
     @Test
@@ -68,6 +69,14 @@ class YFontGeneratorTest {
         Key key = HudPosition.font(15);
         assertEquals("pixelay", key.namespace());
         assertEquals("y_15", key.value());
+
+        Key anchorKey = HudPosition.font(HudAnchor.TOP_RIGHT, 15);
+        assertEquals("pixelay", anchorKey.namespace());
+        assertEquals("hud_2_15", anchorKey.value());
+
+        Key negativeKey = HudPosition.font(HudAnchor.BOTTOM_RIGHT, -16);
+        assertEquals("pixelay", negativeKey.namespace());
+        assertEquals("hud_8_m16", negativeKey.value());
 
         Component comp = Component.text("Test");
         int width = HudPosition.visualWidth(comp);

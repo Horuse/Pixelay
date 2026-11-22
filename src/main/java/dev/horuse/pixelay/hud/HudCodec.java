@@ -64,7 +64,7 @@ public final class HudCodec {
         if (component == null) {
             return Component.empty();
         }
-        return component.font(HudPosition.font(yShift));
+        return component.font(HudPosition.font(anchor, yShift));
     }
 
     /**

@@ -98,7 +98,7 @@ public class LayoutHudElement extends BasicHudElement {
 
             int lineY = offsetY() + lineIndex * 10;
             Component encodedLine = renderLine(items, player, lineIndex);
-            builder.append(encodedLine.font(HudPosition.font(lineY)));
+            builder.append(encodedLine.font(HudPosition.font(anchor(), lineY)));
         }
 
         Component content = builder.build();

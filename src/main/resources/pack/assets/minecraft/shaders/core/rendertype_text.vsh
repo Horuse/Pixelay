@@ -26,13 +26,74 @@ flat out ivec2 pixelayTransParams;
 out vec2 pixelayScreenUV;
 
 void main() {
-    // Single exit, no early return and no branch: transition quads are handled with selects only.
-    // Early returns with a replaced gl_Position break text on NVIDIA drivers.
     bool isTrans = pixelay_is_trans(Color, ProjMat);
     bool isTransShadow = pixelay_is_trans_shadow(Color, ProjMat);
 
+    vec3 pos = Position;
+    vec2 ui = ceil(2.0 / vec2(ProjMat[0][0], -ProjMat[1][1]));
+    bool isGui = ProjMat[2][3] == 0.0 && ProjMat[3][3] == 1.0;
+    bool isHud = false;
+
+    // Detect ascent-encoded Screen HUD elements (pos.y >= ui.y in 2D GUI space)
+    if (isGui && pos.y >= ui.y) {
+        int bit = int(pos.y) >> 13;
+        if (((bit >> 10) & 1) == 1) {
+            isHud = true;
+            int id = bit - 1024;
+            // Cancel horizontal bossbar centering to set origin at left screen edge
+            pos.x -= 0.5 * ui.x;
+            // Restore true vertical position from encoded ascent
+            pos.y -= float((bit << 13) + 4105);
+
+            float xGui = 0.0;
+            float yGui = 0.0;
+            switch (id) {
+                case 1: // TOP_LEFT
+                    xGui = 0.0;
+                    yGui = 0.0;
+                    break;
+                case 2: // TOP_CENTER
+                    xGui = ui.x * 0.5;
+                    yGui = 0.0;
+                    break;
+                case 3: // TOP_RIGHT
+                    xGui = ui.x;
+                    yGui = 0.0;
+                    break;
+                case 4: // CENTER_LEFT
+                    xGui = 0.0;
+                    yGui = ui.y * 0.5;
+                    break;
+                case 5: // CENTER
+                    xGui = ui.x * 0.5;
+                    yGui = ui.y * 0.5;
+                    break;
+                case 6: // CENTER_RIGHT
+                    xGui = ui.x;
+                    yGui = ui.y * 0.5;
+                    break;
+                case 7: // BOTTOM_LEFT
+                    xGui = 0.0;
+                    yGui = ui.y;
+                    break;
+                case 8: // BOTTOM_CENTER
+                    xGui = ui.x * 0.5;
+                    yGui = ui.y;
+                    break;
+                case 9: // BOTTOM_RIGHT
+                    xGui = ui.x;
+                    yGui = ui.y;
+                    break;
+                default:
+                    break;
+            }
+            pos.x += xGui;
+            pos.y += yGui;
+        }
+    }
+
     // Pixelay: screen sessions draw with the canvas field of view (see pixelay_state.glsl).
-    vec4 normalPos = pixelay_screen_projection(ProjMat * ModelViewMat * vec4(Position, 1.0), ProjMat);
+    vec4 normalPos = pixelay_screen_projection(ProjMat * ModelViewMat * vec4(pos, 1.0), ProjMat);
 
     // Quads have 4 vertices each, so the vertex index selects the corner.
     vec2 corner = PIXELAY_GLYPH_CORNERS[gl_VertexID % 4];
@@ -43,8 +104,8 @@ void main() {
 
     gl_Position = isTrans ? transPos : (isTransShadow ? hiddenPos : normalPos);
 
-    sphericalVertexDistance = fog_spherical_distance(Position);
-    cylindricalVertexDistance = fog_cylindrical_distance(Position);
+    sphericalVertexDistance = fog_spherical_distance(pos);
+    cylindricalVertexDistance = fog_cylindrical_distance(pos);
     vec4 baseColor = Color * texelFetch(Sampler2, UV2 / 16, 0);
 
     vertexColor = isTrans ? Color : baseColor;

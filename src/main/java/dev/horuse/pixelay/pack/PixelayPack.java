@@ -338,4 +338,48 @@ public final class PixelayPack {
         img.setRGB(1, 1, white);
         return img;
     }
+
+    /**
+     * CLI entry point to build the resource pack.
+     *
+     * @param args optional arguments: [jarPath] [dataFolder] [packsFolder]
+     * @throws Exception when pack creation fails
+     */
+    public static void main(String[] args) throws Exception {
+        File jarFile = args.length > 0 ? new File(args[0]) : new File("build/libs/pixelay-1.0.0.jar");
+        Path dataFolder = args.length > 1 ? Path.of(args[1]) : Path.of("build/pack-output");
+        Path packsDir = args.length > 2 ? Path.of(args[2]) : dataFolder.resolve("resourcepacks");
+        Files.createDirectories(dataFolder);
+
+        Map<Integer, dev.horuse.pixelay.content.PackFontScanner.Glyph> scanned = Map.of();
+        if (Files.exists(packsDir)) {
+            try (Stream<Path> s = Files.list(packsDir)) {
+                List<Path> packs = s.filter(p -> p.toString().endsWith(".zip") || Files.isDirectory(p)).toList();
+                if (!packs.isEmpty()) {
+                    scanned = dev.horuse.pixelay.content.PackFontScanner.scan(packs, System.err::println);
+                }
+            }
+        }
+
+        PixelaySettings.ResourcePack packConfig = new PixelaySettings.ResourcePack(
+            true,
+            1.5,
+            List.of(
+                new CursorSprite("default", 0.5, 0.5),
+                new CursorSprite("pointer", 6, 0.5),
+                new CursorSprite("text", 3.5, 8),
+                new CursorSprite("not-allowed", 8.5, 8.5)
+            )
+        );
+        PixelaySettings.FontYOffsets fontOffsets = new PixelaySettings.FontYOffsets(
+            true,
+            -20,
+            220,
+            1,
+            List.of("en", "uk", "symbols"),
+            true
+        );
+
+        build(jarFile, dataFolder, packConfig, fontOffsets, scanned, Logger.getLogger("PixelayPack"));
+    }
 }
