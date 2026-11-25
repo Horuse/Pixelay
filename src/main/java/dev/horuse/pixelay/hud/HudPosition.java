@@ -32,6 +32,23 @@ public final class HudPosition {
     }
 
     /**
+     * Returns the bitmap provider ascent that places a glyph top {@code top} pixels from the
+     * anchor edge, in the same coordinates as {@link LayoutHudElement} boxes. Use it for custom
+     * font providers (compass bars, icons) that must align with layout boxes on screen.
+     *
+     * @param anchor the screen anchor
+     * @param top distance in pixels from the anchor edge to the glyph top
+     * @return the ascent value for the font provider
+     */
+    public static int ascent(HudAnchor anchor, int top) {
+        int anchorId = anchor != null ? anchor.id() : 0;
+        int baseNumber = ((1024 + anchorId + 1) << 13) + 4105;
+        // Text glyphs use -(base + y - 7) and draw their top GLYPH_TOP_OFFSET pixels below y.
+        int y = top - LayoutHudElement.GLYPH_TOP_OFFSET;
+        return -(baseNumber + y - 7);
+    }
+
+    /**
      * Returns the font key for the specified vertical pixel offset at default anchor.
      *
      * @param y vertical offset in pixels
