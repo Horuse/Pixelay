@@ -43,6 +43,23 @@ Component badge = Component.text("⚡ VIP");
 int widthPx = HudPosition.visualWidth(badge);
 ```
 
+### 4. Registering HUD Heights (`YFontRegistry`)
+
+When `hud.font-y-offsets.mode` is set to `registered` (default), Pixelay builds only the `(anchor, y)` font files registered before `ServerLoadEvent`. Register all required offsets in your plugin `onEnable()`:
+
+```java
+import dev.horuse.pixelay.hud.HudAnchor;
+import dev.horuse.pixelay.hud.YFontRegistry;
+
+// Register a single (anchor, y) pair
+YFontRegistry.register(HudAnchor.TOP_LEFT, 9);
+
+// Register consecutive 10px lines starting at baseY (for multi-line widgets)
+YFontRegistry.registerLines(HudAnchor.TOP_RIGHT, 9, 2); // registers y=9 and y=19
+```
+
+Calling `HudPosition.font(...)` at runtime also registers the pair automatically, so running `/pixelay reload` rebuilds the pack with any newly used offsets.
+
 ## Configuration
 
 Control the generated Y-offset range and languages in `plugins/Pixelay/config.yml`:
@@ -50,10 +67,13 @@ Control the generated Y-offset range and languages in `plugins/Pixelay/config.ym
 ```yaml
 hud:
   font-y-offsets:
-    # Enable automatic generation of y_<offset>.json files in the resource pack
+    # Enable automatic generation of HUD font files in the resource pack
     enabled: true
 
-    # Minimum vertical offset in pixels (negative moves up)
+    # Generation mode: registered | range | auto
+    mode: registered
+
+    # Minimum vertical offset in pixels (used in range/auto modes)
     min-y: -20
 
     # Maximum vertical offset in pixels (positive moves down)
@@ -85,9 +105,9 @@ Pixelay references vanilla Minecraft client textures:
 | `uk` | `minecraft:font/nonlatin_european.png`<br>`minecraft:font/accented.png` | Complete Cyrillic alphabet (`А-Я`, `а-я`), Ukrainian special letters (`Ґ`, `ґ`, `Є`, `є`, `І`, `і`, `Ї`, `ї`), typographic quotes (`«»`, `“”`, `„`), apostrophes (`'`). |
 | `symbols` | `minecraft:font/nonlatin_european.png` | Currency symbols (`₴`, `€`, `$`, `₽`), arrows (`←`, `↑`, `→`, `↓`, `⇄`), bullet points (`•`), UI marks (`✔`, `❌`, `⭐`). |
 
-## Automatic Custom Glyph Scanning
+## Automatic Custom Glyph Scanning and On-Demand Fonts
 
-Pixelay scans all resource packs inside `plugins/Pixelay/resourcepacks/` during startup and reload.
+Pixelay scans all resource packs inside `plugins/Pixelay/resourcepacks/` during startup and reload, and includes only `font/default.json` glyphs in generated HUD fonts. When plugins register their coordinates via `YFontRegistry` (or call `HudPosition.font`), Pixelay builds `pixelay-pack.zip` on `ServerLoadEvent` with only the registered `(anchor, y)` font files.
 
 When `include-scanned-glyphs: true` is active:
 1. `PackFontScanner` discovers custom characters in external packs (for example, `\uE001` mapped to `custom_pack:textures/icons/ping.png`).

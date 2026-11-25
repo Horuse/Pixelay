@@ -27,6 +27,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.server.ServerLoadEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.spongepowered.configurate.ConfigurateException;
@@ -49,7 +52,7 @@ public final class PixelayPlugin extends JavaPlugin {
         entityKey = new NamespacedKey(this, "canvas");
         Pixelay.bind(this);
         try {
-            loadSettings();
+            loadConfigAndMetrics();
         } catch (ConfigurateException e) {
             getLogger().severe("Failed to load configuration, disabling: " + e.getMessage());
             Bukkit.getPluginManager().disablePlugin(this);
@@ -65,6 +68,17 @@ public final class PixelayPlugin extends JavaPlugin {
 
         Bukkit.getPluginManager().registerEvents(new PlayerQuitCleanup(), this);
         Bukkit.getPluginManager().registerEvents(new ScreenListener(), this);
+        Bukkit.getPluginManager().registerEvents(
+            new Listener() {
+                @EventHandler
+                public void onServerLoad(ServerLoadEvent event) {
+                    if (event.getType() == ServerLoadEvent.LoadType.STARTUP) {
+                        buildResourcePack();
+                    }
+                }
+            },
+            this
+        );
         for (PacketListener listener : List.of(
             new ScreenLookListener(),
             new ShaderCursorListener(),
@@ -100,19 +114,20 @@ public final class PixelayPlugin extends JavaPlugin {
         if (entityKey != null) {
             cleanupCanvasEntities();
         }
+        dev.horuse.pixelay.hud.YFontRegistry.clear();
     }
 
     /** Re-reads config.yml and font-widths.yml, then restarts the scheduler with the new intervals. */
     public void reload() throws ConfigurateException {
-        loadSettings();
+        loadConfigAndMetrics();
+        buildResourcePack();
         manager.stop();
         manager.start(this);
     }
 
-    private void loadSettings() throws ConfigurateException {
+    private void loadConfigAndMetrics() throws ConfigurateException {
         settings = PixelaySettings.load(this);
         FontMetrics.loadOverrides(this);
-        buildResourcePack();
     }
 
     /** Builds plugins/Pixelay/pixelay-pack.zip. A build failure disables shader features only. */

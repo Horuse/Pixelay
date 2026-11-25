@@ -25,6 +25,7 @@ public final class HudPosition {
      * @return the Adventure font key
      */
     public static Key font(HudAnchor anchor, int y) {
+        YFontRegistry.register(anchor, y);
         int anchorId = anchor != null ? anchor.id() : 0;
         String yStr = y < 0 ? "m" + Math.abs(y) : String.valueOf(y);
         return Key.key(NAMESPACE, "hud_" + anchorId + "_" + yStr);
@@ -37,6 +38,7 @@ public final class HudPosition {
      * @return the Adventure font key
      */
     public static Key font(int y) {
+        YFontRegistry.register(HudAnchor.TOP_LEFT, y);
         return Key.key(NAMESPACE, "y_" + y);
     }
 

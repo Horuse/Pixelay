@@ -9,11 +9,16 @@ Configure the font generator and positioning ranges under the `hud.font-y-offset
 ```yaml
 hud:
   font-y-offsets:
-    # Set to true to generate y_<offset>.json files in pixelay-pack.zip
+    # Set to true to generate font files in pixelay-pack.zip
     enabled: true
 
-    # Lowest vertical offset in pixels (negative values shift upward)
-    # Range: -100 to 0. Default: -20
+    # Generation mode:
+    # - registered: build only (anchor, y) pairs registered via YFontRegistry (default)
+    # - range: always build the full min-y..max-y range for all anchors
+    # - auto: use registered pairs when present, otherwise fall back to min-y..max-y
+    mode: registered
+
+    # Lowest vertical offset in pixels (used in range/auto modes)
     min-y: -20
 
     # Highest vertical offset in pixels (positive values shift downward)
@@ -35,10 +40,12 @@ hud:
       - symbols
 
     # When true, scans external resource packs in plugins/Pixelay/resourcepacks/
-    # and includes discovered custom glyphs across all Y-offset fonts
+    # and includes custom glyphs from font/default.json in generated HUD fonts
     # Default: true
     include-scanned-glyphs: true
 ```
+
+> **Note on on-demand generation**: Pixelay builds `pixelay-pack.zip` on `ServerLoadEvent`. When plugins register offsets via `YFontRegistry` (or `HudPosition.font`), Pixelay generates only those exact `(anchor, y)` font files. The `min-y`, `max-y`, and `step` values act as a fallback range when no offsets are registered.
 
 ## Options Specification
 
@@ -73,4 +80,4 @@ hud:
 ### `hud.font-y-offsets.include-scanned-glyphs`
 - **Type**: Boolean
 - **Default**: `true`
-- **Description**: When true, `PackFontScanner` reads custom glyphs from external resource packs in `plugins/Pixelay/resourcepacks/`. It includes all discovered glyphs in every vertical font offset.
+- **Description**: When true, `PackFontScanner` reads custom glyphs from `font/default.json` in external resource packs under `plugins/Pixelay/resourcepacks/`. Non-default fonts (such as compasses or widget backgrounds) are skipped so they are not duplicated into HUD Y-offset fonts.

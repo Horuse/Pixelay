@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -143,7 +144,12 @@ public final class PixelayPack {
         files.put("assets/pixelay/font/transition.json", transitionFontJson().getBytes(StandardCharsets.UTF_8));
         files.put("assets/pixelay/textures/font/white.png", png(whitePixelImage()));
         if (fontYOffsets != null && fontYOffsets.enabled()) {
-            dev.horuse.pixelay.hud.YFontGenerator.generate(fontYOffsets, scannedGlyphs, files);
+            dev.horuse.pixelay.hud.YFontGenerator.generate(
+                fontYOffsets,
+                scannedGlyphs,
+                dev.horuse.pixelay.hud.YFontRegistry.entries(),
+                files
+            );
         }
         // Sprites are now stored in the atlas.
         files.keySet().removeIf(path -> path.startsWith(CURSORS));
@@ -292,6 +298,7 @@ public final class PixelayPack {
     private static byte[] zip(Map<String, byte[]> files) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
+            zip.setLevel(Deflater.BEST_COMPRESSION);
             for (Map.Entry<String, byte[]> file : files.entrySet()) {
                 ZipEntry entry = new ZipEntry(file.getKey());
                 entry.setTime(0);

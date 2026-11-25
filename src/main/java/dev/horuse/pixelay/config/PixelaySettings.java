@@ -72,6 +72,7 @@ public record PixelaySettings(
      * Font Y-offset positioning configuration.
      *
      * @param enabled true to generate font files
+     * @param mode generation mode: {@code registered}, {@code range}, or {@code auto}
      * @param minY minimum vertical offset
      * @param maxY maximum vertical offset
      * @param step pixel increment per font file
@@ -80,12 +81,25 @@ public record PixelaySettings(
      */
     public record FontYOffsets(
         boolean enabled,
+        String mode,
         int minY,
         int maxY,
         int step,
         List<String> languages,
         boolean includeScannedGlyphs
-    ) {}
+    ) {
+        /** Convenience constructor defaulting {@code mode} to {@code auto}. */
+        public FontYOffsets(
+            boolean enabled,
+            int minY,
+            int maxY,
+            int step,
+            List<String> languages,
+            boolean includeScannedGlyphs
+        ) {
+            this(enabled, "auto", minY, maxY, step, languages, includeScannedGlyphs);
+        }
+    }
 
     /** @param step distance in blocks between drawing layers (see {@link dev.horuse.pixelay.data.Layers}) */
     public record Layers(float step) {}
@@ -197,6 +211,7 @@ public record PixelaySettings(
             new Hud(
                 new FontYOffsets(
                     root.node("hud", "font-y-offsets", "enabled").getBoolean(true),
+                    root.node("hud", "font-y-offsets", "mode").getString("registered"),
                     root.node("hud", "font-y-offsets", "min-y").getInt(-20),
                     root.node("hud", "font-y-offsets", "max-y").getInt(220),
                     Math.max(1, root.node("hud", "font-y-offsets", "step").getInt(1)),

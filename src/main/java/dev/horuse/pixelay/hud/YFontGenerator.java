@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Generates font definitions with modified ascent values for vertical positioning.
@@ -38,6 +39,19 @@ public final class YFontGenerator {
     public static void generate(
         PixelaySettings.FontYOffsets config,
         Map<Integer, PackFontScanner.Glyph> scannedGlyphs,
+        Map<String, byte[]> outputFiles
+    ) {
+        generate(config, scannedGlyphs, null, outputFiles);
+    }
+
+    /**
+     * Generates font files for registered (anchor, y) pairs, or falls back to the configured
+     * {@code minY..maxY} range when {@code registeredEntries} is null or empty.
+     */
+    public static void generate(
+        PixelaySettings.FontYOffsets config,
+        Map<Integer, PackFontScanner.Glyph> scannedGlyphs,
+        Set<YFontRegistry.Entry> registeredEntries,
         Map<String, byte[]> outputFiles
     ) {
         if (!config.enabled()) {
@@ -74,7 +88,7 @@ public final class YFontGenerator {
             for (Map.Entry<Integer, PackFontScanner.Glyph> entry : scannedGlyphs.entrySet()) {
                 int cp = entry.getKey();
                 PackFontScanner.Glyph g = entry.getValue();
-                if ("space".equals(g.source()) || g.source() == null || g.source().isEmpty()) {
+                if (!g.defaultFont() || "space".equals(g.source()) || g.source() == null || g.source().isEmpty()) {
                     continue;
                 }
                 String key = g.source() + "|" + g.ascent() + "|" + g.height();
@@ -86,6 +100,34 @@ public final class YFontGenerator {
             customGroups.addAll(grouped.values());
         }
 
+        String mode = config.mode() != null ? config.mode().toLowerCase() : "registered";
+        boolean useRegistered =
+            "registered".equals(mode) ||
+            ("auto".equals(mode) && registeredEntries != null && !registeredEntries.isEmpty());
+        if (useRegistered) {
+            if (registeredEntries != null) {
+                for (YFontRegistry.Entry entry : registeredEntries) {
+                    HudAnchor anchor = entry.anchor();
+                    if (anchor == null || anchor == HudAnchor.COMPASS_TAPE) {
+                        continue;
+                    }
+                    emitFont(
+                        anchor,
+                        entry.y(),
+                        includeEn,
+                        includeUk,
+                        includeSymbols,
+                        nonlatinProvider,
+                        accentedProvider,
+                        asciiProvider,
+                        customGroups,
+                        outputFiles
+                    );
+                }
+            }
+            return;
+        }
+
         int minY = config.minY();
         int maxY = config.maxY();
         int step = Math.max(1, config.step());
@@ -95,64 +137,85 @@ public final class YFontGenerator {
             if (anchor == HudAnchor.COMPASS_TAPE) {
                 continue;
             }
-            int anchorId = anchor.id();
-            int shaderId = anchorId + 1;
-            int bit = 1024 + shaderId;
-            int baseNumber = (bit << 13) + 4105;
-
             for (int y = minY; y <= maxY; y += step) {
-                JsonArray providers = new JsonArray();
+                emitFont(
+                    anchor,
+                    y,
+                    includeEn,
+                    includeUk,
+                    includeSymbols,
+                    nonlatinProvider,
+                    accentedProvider,
+                    asciiProvider,
+                    customGroups,
+                    outputFiles
+                );
+            }
+        }
+    }
 
-                // 1. Cyrillic and international symbols
-                if ((includeUk || includeSymbols) && nonlatinProvider != null) {
-                    JsonObject copy = nonlatinProvider.deepCopy();
-                    copy.addProperty("ascent", -(baseNumber + y - 7));
-                    providers.add(copy);
-                }
+    private static void emitFont(
+        HudAnchor anchor,
+        int y,
+        boolean includeEn,
+        boolean includeUk,
+        boolean includeSymbols,
+        JsonObject nonlatinProvider,
+        JsonObject accentedProvider,
+        JsonObject asciiProvider,
+        List<CustomGlyphGroup> customGroups,
+        Map<String, byte[]> outputFiles
+    ) {
+        int anchorId = anchor.id();
+        int shaderId = anchorId + 1;
+        int bit = 1024 + shaderId;
+        int baseNumber = (bit << 13) + 4105;
 
-                // 2. Accented letters and Ukrainian extended glyphs (Ї, Ґ)
-                if (includeUk && accentedProvider != null) {
-                    JsonObject copy = accentedProvider.deepCopy();
-                    copy.addProperty("ascent", -(baseNumber + y - 10));
-                    providers.add(copy);
-                }
+        JsonArray providers = new JsonArray();
 
-                // 3. Standard ASCII characters
-                if (includeEn && asciiProvider != null) {
-                    JsonObject copy = asciiProvider.deepCopy();
-                    copy.addProperty("ascent", -(baseNumber + y - 7));
-                    providers.add(copy);
-                }
+        if ((includeUk || includeSymbols) && nonlatinProvider != null) {
+            JsonObject copy = nonlatinProvider.deepCopy();
+            copy.addProperty("ascent", -(baseNumber + y - 7));
+            providers.add(copy);
+        }
 
-                // 4. Custom resource pack glyphs
-                for (CustomGlyphGroup group : customGroups) {
-                    JsonObject p = new JsonObject();
-                    p.addProperty("type", "bitmap");
-                    p.addProperty("file", group.file);
-                    p.addProperty("ascent", -(baseNumber + y - group.baseAscent));
-                    p.addProperty("height", group.height);
-                    JsonArray chars = new JsonArray();
-                    chars.add(group.charsString());
-                    p.add("chars", chars);
-                    providers.add(p);
-                }
+        if (includeUk && accentedProvider != null) {
+            JsonObject copy = accentedProvider.deepCopy();
+            copy.addProperty("ascent", -(baseNumber + y - 10));
+            providers.add(copy);
+        }
 
-                JsonObject root = new JsonObject();
-                root.add("providers", providers);
-                byte[] bytes = GSON.toJson(root).getBytes(StandardCharsets.UTF_8);
+        if (includeEn && asciiProvider != null) {
+            JsonObject copy = asciiProvider.deepCopy();
+            copy.addProperty("ascent", -(baseNumber + y - 7));
+            providers.add(copy);
+        }
 
-                outputFiles.put("assets/pixelay/font/hud_" + anchorId + "_" + y + ".json", bytes);
-                if (y < 0) {
-                    outputFiles.put("assets/pixelay/font/hud_" + anchorId + "_m" + Math.abs(y) + ".json", bytes);
-                }
+        for (CustomGlyphGroup group : customGroups) {
+            JsonObject p = new JsonObject();
+            p.addProperty("type", "bitmap");
+            p.addProperty("file", group.file);
+            p.addProperty("ascent", -(baseNumber + y - group.baseAscent));
+            p.addProperty("height", group.height);
+            JsonArray chars = new JsonArray();
+            chars.add(group.charsString());
+            p.add("chars", chars);
+            providers.add(p);
+        }
 
-                // Keep y_<offset>.json as backward-compatible alias for TOP_LEFT anchor
-                if (anchorId == 0) {
-                    outputFiles.put("assets/pixelay/font/y_" + y + ".json", bytes);
-                    if (y < 0) {
-                        outputFiles.put("assets/pixelay/font/y_m" + Math.abs(y) + ".json", bytes);
-                    }
-                }
+        JsonObject root = new JsonObject();
+        root.add("providers", providers);
+        byte[] bytes = GSON.toJson(root).getBytes(StandardCharsets.UTF_8);
+
+        outputFiles.put("assets/pixelay/font/hud_" + anchorId + "_" + y + ".json", bytes);
+        if (y < 0) {
+            outputFiles.put("assets/pixelay/font/hud_" + anchorId + "_m" + Math.abs(y) + ".json", bytes);
+        }
+
+        if (anchorId == 0) {
+            outputFiles.put("assets/pixelay/font/y_" + y + ".json", bytes);
+            if (y < 0) {
+                outputFiles.put("assets/pixelay/font/y_m" + Math.abs(y) + ".json", bytes);
             }
         }
     }

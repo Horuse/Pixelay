@@ -38,7 +38,11 @@ public final class PackFontScanner {
     /**
      * Computed glyph metadata including advance, render bounds, and source pack.
      */
-    public record Glyph(int advance, int ascent, int height, String pack, String source) {}
+    public record Glyph(int advance, int ascent, int height, String pack, String source, boolean defaultFont) {
+        public Glyph(int advance, int ascent, int height, String pack, String source) {
+            this(advance, ascent, height, pack, source, true);
+        }
+    }
 
     private final List<Pack> packs = new ArrayList<>();
     private final Consumer<String> warn;
@@ -94,6 +98,7 @@ public final class PackFontScanner {
             warn.accept(pack.name + ": invalid font json " + id + ": " + e.getMessage());
             return;
         }
+        boolean isDefaultFont = DEFAULT_FONT.equals(id) || id.endsWith("/font/" + DEFAULT_FONT + ".json");
         JsonArray providers = doc.has("providers") ? doc.getAsJsonArray("providers") : new JsonArray();
         for (JsonElement element : providers) {
             JsonObject provider = element.getAsJsonObject();
@@ -103,8 +108,8 @@ public final class PackFontScanner {
             String type = string(provider, "type", "");
             try {
                 switch (type) {
-                    case "bitmap" -> bitmap(pack, provider, glyphs);
-                    case "space" -> space(pack, provider, glyphs);
+                    case "bitmap" -> bitmap(pack, provider, glyphs, isDefaultFont);
+                    case "space" -> space(pack, provider, glyphs, isDefaultFont);
                     case "reference" -> reference(string(provider, "id", ""), glyphs, seen);
                     default -> warn.accept(
                         pack.name + ": " + id + ": provider '" + type + "' is not measured, skipped"
@@ -127,7 +132,8 @@ public final class PackFontScanner {
         }
     }
 
-    private void bitmap(Pack owner, JsonObject provider, Map<Integer, Glyph> glyphs) throws IOException {
+    private void bitmap(Pack owner, JsonObject provider, Map<Integer, Glyph> glyphs, boolean isDefaultFont)
+        throws IOException {
         String file = string(provider, "file", null);
         if (file == null) {
             throw new IOException("no file");
@@ -160,12 +166,12 @@ public final class PackFontScanner {
                 }
                 int width = inkWidth(image, column * cellWidth, row * cellHeight, cellWidth, cellHeight, alpha);
                 int advance = (int) (0.5 + width * scale) + 1;
-                glyphs.put(codePoint, new Glyph(advance, ascent, height, owner.name, file));
+                glyphs.put(codePoint, new Glyph(advance, ascent, height, owner.name, file, isDefaultFont));
             }
         }
     }
 
-    private static void space(Pack owner, JsonObject provider, Map<Integer, Glyph> glyphs) {
+    private static void space(Pack owner, JsonObject provider, Map<Integer, Glyph> glyphs, boolean isDefaultFont) {
         JsonObject advances = provider.getAsJsonObject("advances");
         if (advances == null) {
             return;

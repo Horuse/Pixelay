@@ -55,9 +55,15 @@ cursor:
 
 hud:
   # On-screen HUD font Y-offset positioning system.
-  # Generates assets/pixelay/font/y_<offset>.json files into pixelay-pack.zip.
+  # When plugins register offsets via YFontRegistry (or HudPosition.font), Pixelay builds only those
+  # exact fonts on ServerLoadEvent. If no offsets are registered, it falls back to min-y..max-y.
   font-y-offsets:
     enabled: true
+    # Generation mode:
+    # - registered: build only (anchor, y) pairs registered via YFontRegistry (smallest pack)
+    # - range: always build the full min-y..max-y range for all anchors
+    # - auto: use registered pairs when present, otherwise fall back to min-y..max-y
+    mode: registered
     min-y: -20
     max-y: 220
     step: 1
@@ -69,7 +75,7 @@ hud:
       - en
       - uk
       - symbols
-    # Include custom glyphs scanned from plugins/Pixelay/resourcepacks/
+    # Include custom glyphs from font/default.json in plugins/Pixelay/resourcepacks/
     include-scanned-glyphs: true
 
 layers:
