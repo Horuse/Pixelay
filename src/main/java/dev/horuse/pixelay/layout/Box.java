@@ -49,6 +49,7 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
     protected double widthPercent = -1;
     protected double heightPercent = -1;
     protected double opacity = 1.0;
+    protected double borderRadius;
     private volatile boolean hidden;
     private BooleanSupplier hiddenWhen;
     protected double grow;
@@ -1178,6 +1179,16 @@ public class Box<S extends Box<S>> implements LayoutItem, CanvasComponent {
 
     public double opacity() {
         return opacity;
+    }
+
+    /** CSS {@code border-radius} in pixels. Screen HUD backgrounds round their corners with it. */
+    public S borderRadius(double radiusPx) {
+        this.borderRadius = Math.max(0.0, radiusPx);
+        return self();
+    }
+
+    public double borderRadius() {
+        return borderRadius;
     }
 
     double effectiveOpacity() {

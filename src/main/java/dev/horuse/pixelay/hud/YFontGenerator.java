@@ -173,6 +173,16 @@ public final class YFontGenerator {
 
         JsonArray providers = new JsonArray();
 
+        // Vanilla space widths. Without them the space falls back to an empty ascii.png cell,
+        // which the client draws narrower than FontMetrics measures, and the HUD shifts.
+        JsonObject space = new JsonObject();
+        space.addProperty("type", "space");
+        JsonObject advances = new JsonObject();
+        advances.addProperty(" ", 4);
+        advances.addProperty("\u200c", 0);
+        space.add("advances", advances);
+        providers.add(space);
+
         if ((includeUk || includeSymbols) && nonlatinProvider != null) {
             JsonObject copy = nonlatinProvider.deepCopy();
             copy.addProperty("ascent", -(baseNumber + y - 7));

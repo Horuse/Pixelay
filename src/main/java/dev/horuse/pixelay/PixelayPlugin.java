@@ -115,6 +115,7 @@ public final class PixelayPlugin extends JavaPlugin {
             cleanupCanvasEntities();
         }
         dev.horuse.pixelay.hud.YFontRegistry.clear();
+        dev.horuse.pixelay.hud.HudPanel.clear();
     }
 
     /** Re-reads config.yml and font-widths.yml, then restarts the scheduler with the new intervals. */

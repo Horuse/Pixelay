@@ -150,6 +150,7 @@ public final class PixelayPack {
                 dev.horuse.pixelay.hud.YFontRegistry.entries(),
                 files
             );
+            dev.horuse.pixelay.hud.HudPanel.generate(files);
         }
         // Sprites are now stored in the atlas.
         files.keySet().removeIf(path -> path.startsWith(CURSORS));

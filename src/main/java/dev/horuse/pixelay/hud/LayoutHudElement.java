@@ -3,6 +3,7 @@ package dev.horuse.pixelay.hud;
 import dev.horuse.pixelay.layout.Box;
 import dev.horuse.pixelay.layout.Container;
 import dev.horuse.pixelay.layout.Flex;
+import dev.horuse.pixelay.layout.Insets;
 import dev.horuse.pixelay.layout.Layout;
 import dev.horuse.pixelay.layout.LayoutItem;
 import dev.horuse.pixelay.layout.Text;
@@ -20,8 +21,22 @@ import org.bukkit.entity.Player;
 /**
  * Renders Pixelay layout trees as an on-screen HUD element.
  * Supports flex rows, columns, gaps, MiniMessage styling, and PlaceholderAPI.
+ *
+ * <p>The root box follows the CSS box model relative to the anchor:
+ * {@code margin} is the distance from the screen edge to the box edge, {@code padding} is the
+ * space between the border and the text, and {@code background}, {@code border} and
+ * {@code borderRadius} draw a panel behind the text. Bottom anchors grow upward, so the box
+ * bottom always stays at the margin. Every line and the panel return the cursor to the start, so the
+ * element never moves other elements in the same bossbar row.
  */
 public class LayoutHudElement extends BasicHudElement {
+
+    /** Vertical distance between two text lines without column gap. */
+    public static final int LINE_HEIGHT = 10;
+    /** Visible height of a text line (cap height without the descender row). */
+    public static final int GLYPH_HEIGHT = 7;
+    /** Distance between the decoded font Y and the drawn glyph top in the bossbar row. */
+    public static final int GLYPH_TOP_OFFSET = 3;
 
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
@@ -30,6 +45,7 @@ public class LayoutHudElement extends BasicHudElement {
 
     /**
      * Creates a HUD element from a static layout tree.
+     * Registers the fonts and the panel of the tree so they are present in the pack.
      *
      * @param anchor target screen anchor
      * @param offsetX horizontal pixel offset
@@ -38,6 +54,9 @@ public class LayoutHudElement extends BasicHudElement {
      */
     public LayoutHudElement(HudAnchor anchor, int offsetX, int offsetY, LayoutItem root) {
         this(anchor, offsetX, offsetY, player -> root);
+        if (root != null) {
+            preload(root);
+        }
     }
 
     /**
@@ -52,6 +71,7 @@ public class LayoutHudElement extends BasicHudElement {
 
     /**
      * Creates a HUD element from a dynamic per-player layout function.
+     * Call {@link #preload(LayoutItem)} with a sample tree before the pack is built.
      *
      * @param anchor target screen anchor
      * @param offsetX horizontal pixel offset
@@ -62,6 +82,29 @@ public class LayoutHudElement extends BasicHudElement {
         super(anchor, offsetX, offsetY, Component.empty());
         this.layoutSupplier = Objects.requireNonNull(layoutSupplier, "layoutSupplier");
         this.hasPapi = Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI");
+    }
+
+    /**
+     * Registers the line fonts and the background panel that a tree of this shape needs.
+     * Only the line count and the box styles matter; the text can change later.
+     *
+     * @param sample a tree with the same shape as the rendered trees
+     */
+    public void preload(LayoutItem sample) {
+        Box<?> root = Layout.box(sample);
+        List<List<LineItem>> lines = new ArrayList<>();
+        collectLines(root, lines);
+        if (lines.isEmpty()) {
+            return;
+        }
+        Frame frame = frame(root, lines.size(), 0);
+        for (int i = 0; i < lines.size(); i++) {
+            YFontRegistry.register(anchor(), frame.lineY(i));
+        }
+        HudPanel.Style panel = panelStyle(root, frame);
+        if (panel.visible()) {
+            HudPanel.register(anchor(), frame.top, panel);
+        }
     }
 
     @Override
@@ -83,99 +126,173 @@ public class LayoutHudElement extends BasicHudElement {
         Box<?> rootBox = Layout.box(item);
         List<List<LineItem>> lines = new ArrayList<>();
         collectLines(rootBox, lines);
-
         if (lines.isEmpty()) {
             return Component.empty();
         }
 
+        List<EncodedLine> encoded = new ArrayList<>(lines.size());
+        int contentWidth = 0;
+        for (List<LineItem> line : lines) {
+            EncodedLine e = encodeLine(line, player);
+            encoded.add(e);
+            contentWidth = Math.max(contentWidth, e.width);
+        }
+        if (contentWidth <= 0) {
+            return Component.empty();
+        }
+
+        Frame frame = frame(rootBox, lines.size(), contentWidth);
         TextComponent.Builder builder = Component.text();
 
-        for (int lineIndex = 0; lineIndex < lines.size(); lineIndex++) {
-            List<LineItem> items = lines.get(lineIndex);
-            if (items.isEmpty()) {
+        builder.append(HudPanel.render(anchor(), frame.left, frame.top, frame.width, panelStyle(rootBox, frame)));
+
+        for (int i = 0; i < encoded.size(); i++) {
+            EncodedLine line = encoded.get(i);
+            if (line.width <= 0) {
                 continue;
             }
-
-            int lineY = offsetY() + lineIndex * 10;
-            Component encodedLine = renderLine(items, player, lineIndex);
-            builder.append(encodedLine.font(HudPosition.font(anchor(), lineY)));
+            int x = lineX(frame, line.width);
+            builder
+                .append(HudSpace.offset(x))
+                .append(line.component.font(HudPosition.font(anchor(), frame.lineY(i))))
+                .append(HudSpace.offset(-x - line.width));
         }
 
-        Component content = builder.build();
-        if (offsetX() == 0 || Component.empty().equals(content)) {
-            return content;
-        }
-
-        return Component.text()
-            .append(HudSpace.offset(offsetX()))
-            .append(content)
-            .append(HudSpace.offset(-offsetX()))
-            .build();
+        return builder.build();
     }
 
-    private Component renderLine(List<LineItem> items, Player player, int lineIndex) {
-        List<Component> encodedPieces = new ArrayList<>();
-        List<Integer> gaps = new ArrayList<>();
-        int totalWidth = 0;
+    private Frame frame(Box<?> root, int lineCount, int contentWidth) {
+        Insets pad = root.padding();
+        Insets margin = root.margin();
+        int step = LINE_HEIGHT + (int) Math.round(lineGap(root));
+        // CSS box model: the border sits between the margin and the padding.
+        int border = borderWidth(root);
+        int padTop = (int) Math.round(pad.top()) + border;
+        int padLeft = (int) Math.round(pad.left()) + border;
+        int padRight = (int) Math.round(pad.right()) + border;
+        int padBottom = (int) Math.round(pad.bottom()) + border;
 
-        for (int i = 0; i < items.size(); i++) {
-            LineItem item = items.get(i);
+        int contentHeight = (Math.max(1, lineCount) - 1) * step + GLYPH_HEIGHT;
+        int width = contentWidth + padLeft + padRight;
+        int height = contentHeight + padTop + padBottom;
+        if (root.fixedWidth() >= 0) {
+            width = (int) Math.round(root.fixedWidth());
+        }
+        if (root.fixedHeight() >= 0) {
+            height = (int) Math.round(root.fixedHeight());
+        }
+        width = clamp(width, root.minWidth(), root.maxWidth());
+        height = clamp(height, root.minHeight(), root.maxHeight());
+
+        int left;
+        if (anchor().isRightAligned()) {
+            left = offsetX() - (int) Math.round(margin.right()) - width;
+        } else if (anchor().isCenterAligned()) {
+            left = offsetX() + (int) Math.round(margin.left() - margin.right()) / 2 - width / 2;
+        } else {
+            left = offsetX() + (int) Math.round(margin.left());
+        }
+
+        int top;
+        if (anchor().isBottomAnchored()) {
+            top = offsetY() - (int) Math.round(margin.bottom()) - height - GLYPH_TOP_OFFSET;
+        } else if (isVerticallyCentered(anchor())) {
+            top = offsetY() + (int) Math.round(margin.top() - margin.bottom()) / 2 - height / 2 - GLYPH_TOP_OFFSET;
+        } else {
+            top = offsetY() + (int) Math.round(margin.top()) - GLYPH_TOP_OFFSET;
+        }
+
+        // Text sits in the vertical middle of the content area when a fixed height is larger.
+        int textTop = top + padTop + Math.max(0, (height - padTop - padBottom - contentHeight) / 2);
+        return new Frame(left, top, width, height, textTop, step, padLeft, padRight);
+    }
+
+    /** Aligns a line to the anchor side inside the box (left, center or right). */
+    private int lineX(Frame frame, int lineWidth) {
+        if (anchor().isRightAligned()) {
+            return frame.left() + frame.width() - frame.padRight() - lineWidth;
+        }
+        if (anchor().isCenterAligned()) {
+            int inner = frame.width() - frame.padLeft() - frame.padRight();
+            return frame.left() + frame.padLeft() + (inner - lineWidth) / 2;
+        }
+        return frame.left() + frame.padLeft();
+    }
+
+    private static boolean isVerticallyCentered(HudAnchor anchor) {
+        return anchor == HudAnchor.CENTER_LEFT || anchor == HudAnchor.CENTER || anchor == HudAnchor.CENTER_RIGHT;
+    }
+
+    private static int clamp(int value, double min, double max) {
+        int result = value;
+        if (min >= 0) {
+            result = Math.max(result, (int) Math.round(min));
+        }
+        if (max >= 0) {
+            result = Math.min(result, (int) Math.round(max));
+        }
+        return result;
+    }
+
+    private static double lineGap(Box<?> root) {
+        if (root instanceof Flex flex && !flex.isRow()) {
+            return flex.gap();
+        }
+        return 0;
+    }
+
+    private static HudPanel.Style panelStyle(Box<?> root, Frame frame) {
+        int border = borderWidth(root);
+        return new HudPanel.Style(
+            frame.height(),
+            (int) Math.round(root.borderRadius()),
+            withOpacity(root.background(), root.opacity()),
+            border,
+            withOpacity(root.borderColor(), root.opacity())
+        );
+    }
+
+    /** Uniform border width; Screen HUD panels use the top border width for every side. */
+    private static int borderWidth(Box<?> root) {
+        return Math.max(0, (int) Math.round(root.borderWidths().top()));
+    }
+
+    private static int withOpacity(int argb, double opacity) {
+        int alpha = (int) Math.round(((argb >>> 24) & 0xFF) * opacity);
+        return (Math.clamp(alpha, 0, 255) << 24) | (argb & 0xFFFFFF);
+    }
+
+    private EncodedLine encodeLine(List<LineItem> items, Player player) {
+        TextComponent.Builder lineBuilder = Component.text();
+        int totalWidth = 0;
+        int pieces = 0;
+
+        for (LineItem item : items) {
             String rawText = item.text.renderText();
             if (rawText == null || rawText.isEmpty()) {
                 continue;
             }
-
             if (hasPapi) {
                 rawText = PlaceholderAPI.setPlaceholders(player, rawText);
             }
 
-            Component parsed = MINI_MESSAGE.deserialize(rawText);
+            Component parsed = MINI_MESSAGE.deserialize(LegacyText.toMiniMessage(rawText));
             int[] widthTracker = new int[] { 0 };
-            Component encoded = HudCodec.encodeComponent(parsed, anchor(), lineIndex, widthTracker);
+            Component encoded = HudCodec.encodeComponent(parsed, anchor(), 0, widthTracker);
 
-            int pieceWidth = widthTracker[0];
-            encodedPieces.add(encoded);
-
-            if (!encodedPieces.isEmpty() && encodedPieces.size() > 1) {
+            if (pieces > 0) {
                 int gapPx = (int) Math.round(item.gapBefore);
-                gaps.add(gapPx);
-                totalWidth += gapPx;
-            }
-
-            totalWidth += pieceWidth;
-        }
-
-        if (encodedPieces.isEmpty() || totalWidth <= 0) {
-            return Component.empty();
-        }
-
-        TextComponent.Builder lineBuilder = Component.text();
-
-        if (anchor().isRightAligned()) {
-            lineBuilder.append(HudSpace.offset(-totalWidth));
-        } else if (anchor().isCenterAligned()) {
-            lineBuilder.append(HudSpace.offset(-(totalWidth / 2)));
-        }
-
-        for (int i = 0; i < encodedPieces.size(); i++) {
-            if (i > 0 && i - 1 < gaps.size()) {
-                int gap = gaps.get(i - 1);
-                if (gap > 0) {
-                    lineBuilder.append(HudSpace.offset(gap));
+                if (gapPx > 0) {
+                    lineBuilder.append(HudSpace.offset(gapPx));
+                    totalWidth += gapPx;
                 }
             }
-            lineBuilder.append(encodedPieces.get(i));
+            lineBuilder.append(encoded);
+            totalWidth += widthTracker[0];
+            pieces++;
         }
 
-        if (anchor().isLeftAligned()) {
-            lineBuilder.append(HudSpace.offset(-totalWidth));
-        } else if (anchor().isCenterAligned()) {
-            int half = totalWidth / 2;
-            int rem = totalWidth - half;
-            lineBuilder.append(HudSpace.offset(-rem));
-        }
-
-        return lineBuilder.build();
+        return new EncodedLine(lineBuilder.build(), pieces == 0 ? 0 : totalWidth);
     }
 
     private void collectLines(Box<?> box, List<List<LineItem>> out) {
@@ -227,4 +344,13 @@ public class LayoutHudElement extends BasicHudElement {
     }
 
     private record LineItem(Text text, double gapBefore) {}
+
+    private record EncodedLine(Component component, int width) {}
+
+    /** Resolved box geometry in anchor-relative pixels and font Y units. */
+    private record Frame(int left, int top, int width, int height, int textTop, int step, int padLeft, int padRight) {
+        int lineY(int index) {
+            return textTop + index * step;
+        }
+    }
 }
