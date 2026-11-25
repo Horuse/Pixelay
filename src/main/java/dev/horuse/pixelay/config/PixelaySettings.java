@@ -76,7 +76,6 @@ public record PixelaySettings(
      * @param minY minimum vertical offset
      * @param maxY maximum vertical offset
      * @param step pixel increment per font file
-     * @param languages language sets to include (en, uk, symbols)
      * @param includeScannedGlyphs true to include scanned custom resource pack glyphs
      */
     public record FontYOffsets(
@@ -85,19 +84,11 @@ public record PixelaySettings(
         int minY,
         int maxY,
         int step,
-        List<String> languages,
         boolean includeScannedGlyphs
     ) {
         /** Convenience constructor defaulting {@code mode} to {@code auto}. */
-        public FontYOffsets(
-            boolean enabled,
-            int minY,
-            int maxY,
-            int step,
-            List<String> languages,
-            boolean includeScannedGlyphs
-        ) {
-            this(enabled, "auto", minY, maxY, step, languages, includeScannedGlyphs);
+        public FontYOffsets(boolean enabled, int minY, int maxY, int step, boolean includeScannedGlyphs) {
+            this(enabled, "auto", minY, maxY, step, includeScannedGlyphs);
         }
     }
 
@@ -215,9 +206,6 @@ public record PixelaySettings(
                     root.node("hud", "font-y-offsets", "min-y").getInt(-20),
                     root.node("hud", "font-y-offsets", "max-y").getInt(220),
                     Math.max(1, root.node("hud", "font-y-offsets", "step").getInt(1)),
-                    root
-                        .node("hud", "font-y-offsets", "languages")
-                        .getList(String.class, List.of("en", "uk", "symbols")),
                     root.node("hud", "font-y-offsets", "include-scanned-glyphs").getBoolean(true)
                 )
             )

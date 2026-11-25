@@ -379,14 +379,7 @@ public final class PixelayPack {
                 new CursorSprite("not-allowed", 8.5, 8.5)
             )
         );
-        PixelaySettings.FontYOffsets fontOffsets = new PixelaySettings.FontYOffsets(
-            true,
-            -20,
-            220,
-            1,
-            List.of("en", "uk", "symbols"),
-            true
-        );
+        PixelaySettings.FontYOffsets fontOffsets = new PixelaySettings.FontYOffsets(true, -20, 220, 1, true);
 
         build(jarFile, dataFolder, packConfig, fontOffsets, scanned, Logger.getLogger("PixelayPack"));
     }

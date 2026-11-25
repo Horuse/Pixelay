@@ -205,7 +205,7 @@ public final class LayoutPreview {
             new PixelaySettings.Packets(1_000_000_000, meta),
             List.of(),
             new PixelaySettings.ResourcePack(false, 1.5, List.of()),
-            new PixelaySettings.Hud(new PixelaySettings.FontYOffsets(false, 0, 0, 1, List.of(), false))
+            new PixelaySettings.Hud(new PixelaySettings.FontYOffsets(false, 0, 0, 1, false))
         );
     }
 

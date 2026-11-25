@@ -42,6 +42,7 @@ public class LayoutHudElement extends BasicHudElement {
 
     private final Function<Player, LayoutItem> layoutSupplier;
     private final boolean hasPapi;
+    private boolean placeholders = true;
 
     /**
      * Creates a HUD element from a static layout tree.
@@ -105,6 +106,18 @@ public class LayoutHudElement extends BasicHudElement {
         if (panel.visible()) {
             HudPanel.register(anchor(), frame.top, panel);
         }
+    }
+
+    /**
+     * Enables or disables PlaceholderAPI for the text of this element. Disable it when the text
+     * comes from untrusted input, so {@code %placeholder%} sequences stay plain text.
+     *
+     * @param enabled true to resolve placeholders (default)
+     * @return this element
+     */
+    public LayoutHudElement placeholders(boolean enabled) {
+        this.placeholders = enabled;
+        return this;
     }
 
     @Override
@@ -272,7 +285,7 @@ public class LayoutHudElement extends BasicHudElement {
             if (rawText == null || rawText.isEmpty()) {
                 continue;
             }
-            if (hasPapi) {
+            if (hasPapi && placeholders) {
                 rawText = PlaceholderAPI.setPlaceholders(player, rawText);
             }
 

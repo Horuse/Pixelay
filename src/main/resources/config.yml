@@ -67,14 +67,6 @@ hud:
     min-y: -20
     max-y: 220
     step: 1
-    # Languages to include:
-    # en: Latin alphabet, digits, punctuation (minecraft:font/ascii.png)
-    # uk: Ukrainian Cyrillic, Ї, Ґ, є, і (nonlatin_european.png, accented.png)
-    # symbols: common arrows, bullet points, currency (nonlatin_european.png)
-    languages:
-      - en
-      - uk
-      - symbols
     # Include custom glyphs from font/default.json in plugins/Pixelay/resourcepacks/
     include-scanned-glyphs: true
 

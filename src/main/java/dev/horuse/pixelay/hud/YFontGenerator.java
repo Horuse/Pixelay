@@ -77,11 +77,6 @@ public final class YFontGenerator {
             }
         }
 
-        List<String> langs = config.languages().stream().map(String::toLowerCase).toList();
-        boolean includeEn = langs.contains("en") || langs.contains("ascii") || langs.contains("latin");
-        boolean includeUk = langs.contains("uk") || langs.contains("cyrillic") || langs.contains("ukrainian");
-        boolean includeSymbols = langs.contains("symbols");
-
         List<CustomGlyphGroup> customGroups = new ArrayList<>();
         if (config.includeScannedGlyphs() && scannedGlyphs != null && !scannedGlyphs.isEmpty()) {
             Map<String, CustomGlyphGroup> grouped = new LinkedHashMap<>();
@@ -114,9 +109,6 @@ public final class YFontGenerator {
                     emitFont(
                         anchor,
                         entry.y(),
-                        includeEn,
-                        includeUk,
-                        includeSymbols,
                         nonlatinProvider,
                         accentedProvider,
                         asciiProvider,
@@ -138,18 +130,7 @@ public final class YFontGenerator {
                 continue;
             }
             for (int y = minY; y <= maxY; y += step) {
-                emitFont(
-                    anchor,
-                    y,
-                    includeEn,
-                    includeUk,
-                    includeSymbols,
-                    nonlatinProvider,
-                    accentedProvider,
-                    asciiProvider,
-                    customGroups,
-                    outputFiles
-                );
+                emitFont(anchor, y, nonlatinProvider, accentedProvider, asciiProvider, customGroups, outputFiles);
             }
         }
     }
@@ -157,9 +138,6 @@ public final class YFontGenerator {
     private static void emitFont(
         HudAnchor anchor,
         int y,
-        boolean includeEn,
-        boolean includeUk,
-        boolean includeSymbols,
         JsonObject nonlatinProvider,
         JsonObject accentedProvider,
         JsonObject asciiProvider,
@@ -173,6 +151,9 @@ public final class YFontGenerator {
 
         JsonArray providers = new JsonArray();
 
+        // All three vanilla bitmap sheets are referenced; the client already has the textures,
+        // so this adds only a few providers per font file.
+
         // Vanilla space widths. Without them the space falls back to an empty ascii.png cell,
         // which the client draws narrower than FontMetrics measures, and the HUD shifts.
         JsonObject space = new JsonObject();
@@ -183,19 +164,19 @@ public final class YFontGenerator {
         space.add("advances", advances);
         providers.add(space);
 
-        if ((includeUk || includeSymbols) && nonlatinProvider != null) {
+        if (nonlatinProvider != null) {
             JsonObject copy = nonlatinProvider.deepCopy();
             copy.addProperty("ascent", -(baseNumber + y - 7));
             providers.add(copy);
         }
 
-        if (includeUk && accentedProvider != null) {
+        if (accentedProvider != null) {
             JsonObject copy = accentedProvider.deepCopy();
             copy.addProperty("ascent", -(baseNumber + y - 10));
             providers.add(copy);
         }
 
-        if (includeEn && asciiProvider != null) {
+        if (asciiProvider != null) {
             JsonObject copy = asciiProvider.deepCopy();
             copy.addProperty("ascent", -(baseNumber + y - 7));
             providers.add(copy);

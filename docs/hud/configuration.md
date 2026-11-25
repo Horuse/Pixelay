@@ -30,14 +30,6 @@ hud:
     # Default: 1
     step: 1
 
-    # Languages and character sheets to include in font providers:
-    # - en: Standard Latin alphabet, digits, punctuation (minecraft:font/ascii.png)
-    # - uk: Ukrainian Cyrillic alphabet, Ї, Ґ, є, і (nonlatin_european.png, accented.png)
-    # - symbols: UI symbols, arrows, currency signs (nonlatin_european.png)
-    languages:
-      - en
-      - uk
-      - symbols
 
     # When true, scans external resource packs in plugins/Pixelay/resourcepacks/
     # and includes custom glyphs from font/default.json in generated HUD fonts
@@ -68,14 +60,6 @@ hud:
 - **Type**: Integer
 - **Default**: `1`
 - **Description**: Pixel increment between generated font files. A value of `1` generates files for every single pixel. A value of `2` generates files for even pixels only.
-
-### `hud.font-y-offsets.languages`
-- **Type**: List of strings
-- **Default**: `[en, uk, symbols]`
-- **Description**: Specifies character sets to include:
-  - `en`: Standard ASCII letters, numbers, and basic punctuation.
-  - `uk`: Ukrainian Cyrillic characters, including uppercase, lowercase, and special characters (`Ґ`, `ґ`, `Є`, `є`, `І`, `і`, `Ї`, `ї`).
-  - `symbols`: Common mathematical, navigation, currency, and UI symbols.
 
 ### `hud.font-y-offsets.include-scanned-glyphs`
 - **Type**: Boolean

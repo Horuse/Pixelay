@@ -8,7 +8,6 @@ import dev.horuse.pixelay.config.PixelaySettings;
 import dev.horuse.pixelay.content.PackFontScanner;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
@@ -21,14 +20,7 @@ class YFontGeneratorTest {
 
     @Test
     void generatesFilesForConfiguredRange() {
-        PixelaySettings.FontYOffsets config = new PixelaySettings.FontYOffsets(
-            true,
-            -5,
-            10,
-            5,
-            List.of("en", "uk", "symbols"),
-            false
-        );
+        PixelaySettings.FontYOffsets config = new PixelaySettings.FontYOffsets(true, -5, 10, 5, false);
         Map<String, byte[]> files = new HashMap<>();
 
         YFontGenerator.generate(config, Map.of(), files);
@@ -49,7 +41,7 @@ class YFontGeneratorTest {
 
     @Test
     void includesCustomScannedGlyphs() {
-        PixelaySettings.FontYOffsets config = new PixelaySettings.FontYOffsets(true, 0, 0, 1, List.of("en"), true);
+        PixelaySettings.FontYOffsets config = new PixelaySettings.FontYOffsets(true, 0, 0, 1, true);
         Map<Integer, PackFontScanner.Glyph> scanned = Map.of(
             0xE001,
             new PackFontScanner.Glyph(10, 8, 8, "test-pack", "custom:font/icon.png")

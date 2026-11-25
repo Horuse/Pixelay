@@ -62,7 +62,7 @@ Calling `HudPosition.font(...)` at runtime also registers the pair automatically
 
 ## Configuration
 
-Control the generated Y-offset range and languages in `plugins/Pixelay/config.yml`:
+Control the generated Y-offset range in `plugins/Pixelay/config.yml`:
 
 ```yaml
 hud:
@@ -82,14 +82,6 @@ hud:
     # Pixel increment between generated files (1 gives single-pixel precision)
     step: 1
 
-    # Languages and character sets to include:
-    # - en: Standard ASCII Latin characters and numbers
-    # - uk: Ukrainian Cyrillic characters (А-Я, а-я, Ґ, ґ, Є, є, І, і, Ї, ї)
-    # - symbols: UI symbols, arrows, currency signs (₴, €, $, ₽)
-    languages:
-      - en
-      - uk
-      - symbols
 
     # Include custom glyphs scanned from plugins/Pixelay/resourcepacks/
     include-scanned-glyphs: true
