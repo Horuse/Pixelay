@@ -32,17 +32,14 @@ public enum HudAnchor {
     /** Bottom-right screen corner at (width, height). */
     BOTTOM_RIGHT(8),
 
-    /** Top-center compass tape with GPU sub-tick yaw interpolation. */
-    COMPASS_TAPE(9),
-
     /** Left end of the hotbar at (width / 2 - 91, height). Content extends to the left. */
-    HOTBAR_LEFT(10),
+    HOTBAR_LEFT(9),
 
     /** Right end of the hotbar at (width / 2 + 91, height). Content extends to the right. */
-    HOTBAR_RIGHT(11),
+    HOTBAR_RIGHT(10),
 
     /** Center of the hotbar top edge at (width / 2, height - 22). Content is centered and grows upward. */
-    ABOVE_HOTBAR(12);
+    ABOVE_HOTBAR(11);
 
     /** Half of the vanilla hotbar width in GUI pixels. */
     public static final int HOTBAR_HALF_WIDTH = 91;
@@ -105,12 +102,6 @@ public enum HudAnchor {
      * @return true for center alignment
      */
     public boolean isCenterAligned() {
-        return (
-            this == TOP_CENTER ||
-            this == CENTER ||
-            this == BOTTOM_CENTER ||
-            this == COMPASS_TAPE ||
-            this == ABOVE_HOTBAR
-        );
+        return this == TOP_CENTER || this == CENTER || this == BOTTOM_CENTER || this == ABOVE_HOTBAR;
     }
 }

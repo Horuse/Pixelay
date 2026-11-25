@@ -19,11 +19,7 @@ public final class YFontRegistry {
 
     /** Registers a single (anchor, y) font offset pair. */
     public static void register(HudAnchor anchor, int y) {
-        HudAnchor resolved = anchor != null ? anchor : HudAnchor.TOP_LEFT;
-        if (resolved == HudAnchor.COMPASS_TAPE) {
-            return;
-        }
-        ENTRIES.add(new Entry(resolved, y));
+        ENTRIES.add(new Entry(anchor != null ? anchor : HudAnchor.TOP_LEFT, y));
     }
 
     /** Registers {@code lineCount} consecutive 10px lines starting at {@code baseY}. */

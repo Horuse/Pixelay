@@ -68,27 +68,6 @@ public final class HudCodec {
     }
 
     /**
-     * Encodes compass tape yaw data and compass marker tag into component colors.
-     *
-     * @param component the tape text component
-     * @param targetYaw target player yaw in degrees (0..360)
-     * @param prevYaw previous player yaw in degrees (0..360)
-     * @return the encoded component
-     */
-    public static Component encodeCompassTape(Component component, float targetYaw, float prevYaw) {
-        if (component == null) {
-            return Component.empty();
-        }
-        int normTarget = Math.round(((((targetYaw % 360.0f) + 360.0f) % 360.0f) / 360.0f) * 255.0f);
-        int normPrev = Math.round(((((prevYaw % 360.0f) + 360.0f) % 360.0f) / 360.0f) * 255.0f);
-        int r = Math.clamp(normTarget, 0, 255);
-        int g = Math.clamp(normPrev, 0, 255);
-        int b = 253;
-        int packedRgb = (r << 16) | (g << 8) | b;
-        return applyFixedColor(component, packedRgb);
-    }
-
-    /**
      * Encodes component colors with the specified anchor and line index.
      * Records total component width in the provided tracker array.
      *
@@ -139,18 +118,6 @@ public final class HudCodec {
             children.add(encodeComponent(child, anchor, lineIndex, color, bold, widthTracker));
         }
 
-        return result.children(children);
-    }
-
-    private static Component applyFixedColor(Component component, int rgb) {
-        List<Component> children = new ArrayList<>();
-        Component result = component;
-        if (component instanceof TextComponent text) {
-            result = text.color(TextColor.color(rgb));
-        }
-        for (Component child : component.children()) {
-            children.add(applyFixedColor(child, rgb));
-        }
         return result.children(children);
     }
 }

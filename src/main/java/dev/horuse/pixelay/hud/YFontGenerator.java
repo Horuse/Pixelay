@@ -103,7 +103,7 @@ public final class YFontGenerator {
             if (registeredEntries != null) {
                 for (YFontRegistry.Entry entry : registeredEntries) {
                     HudAnchor anchor = entry.anchor();
-                    if (anchor == null || anchor == HudAnchor.COMPASS_TAPE) {
+                    if (anchor == null) {
                         continue;
                     }
                     emitFont(
@@ -124,11 +124,8 @@ public final class YFontGenerator {
         int maxY = config.maxY();
         int step = Math.max(1, config.step());
 
-        // Generate font definitions for all 9 screen anchors
+        // Generate font definitions for every screen anchor
         for (HudAnchor anchor : HudAnchor.values()) {
-            if (anchor == HudAnchor.COMPASS_TAPE) {
-                continue;
-            }
             for (int y = minY; y <= maxY; y += step) {
                 emitFont(anchor, y, nonlatinProvider, accentedProvider, asciiProvider, customGroups, outputFiles);
             }
