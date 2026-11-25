@@ -84,6 +84,19 @@ void main() {
                     xGui = ui.x;
                     yGui = ui.y;
                     break;
+                // 10 is COMPASS_TAPE: no screen offset.
+                case 11: // HOTBAR_LEFT (vanilla hotbar is 182 x 22 at the bottom center)
+                    xGui = ui.x * 0.5 - 91.0;
+                    yGui = ui.y;
+                    break;
+                case 12: // HOTBAR_RIGHT
+                    xGui = ui.x * 0.5 + 91.0;
+                    yGui = ui.y;
+                    break;
+                case 13: // ABOVE_HOTBAR
+                    xGui = ui.x * 0.5;
+                    yGui = ui.y - 22.0;
+                    break;
                 default:
                     break;
             }

@@ -25,6 +25,23 @@ The `dev.horuse.pixelay.hud.HudAnchor` enumeration defines nine anchor positions
 - **Right Anchors** (`TOP_RIGHT`, `CENTER_RIGHT`, `BOTTOM_RIGHT`):
   Text ends at the anchor coordinate and extends to the left.
 
+### Hotbar Anchors
+
+Three anchors follow the vanilla hotbar (182 x 22 GUI pixels at the bottom center of the screen):
+
+```
+                 ABOVE_HOTBAR
+                      v
+HOTBAR_LEFT > [ hotbar 182 x 22 ] < HOTBAR_RIGHT
+```
+
+- `HOTBAR_LEFT`: left end of the hotbar. Content ends at the anchor and extends to the left.
+- `HOTBAR_RIGHT`: right end of the hotbar. Content starts at the anchor and extends to the right.
+- `ABOVE_HOTBAR`: center of the hotbar top edge. Content is centered and grows upward.
+
+All three are bottom anchors, so `margin` moves the box away from the hotbar edge and up from the screen bottom.
+Use `CENTER` for elements around the crosshair: it is the exact screen center.
+
 ## Layout Containers
 
 Use `dev.horuse.pixelay.layout.Layout` to compose text lines and icons:

@@ -33,7 +33,22 @@ public enum HudAnchor {
     BOTTOM_RIGHT(8),
 
     /** Top-center compass tape with GPU sub-tick yaw interpolation. */
-    COMPASS_TAPE(9);
+    COMPASS_TAPE(9),
+
+    /** Left end of the hotbar at (width / 2 - 91, height). Content extends to the left. */
+    HOTBAR_LEFT(10),
+
+    /** Right end of the hotbar at (width / 2 + 91, height). Content extends to the right. */
+    HOTBAR_RIGHT(11),
+
+    /** Center of the hotbar top edge at (width / 2, height - 22). Content is centered and grows upward. */
+    ABOVE_HOTBAR(12);
+
+    /** Half of the vanilla hotbar width in GUI pixels. */
+    public static final int HOTBAR_HALF_WIDTH = 91;
+
+    /** Vanilla hotbar height in GUI pixels. */
+    public static final int HOTBAR_HEIGHT = 22;
 
     private final int id;
 
@@ -56,7 +71,14 @@ public enum HudAnchor {
      * @return true for bottom alignment
      */
     public boolean isBottomAnchored() {
-        return this == BOTTOM_LEFT || this == BOTTOM_CENTER || this == BOTTOM_RIGHT;
+        return (
+            this == BOTTOM_LEFT ||
+            this == BOTTOM_CENTER ||
+            this == BOTTOM_RIGHT ||
+            this == HOTBAR_LEFT ||
+            this == HOTBAR_RIGHT ||
+            this == ABOVE_HOTBAR
+        );
     }
 
     /**
@@ -65,7 +87,7 @@ public enum HudAnchor {
      * @return true for left alignment
      */
     public boolean isLeftAligned() {
-        return this == TOP_LEFT || this == CENTER_LEFT || this == BOTTOM_LEFT;
+        return this == TOP_LEFT || this == CENTER_LEFT || this == BOTTOM_LEFT || this == HOTBAR_RIGHT;
     }
 
     /**
@@ -74,7 +96,7 @@ public enum HudAnchor {
      * @return true for right alignment
      */
     public boolean isRightAligned() {
-        return this == TOP_RIGHT || this == CENTER_RIGHT || this == BOTTOM_RIGHT;
+        return this == TOP_RIGHT || this == CENTER_RIGHT || this == BOTTOM_RIGHT || this == HOTBAR_LEFT;
     }
 
     /**
@@ -83,6 +105,12 @@ public enum HudAnchor {
      * @return true for center alignment
      */
     public boolean isCenterAligned() {
-        return this == TOP_CENTER || this == CENTER || this == BOTTOM_CENTER || this == COMPASS_TAPE;
+        return (
+            this == TOP_CENTER ||
+            this == CENTER ||
+            this == BOTTOM_CENTER ||
+            this == COMPASS_TAPE ||
+            this == ABOVE_HOTBAR
+        );
     }
 }
