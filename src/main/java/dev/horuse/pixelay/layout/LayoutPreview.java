@@ -204,7 +204,8 @@ public final class LayoutPreview {
             new PixelaySettings.ChatSuppression(false, 100, 20),
             new PixelaySettings.Packets(1_000_000_000, meta),
             List.of(),
-            new PixelaySettings.ResourcePack(false, 1.5, List.of())
+            new PixelaySettings.ResourcePack(false, 1.5, List.of()),
+            new PixelaySettings.Hud(new PixelaySettings.FontYOffsets(false, 0, 0, 1, false))
         );
     }
 

@@ -22,6 +22,14 @@ dependencies {
     compileOnly 'me.clip:placeholderapi:2.11.6'
 
     implementation 'org.spongepowered:configurate-yaml:4.2.0'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation 'io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 java {
@@ -56,6 +64,18 @@ jar {
 
 tasks.named('assemble') {
     dependsOn shadowJar
+}
+
+tasks.register('bakePack', JavaExec) {
+    dependsOn shadowJar
+    classpath = sourceSets.main.output + sourceSets.main.compileClasspath
+    mainClass = 'dev.horuse.pixelay.pack.PixelayPack'
+    args = [
+        shadowJar.archiveFile.get().asFile.absolutePath,
+        "${rootProject.projectDir}/../StarMineServer/data/plugins/Pixelay",
+        "${rootProject.projectDir}/../StarMineServer/data/plugins/Pixelay/resourcepacks"
+    ]
+    systemProperty 'java.awt.headless', 'true'
 }
 
 spotless {

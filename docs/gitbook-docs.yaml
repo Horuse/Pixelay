@@ -1,11 +1,17 @@
 $schema: https://api.gitbook.com/gitbook-docs.yaml
 site:
-  title: Pixelay Docs
+  title: Pixelay Documentation
   structure:
     - type: space
       key: space-docs
-      title: Documentation
-      path: docs
+      title: Core Engine
+      path: core
       default: true
       content:
-        directory: ./
+        directory: ./core
+    - type: space
+      key: space-hud
+      title: Screen HUD
+      path: hud
+      content:
+        directory: ./hud

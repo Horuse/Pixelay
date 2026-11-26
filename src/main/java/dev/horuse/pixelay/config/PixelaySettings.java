@@ -24,7 +24,8 @@ public record PixelaySettings(
     ChatSuppression chatSuppression,
     Packets packets,
     List<String> resourcePackOrder,
-    ResourcePack resourcePack
+    ResourcePack resourcePack,
+    Hud hud
 ) {
     /** Text rendering options shared by all renderers. */
     public record Text(
@@ -59,6 +60,37 @@ public record PixelaySettings(
      * @param sprites list of cursor sprites in atlas order
      */
     public record ResourcePack(boolean enabled, double cursorScale, List<CursorSprite> sprites) {}
+
+    /**
+     * HUD configuration options.
+     *
+     * @param fontYOffsets configuration for vertical font ascents
+     */
+    public record Hud(FontYOffsets fontYOffsets) {}
+
+    /**
+     * Font Y-offset positioning configuration.
+     *
+     * @param enabled true to generate font files
+     * @param mode generation mode: {@code registered}, {@code range}, or {@code auto}
+     * @param minY minimum vertical offset
+     * @param maxY maximum vertical offset
+     * @param step pixel increment per font file
+     * @param includeScannedGlyphs true to include scanned custom resource pack glyphs
+     */
+    public record FontYOffsets(
+        boolean enabled,
+        String mode,
+        int minY,
+        int maxY,
+        int step,
+        boolean includeScannedGlyphs
+    ) {
+        /** Convenience constructor defaulting {@code mode} to {@code auto}. */
+        public FontYOffsets(boolean enabled, int minY, int maxY, int step, boolean includeScannedGlyphs) {
+            this(enabled, "auto", minY, maxY, step, includeScannedGlyphs);
+        }
+    }
 
     /** @param step distance in blocks between drawing layers (see {@link dev.horuse.pixelay.data.Layers}) */
     public record Layers(float step) {}
@@ -166,6 +198,16 @@ public record PixelaySettings(
                 root.node("generated-pack", "enabled").getBoolean(true),
                 Math.max(0.1, root.node("generated-pack", "cursor", "scale").getDouble(1.5)),
                 cursorSprites(root.node("generated-pack", "cursor", "sprites"))
+            ),
+            new Hud(
+                new FontYOffsets(
+                    root.node("hud", "font-y-offsets", "enabled").getBoolean(true),
+                    root.node("hud", "font-y-offsets", "mode").getString("registered"),
+                    root.node("hud", "font-y-offsets", "min-y").getInt(-20),
+                    root.node("hud", "font-y-offsets", "max-y").getInt(220),
+                    Math.max(1, root.node("hud", "font-y-offsets", "step").getInt(1)),
+                    root.node("hud", "font-y-offsets", "include-scanned-glyphs").getBoolean(true)
+                )
             )
         );
     }

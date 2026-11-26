@@ -76,9 +76,19 @@ public final class Layout {
         return new Text(heightPx, miniMessage);
     }
 
+    /** Creates a text element with default font height. */
+    public static Text text(String miniMessage) {
+        return new Text(dev.horuse.pixelay.content.FontMetrics.LINE_HEIGHT_PX, miniMessage);
+    }
+
     /** Creates a text element with dynamic text content. */
     public static Text text(double heightPx, TextContent content) {
         return new Text(heightPx, content);
+    }
+
+    /** Creates a text element with dynamic text content and default font height. */
+    public static Text text(TextContent content) {
+        return new Text(dev.horuse.pixelay.content.FontMetrics.LINE_HEIGHT_PX, content);
     }
 
     // --- Interactive Controls (HTML <button>, <input>, <progress>, <canvas>) -----------------------------
@@ -291,7 +301,13 @@ public final class Layout {
         return new MountedLayout(box(root)).viewer(viewer);
     }
 
-    static Box<?> box(LayoutItem item) {
+    /**
+     * Converts a layout item into its containing box element.
+     *
+     * @param item layout item
+     * @return the box container
+     */
+    public static Box<?> box(LayoutItem item) {
         if (item instanceof Box<?> box) {
             return box;
         }

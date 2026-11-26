@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -102,6 +103,27 @@ public final class PixelayPack {
      */
     public static Built build(File pluginJar, Path dataFolder, PixelaySettings.ResourcePack settings, Logger log)
         throws IOException {
+        return build(pluginJar, dataFolder, settings, null, null, log);
+    }
+
+    /**
+     * Builds the resource pack into {@code dataFolder/pixelay-pack.zip}.
+     *
+     * @param pluginJar The plugin jar file containing built-in assets.
+     * @param dataFolder Plugin data folder.
+     * @param settings Cursor resource pack settings.
+     * @param fontYOffsets HUD font Y-offset positioning configuration.
+     * @param scannedGlyphs Custom glyphs measured from resource packs.
+     * @param log System logger.
+     */
+    public static Built build(
+        File pluginJar,
+        Path dataFolder,
+        PixelaySettings.ResourcePack settings,
+        PixelaySettings.FontYOffsets fontYOffsets,
+        Map<Integer, dev.horuse.pixelay.content.PackFontScanner.Glyph> scannedGlyphs,
+        Logger log
+    ) throws IOException {
         Map<String, byte[]> files = new TreeMap<>();
         readBuiltIn(pluginJar, files);
         Path overrides = dataFolder.resolve("pack");
@@ -121,6 +143,15 @@ public final class PixelayPack {
         files.put(CONFIG, config(sprites, images, settings.cursorScale()).getBytes(StandardCharsets.UTF_8));
         files.put("assets/pixelay/font/transition.json", transitionFontJson().getBytes(StandardCharsets.UTF_8));
         files.put("assets/pixelay/textures/font/white.png", png(whitePixelImage()));
+        if (fontYOffsets != null && fontYOffsets.enabled()) {
+            dev.horuse.pixelay.hud.YFontGenerator.generate(
+                fontYOffsets,
+                scannedGlyphs,
+                dev.horuse.pixelay.hud.YFontRegistry.entries(),
+                files
+            );
+            dev.horuse.pixelay.hud.HudPanel.generate(files);
+        }
         // Sprites are now stored in the atlas.
         files.keySet().removeIf(path -> path.startsWith(CURSORS));
 
@@ -268,6 +299,7 @@ public final class PixelayPack {
     private static byte[] zip(Map<String, byte[]> files) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
+            zip.setLevel(Deflater.BEST_COMPRESSION);
             for (Map.Entry<String, byte[]> file : files.entrySet()) {
                 ZipEntry entry = new ZipEntry(file.getKey());
                 entry.setTime(0);
@@ -313,5 +345,42 @@ public final class PixelayPack {
         img.setRGB(1, 0, white);
         img.setRGB(1, 1, white);
         return img;
+    }
+
+    /**
+     * CLI entry point to build the resource pack.
+     *
+     * @param args optional arguments: [jarPath] [dataFolder] [packsFolder]
+     * @throws Exception when pack creation fails
+     */
+    public static void main(String[] args) throws Exception {
+        File jarFile = args.length > 0 ? new File(args[0]) : new File("build/libs/pixelay-1.0.0.jar");
+        Path dataFolder = args.length > 1 ? Path.of(args[1]) : Path.of("build/pack-output");
+        Path packsDir = args.length > 2 ? Path.of(args[2]) : dataFolder.resolve("resourcepacks");
+        Files.createDirectories(dataFolder);
+
+        Map<Integer, dev.horuse.pixelay.content.PackFontScanner.Glyph> scanned = Map.of();
+        if (Files.exists(packsDir)) {
+            try (Stream<Path> s = Files.list(packsDir)) {
+                List<Path> packs = s.filter(p -> p.toString().endsWith(".zip") || Files.isDirectory(p)).toList();
+                if (!packs.isEmpty()) {
+                    scanned = dev.horuse.pixelay.content.PackFontScanner.scan(packs, System.err::println);
+                }
+            }
+        }
+
+        PixelaySettings.ResourcePack packConfig = new PixelaySettings.ResourcePack(
+            true,
+            1.5,
+            List.of(
+                new CursorSprite("default", 0.5, 0.5),
+                new CursorSprite("pointer", 6, 0.5),
+                new CursorSprite("text", 3.5, 8),
+                new CursorSprite("not-allowed", 8.5, 8.5)
+            )
+        );
+        PixelaySettings.FontYOffsets fontOffsets = new PixelaySettings.FontYOffsets(true, -20, 220, 1, true);
+
+        build(jarFile, dataFolder, packConfig, fontOffsets, scanned, Logger.getLogger("PixelayPack"));
     }
 }
