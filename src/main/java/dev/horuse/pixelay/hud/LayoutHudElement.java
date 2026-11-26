@@ -10,6 +10,7 @@ import dev.horuse.pixelay.layout.LayoutItem;
 import dev.horuse.pixelay.layout.Text;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import me.clip.placeholderapi.PlaceholderAPI;
@@ -45,6 +46,16 @@ public class LayoutHudElement extends BasicHudElement {
     private final boolean hasPapi;
     private boolean placeholders = true;
     private Align textAlign;
+    /** Encoded text by source text: most HUD lines repeat between updates. */
+    private final Map<String, Piece> encodeCache = java.util.Collections.synchronizedMap(
+        new java.util.LinkedHashMap<>(64, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, Piece> eldest) {
+                return size() > ENCODE_CACHE_SIZE;
+            }
+        }
+    );
+    private static final int ENCODE_CACHE_SIZE = 512;
 
     /**
      * Creates a HUD element from a static layout tree.
@@ -325,11 +336,16 @@ public class LayoutHudElement extends BasicHudElement {
             if (hasPapi && placeholders) {
                 rawText = PlaceholderAPI.setPlaceholders(player, rawText);
             }
-            Component parsed = MINI_MESSAGE.deserialize(LegacyText.toMiniMessage(rawText));
-            int[] widthTracker = new int[] { 0 };
-            Component encoded = HudCodec.encodeComponent(parsed, anchor(), 0, widthTracker);
+            Piece cached = encodeCache.get(rawText);
+            if (cached == null) {
+                Component parsed = MINI_MESSAGE.deserialize(LegacyText.toMiniMessage(rawText));
+                int[] widthTracker = new int[] { 0 };
+                Component encoded = HudCodec.encodeComponent(parsed, anchor(), 0, widthTracker);
+                cached = new Piece(encoded, widthTracker[0], 0);
+                encodeCache.put(rawText, cached);
+            }
             int gap = pieces.isEmpty() ? 0 : Math.max(0, (int) Math.round(item.gapBefore));
-            pieces.add(new Piece(encoded, widthTracker[0], gap));
+            pieces.add(new Piece(cached.component(), cached.width(), gap));
         }
         return pieces;
     }
