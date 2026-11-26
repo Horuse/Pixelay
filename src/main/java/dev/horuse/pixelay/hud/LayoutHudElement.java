@@ -350,8 +350,11 @@ public class LayoutHudElement extends BasicHudElement {
         return pieces;
     }
 
-    /** Joins the pieces of one line; a piece in a grid column is padded to the column width. */
-    private static EncodedLine joinPieces(List<Piece> pieces, List<Integer> columns) {
+    /**
+     * Joins the pieces of one line; a piece in a grid column is padded to the column width and
+     * aligned inside the column by {@link #textAlign(Align)}.
+     */
+    private EncodedLine joinPieces(List<Piece> pieces, List<Integer> columns) {
         TextComponent.Builder lineBuilder = Component.text();
         int totalWidth = 0;
         for (int i = 0; i < pieces.size(); i++) {
@@ -360,14 +363,18 @@ public class LayoutHudElement extends BasicHudElement {
                 lineBuilder.append(HudSpace.offset(piece.gapBefore()));
                 totalWidth += piece.gapBefore();
             }
-            lineBuilder.append(piece.component());
             int width = piece.width();
             boolean inGrid = pieces.size() > 1 && i < columns.size();
-            if (inGrid && columns.get(i) > width) {
-                lineBuilder.append(HudSpace.offset(columns.get(i) - width));
-                width = columns.get(i);
+            int free = inGrid ? Math.max(0, columns.get(i) - width) : 0;
+            int before = textAlign == Align.END ? free : textAlign == Align.CENTER ? free / 2 : 0;
+            if (before > 0) {
+                lineBuilder.append(HudSpace.offset(before));
             }
-            totalWidth += width;
+            lineBuilder.append(piece.component());
+            if (free - before > 0) {
+                lineBuilder.append(HudSpace.offset(free - before));
+            }
+            totalWidth += width + free;
         }
         return new EncodedLine(lineBuilder.build(), pieces.isEmpty() ? 0 : totalWidth);
     }
