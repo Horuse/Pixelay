@@ -143,10 +143,28 @@ public class LayoutHudElement extends BasicHudElement {
             return Component.empty();
         }
 
+        List<List<Piece>> pieces = new ArrayList<>(lines.size());
+        for (List<LineItem> line : lines) {
+            pieces.add(encodePieces(line, player));
+        }
+        // Rows with several pieces form a grid: each column is as wide as its widest piece,
+        // so every grid row has the same width and the columns line up.
+        List<Integer> columns = new ArrayList<>();
+        for (List<Piece> line : pieces) {
+            if (line.size() < 2) {
+                continue;
+            }
+            for (int i = 0; i < line.size(); i++) {
+                if (columns.size() <= i) {
+                    columns.add(0);
+                }
+                columns.set(i, Math.max(columns.get(i), line.get(i).width()));
+            }
+        }
         List<EncodedLine> encoded = new ArrayList<>(lines.size());
         int contentWidth = 0;
-        for (List<LineItem> line : lines) {
-            EncodedLine e = encodeLine(line, player);
+        for (List<Piece> line : pieces) {
+            EncodedLine e = joinPieces(line, columns);
             encoded.add(e);
             contentWidth = Math.max(contentWidth, e.width);
         }
@@ -275,11 +293,8 @@ public class LayoutHudElement extends BasicHudElement {
         return (Math.clamp(alpha, 0, 255) << 24) | (argb & 0xFFFFFF);
     }
 
-    private EncodedLine encodeLine(List<LineItem> items, Player player) {
-        TextComponent.Builder lineBuilder = Component.text();
-        int totalWidth = 0;
-        int pieces = 0;
-
+    private List<Piece> encodePieces(List<LineItem> items, Player player) {
+        List<Piece> pieces = new ArrayList<>(items.size());
         for (LineItem item : items) {
             String rawText = item.text.renderText();
             if (rawText == null || rawText.isEmpty()) {
@@ -288,24 +303,35 @@ public class LayoutHudElement extends BasicHudElement {
             if (hasPapi && placeholders) {
                 rawText = PlaceholderAPI.setPlaceholders(player, rawText);
             }
-
             Component parsed = MINI_MESSAGE.deserialize(LegacyText.toMiniMessage(rawText));
             int[] widthTracker = new int[] { 0 };
             Component encoded = HudCodec.encodeComponent(parsed, anchor(), 0, widthTracker);
-
-            if (pieces > 0) {
-                int gapPx = (int) Math.round(item.gapBefore);
-                if (gapPx > 0) {
-                    lineBuilder.append(HudSpace.offset(gapPx));
-                    totalWidth += gapPx;
-                }
-            }
-            lineBuilder.append(encoded);
-            totalWidth += widthTracker[0];
-            pieces++;
+            int gap = pieces.isEmpty() ? 0 : Math.max(0, (int) Math.round(item.gapBefore));
+            pieces.add(new Piece(encoded, widthTracker[0], gap));
         }
+        return pieces;
+    }
 
-        return new EncodedLine(lineBuilder.build(), pieces == 0 ? 0 : totalWidth);
+    /** Joins the pieces of one line; a piece in a grid column is padded to the column width. */
+    private static EncodedLine joinPieces(List<Piece> pieces, List<Integer> columns) {
+        TextComponent.Builder lineBuilder = Component.text();
+        int totalWidth = 0;
+        for (int i = 0; i < pieces.size(); i++) {
+            Piece piece = pieces.get(i);
+            if (piece.gapBefore() > 0) {
+                lineBuilder.append(HudSpace.offset(piece.gapBefore()));
+                totalWidth += piece.gapBefore();
+            }
+            lineBuilder.append(piece.component());
+            int width = piece.width();
+            boolean inGrid = pieces.size() > 1 && i < columns.size();
+            if (inGrid && columns.get(i) > width) {
+                lineBuilder.append(HudSpace.offset(columns.get(i) - width));
+                width = columns.get(i);
+            }
+            totalWidth += width;
+        }
+        return new EncodedLine(lineBuilder.build(), pieces.isEmpty() ? 0 : totalWidth);
     }
 
     private void collectLines(Box<?> box, List<List<LineItem>> out) {
@@ -357,6 +383,8 @@ public class LayoutHudElement extends BasicHudElement {
     }
 
     private record LineItem(Text text, double gapBefore) {}
+
+    private record Piece(Component component, int width, int gapBefore) {}
 
     private record EncodedLine(Component component, int width) {}
 
