@@ -1,5 +1,6 @@
 package dev.horuse.pixelay.hud;
 
+import dev.horuse.pixelay.layout.Align;
 import dev.horuse.pixelay.layout.Box;
 import dev.horuse.pixelay.layout.Container;
 import dev.horuse.pixelay.layout.Flex;
@@ -43,6 +44,7 @@ public class LayoutHudElement extends BasicHudElement {
     private final Function<Player, LayoutItem> layoutSupplier;
     private final boolean hasPapi;
     private boolean placeholders = true;
+    private Align textAlign;
 
     /**
      * Creates a HUD element from a static layout tree.
@@ -117,6 +119,18 @@ public class LayoutHudElement extends BasicHudElement {
      */
     public LayoutHudElement placeholders(boolean enabled) {
         this.placeholders = enabled;
+        return this;
+    }
+
+    /**
+     * Sets the alignment of text lines inside the box, like CSS {@code text-align}.
+     * By default, lines follow the anchor side: left, center or right.
+     *
+     * @param align START (left), CENTER or END (right); null to follow the anchor
+     * @return this element
+     */
+    public LayoutHudElement textAlign(Align align) {
+        this.textAlign = align;
         return this;
     }
 
@@ -240,6 +254,14 @@ public class LayoutHudElement extends BasicHudElement {
 
     /** Aligns a line to the anchor side inside the box (left, center or right). */
     private int lineX(Frame frame, int lineWidth) {
+        if (textAlign != null) {
+            int inner = frame.width() - frame.padLeft() - frame.padRight();
+            return switch (textAlign) {
+                case CENTER -> frame.left() + frame.padLeft() + (inner - lineWidth) / 2;
+                case END -> frame.left() + frame.width() - frame.padRight() - lineWidth;
+                default -> frame.left() + frame.padLeft();
+            };
+        }
         if (anchor().isRightAligned()) {
             return frame.left() + frame.width() - frame.padRight() - lineWidth;
         }
